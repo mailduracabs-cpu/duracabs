@@ -1,0 +1,111 @@
+<?php
+
+namespace App\Filament\Resources;
+
+use App\Filament\Resources\InquirysResource\Pages;
+use App\Filament\Resources\InquirysResource\RelationManagers;
+use App\Models\Inquirys;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+
+class InquirysResource extends Resource
+{
+    protected static ?string $model = Inquirys::class;
+
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Forms\Components\TextInput::make('name')
+                    ->maxLength(255)
+                    ->default(null),
+                Forms\Components\TextInput::make('cab_name')
+                    ->maxLength(255)
+                    ->default(null),
+                Forms\Components\TextInput::make('mobile')
+                    ->maxLength(255)
+                    ->default(null),
+                Forms\Components\TextInput::make('email')
+                    ->email()
+                    ->maxLength(255)
+                    ->default(null),
+                Forms\Components\Textarea::make('message')
+                    ->columnSpanFull(),
+                Forms\Components\Textarea::make('oraganization_name')
+                    ->columnSpanFull(),
+                Forms\Components\Textarea::make('address')
+                    ->columnSpanFull(),
+                Forms\Components\Textarea::make('city')
+                    ->columnSpanFull(),
+                Forms\Components\Textarea::make('state')
+                    ->columnSpanFull(),
+                Forms\Components\Textarea::make('pincode')
+                    ->columnSpanFull(),
+                Forms\Components\TextInput::make('type')
+                    ->required(),
+                Forms\Components\TextInput::make('service')
+                    ->required(),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+            ->defaultSort('created_at', 'desc')
+            ->columns([
+                Tables\Columns\TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable(),
+              
+                Tables\Columns\TextColumn::make('mobile')
+                    ->searchable(),
+                
+                    Tables\Columns\TextColumn::make('type'),
+                    Tables\Columns\TextColumn::make('service'),
+                    Tables\Columns\TextColumn::make('message'),
+            ])
+            ->filters([
+               SelectFilter::make('type')
+    ->options([
+        'contact' => 'Contact',
+        'contact-us' => 'Contact Us',
+        'vendor' => 'Vendor',
+        'otp_inquiry' => 'Otp Inquiry',
+        'quick_inquiry' => 'Quick inquiry',
+    ])
+                   
+            ])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+            ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => Pages\ListInquirys::route('/'),
+            'create' => Pages\CreateInquirys::route('/create'),
+            'edit' => Pages\EditInquirys::route('/{record}/edit'),
+        ];
+    }
+}

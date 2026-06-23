@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.main-color {
+    background-color: #1e9cfd;
+}
+
+
+.description h3 {
+    margin-top: .5em;
+    font-weight: 600;
+    line-height: 1.2em;
+    background-color: #1e9cfd;
+    color: white
+}
+
+.description p {
+    line-height: 1.6;
+    text-align: justify;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    color: #5a5959;
+    font-size: 16px
+}
+
+h1,h2,h3,h4,h5,h6 {
+    font-size: h2 ;
+    font-weight: inherit;
+    color: #1e9cfd
+}
+
+.main-color-text{
+    color: #1e9cfd;
+}
+
+.extra-small-text{
+    font-size: smaller;
+}
+
+.footer-margin{
+  margin-top: 0;
+  padding-top: 10px;
+}
+
+.form-margine-negative{
+    margin-bottom: 0;
+}
+
+.margine-negative{
+    margin-top: -70px;
+}
+
+
+.background-options {
+    background-repeat: no-repeat;
+    background-size: 100% 650px;
+    background-position: top;
+}
+
+.scroll-snap-x {
+    scroll-snap-type: x mandatory;
+  }
+
+  .snap-center {
+    scroll-snap-align: center;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .main {
+    width: 100%;
+    display: flex;
+    justify-content: space-evenly;
+    align-items: start;
+  }
+  
+  .card {
+    width: 100%;
+    
+    background-color: white;
+    padding: 10px;
+    border-radius: 10px;
+  }
+  
+  .mcard {
+    max-height: 150px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .mcard::before {
+    content: "";
+    position: absolute;
+    height: 20px;
+    width: 100%;
+    bottom: 0;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, white);
+  }
+  
+  .check {
+    appearance: none;
+   color: slategrey;
+   
+    border-radius: 0.25em;
+    cursor: pointer;
+    margin-top: 1rem;
+  }
+  
+  .check::before {
+    content: "Read more";
+  }
+  
+  .check:checked::before {
+    content: "Read less";
+  }
+  
+  p:has(+ .check:checked) {
+    max-height: none;
+  }
+    
+
+  .description h1{
+    font-size:xx-large;
+    margin-top: .5em;
+    font-weight: 600;
+    line-height: 1.2em;
+  }
+
+  .description h2{
+    font-size:x-large;
+    margin-top: .5em;
+    font-weight: 600;
+    line-height: 1.2em;
+  }
+
+  .description h3{
+    font-size:large;
+    margin-top: .5em;
+    font-weight: 600;
+    line-height: 1.2em;
+  }
+
+  .description p{
+    text-align: justify;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .description p a{
+    color:#1e9cfd;
+    cursor: pointer;
+  }
+
+  .razorpay-payment-button{
+    background-color: #1e9cfd;
+  color: white;
+  padding: 10px;
+  border-radius: 10px;
+  margin: 15px;
+  }
+
+  .arriveDate, .arriveTime  {
+    display:block;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    min-height: 2.5em;
+  }
+
+
+  

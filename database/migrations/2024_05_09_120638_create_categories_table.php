@@ -1,0 +1,38 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('slug')->unique();
+            $table->string('image')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->decimal('km_charge')->nullable();
+            $table->decimal('driver_charge')->nullable();
+            $table->decimal('range')->nullable();
+            $table->string('model');
+            $table->boolean('in_return')->default(false);
+            $table->string('passanger_capacity');
+            $table->string('luggage_capacity');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('categories');
+    }
+};
