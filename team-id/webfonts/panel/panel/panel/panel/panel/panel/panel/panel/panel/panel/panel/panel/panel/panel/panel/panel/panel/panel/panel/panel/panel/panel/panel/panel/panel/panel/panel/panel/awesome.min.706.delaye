@@ -1,0 +1,323 @@
+
+<link rel="shortcut icon" type="image" <img src="#"/>
+
+<!-- Mirrored from www.dyall.in/webfonts/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/panel/awesome.min.css by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 21 Nov 2023 06:03:15 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+<!-- HTML Meta Tags -->
+        <title> || Best Visiting Card || Mini Website</title>
+       
+
+        <!-- Facebook Meta Tags -->
+		<meta property="og:image:secure_url" itemprop="image" content="">
+<meta property="image" itemprop="image" content="">
+<meta property="og:image"  content="">
+        <meta property="og:url" content="../../../../../../../../../../../../../../../../../../../../../../../../../../../../../index-2.html">
+        <meta property="og:type" content="website">
+        <meta property="og:title" content=" || Our Digital Visiting Card ">
+        <meta property="og:description" content=" ">
+        
+
+        <!-- Twitter Meta Tags -->
+		<meta name="twitter:image" content="">
+		<meta property="twitter:url" content="../../../../../../../../../../../../../../../../../../../../../../../../../../../../../index-2.html">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content=" || Our Digital Visiting Card ">
+        <meta name="twitter:description" content=" ">
+       
+        <!-- Meta Tags Generated via -->
+      
+		<link rel="icon" href="#" type="image/*" sizes="16x16"/>
+  <!-- Required meta tags -->
+  <meta charset="utf-8" />
+  <!-- Required meta tags -->
+  <meta charset="utf-8" />
+  <link rel='stylesheet' href='panel/p/all.736.delaye' integrity='sha384-lZN37f5QGtY3VHgisS14W3ExzMWZxybE1SJSEsQp9S+oqd12jhcu+A56Ebc1zFSJ' crossorigin='anonymous'>
+  
+  <link rel="stylesheet" href="awesome.min.737.delaye">
+ <meta      name='viewport'      content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
+
+<link rel="stylesheet" href="panel/p/css.738.delaye" >
+<link rel="stylesheet" href="/mobile_css.739.delaye" >
+<script src="p/master_js.73a.delaye"></script>
+<style>.btn2 {
+    background: chartreuse;
+    border-radius: 20px;
+    border-color: #ff0082;
+    padding-top: 13px;
+    padding-bottom: 14px;
+    padding-left: 4px;
+}
+</style>
+
+
+
+
+<meta https-equiv="refresh" content="100;URL=../index.php"><link rel="stylesheet" href="p/card_css1.73b.delaye" >
+
+<script>
+
+$(document).ready(function(){
+	$('.mobile_home').on('click',function(){
+		$('#header').toggleClass('add_height');
+		
+	})
+})
+
+</script>
+
+<style>
+.full_page_alert {position: fixed;
+    width: -webkit-fill-available;
+    height: -webkit-fill-available;
+    background: white;
+    top: 0;
+    z-index: 9999999;
+    padding: 63px;
+    text-align: center;}
+
+</style>
+<!----------------------copy from here ------------------------->
+
+<div class="card" id="home">
+			<div class="view_counter"><i class="fa fa-eye"></i> <br>24747</div>						
+			<div class="card_content"><img src="#" alt="Logo"></div>
+			<div class="card_content2">
+				<h2></h2>
+				<p></p>
+				<p></p>
+				
+			</div>
+			<div class="dis_flex">
+												
+				
+				
+																		</div>
+	
+			<div class="contact_details">
+								
+								
+								
+								
+				
+			</div>
+			
+				<div class="dis_flex">
+				<div class="share_wtsp">
+					<form action="https://api.whatsapp.com/send" id="wtsp_form" target="_blank"><input type="text"  name="phone" placeholder="WhatsApp Number with Country code	" value="+91"><input type="hidden" name="text" value="https://www.dyall.in/"><div class="wtsp_share_btn" onclick="subForm()"><i class="fa fa-whatsapp"></i> Share</div></form>
+					
+					<script>
+					
+					$(document).ready(function(){
+						$('.wtsp_share_btn').on('click',function(){
+							$('#wtsp_form').submit();
+						})
+						
+					})
+					</script>
+				</div>
+			</div>
+			
+			<div class="dis_flex">
+			
+							
+				<div class="big_btns" id="share_box_pop">Share <i class="fa fa-share-alt"></i></div>
+			
+				<div class="share_box">
+				
+				
+				<div class="close" id="close_sharer">&times;</div>
+				<p>Share My Digital Card </p>
+						<a href="https://api.whatsapp.com/send?text=https://www.dyall.in/"><div class="shar_btns"><i class="fa fa-whatsapp" id="whatsapp2"  target="_blank"></i><p>WhatsApp</p></div></a>
+					<a href="sms:?body=https://www.dyall.in/" target="_blank"><div class="shar_btns"><i class="fas fa-comment-dots" ></i><p>SMS</p></div></a>
+					
+					<a href="https://www.facebook.com/sharer/sharer.php?u=https://www.dyall.in/" target="_blank"><div class="shar_btns"><i class="fa fa-facebook" ></i><p>Facebook</p></div></a>
+					<a href="https://twitter.com/intent/tweet?text=https://www.dyall.in/" target="_blank"><div class="shar_btns"><i class="fa fa-twitter"></i><p>Twitter</p></div></a>
+					<a href="#" target="_blank"><div class="shar_btns"><i class="fa fa-instagram"></i><p>Instagram</p></div></a>
+					<a href="https://www.linkedin.com/cws/share?url=https://www.dyall.in/" target="_blank"><div class="shar_btns"><i class="fa fa-linkedin"></i><p>Linkedin</p></div></a>
+				</div>
+			
+				<script>
+					$(document).ready(function(){
+						$('#close_sharer,#share_box_pop').on('click',function(){
+							$('.share_box').slideToggle();
+						});
+					})
+				
+				
+				</script>
+			
+			</div> 
+			<div class="dis_flex">
+			
+																											</div>
+			
+			
+			
+	
+	</div>
+	
+	<div class="card2" style="display:block;">
+	
+	<h3>Scan Me</h3>
+	<img src="https://chart.googleapis.com/chart?cht=qr&amp;chs=150x150&amp;chl=https://www.dyall.in/" id="qr_code_d">
+	
+	</div>
+	
+	
+<!--------------about us --------------------------->	
+	
+	<div class="card2" id="about_us">
+		<h3>About Us</h3>
+					
+		
+	
+	</div>
+	
+<!------------shopping online-------------------------->
+
+
+	
+		
+	
+	
+<!--------------youtube videos--------------------------->	
+
+	
+	
+		
+<!----------product and services ----------------------->		
+
+
+		
+<!----------image gallery----------------------->		
+
+
+		
+<!----------payment info----------------------->	
+	
+	
+<!----------Feedback----------------------->	
+<!--<div class="card2" id="feedback">-->
+
+<!--<h3>Feedback</h3>-->
+<!--<script>-->
+
+<!--$(':radio').change(function() {-->
+<!--  console.log('New star rating: ' + this.value);-->
+<!--});-->
+<!--</script>-->
+<!--<form id="feedback_form"  method="post">-->
+<!--<p class="select_star"> Select Star</p>-->
+<!--	<div class="rating">-->
+	
+<!--	  <label>-->
+<!--		<input type="radio" name="r_star" value="1" required>-->
+<!--		<span class="icon">★</span>-->
+<!--	  </label>-->
+<!--	  <label>-->
+<!--		<input type="radio" name="r_star" value="2" required>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--	  </label>-->
+<!--	  <label>-->
+<!--		<input type="radio" name="r_star" value="3" required>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>   -->
+<!--	  </label>-->
+<!--	  <label>-->
+<!--		<input type="radio" name="r_star" value="4" required>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--	  </label>-->
+<!--	  <label>-->
+<!--		<input type="radio" name="r_star"  value="5" required>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--		<span class="icon">★</span>-->
+<!--	  </label>-->
+
+<!--	</div>-->
+	
+<!--	<input type="name" name="r_name" placeholder="Your name" required>-->
+<!--	<input type="email" name="r_email" placeholder="Your email id" >-->
+	
+<!--	<input type="number" max="999999999999" min="5555555555" name="r_contact" placeholder="Your contact ">-->
+<!--	<textarea name="r_msg" placeholder="Your feedback "></textarea>-->
+<!--	<input type="submit" name="submit_feedback" value="Submit Feedback"> -->
+
+<!--	<p class="note">Note: for privecy and security reasons we do not show your contact details. For more info you can contact admin or your franchisee.</p>-->
+<!--</form>-->
+
+
+<!--</div>-->
+<!----------Feedback end ----------------------->
+	
+<!----------email to  info----------------------->	
+	<div class="card2" id="enquery">
+		
+		<form action="#" method="post">
+			<h3>Contact Us</h3>
+			
+			<input type="" name="c_name" placeholder="Enter Your Name" required>
+			<input type="" name="c_contact" maxlength="13"  placeholder="Enter Your Mobile No" required>
+			<input type="email" name="c_email"  placeholder="Enter Your Email Address">
+			<textarea name="c_msg" placeholder="Enter your Message or Query" required></textarea>
+			<input type="submit" Value="Send!" name="email_to_client">
+		
+		</form>
+		
+	<br>
+		
+		
+		<a href="panel/index.73c.delaye"><div class="create_card_btn"> Create Your Card <b> <a href="../../../../../../../../../../../../../../../../../../../../../../../../../../../../../index-2.html">dyall.in</a><br></div></a>
+		
+		</div>
+	<style>
+	.create_card_btn {
+		         background: linear-gradient(45deg, black, black);
+    color: white;
+    width: auto;
+    padding: 20px;
+    border-radius: 2px;
+    line-height: 0.8;
+    margin: 11px auto;
+    font-size: 9px;
+    text-align: center;
+	}
+	
+	
+	
+#svg_down{position: fixed;
+    bottom: 0;
+    z-index: -1;
+    left: 0;}
+
+	
+	</style>
+	
+	
+	
+	<br>
+	<br>
+	<br>
+	<br>
+	<div class="menu_bottom">
+		<div class="menu_container">
+			<div class="menu_item" onclick="location.href='#home'"><i class="fa fa-home"></i> Home</div>
+			<div class="menu_item" onclick="location.href='#about_us'"><i class="fa fa-briefcase"></i>About Us</div>
+			<div class="menu_item" onclick="location.href='#product_services'"><i class="fa fa-ticket"></i>Product & Services</div>
+			<div class="menu_item" onclick="location.href='#shop_online'"><i class="fa fa-archive"></i>Shop</div>
+			<div class="menu_item" onclick="location.href='#gallery'"><i class="fa fa-image"></i>Gallery</div>
+			<div class="menu_item" onclick="location.href='#youtube_video'"><i class="fa fa-video-camera"></i>Youtube Videos</div>
+			<div class="menu_item" onclick="location.href='#payment'"><i class="fa fa-money"></i>Payment</div>
+			<div class="menu_item" onclick="location.href='#enquery'"><i class="fa fa-comment"></i>Enquery</div>
+		</div>
+	</div>
+
+
