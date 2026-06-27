@@ -1,0 +1,32 @@
+User-agent: *
+
+Allow: /
+
+Disallow: /admin/
+Disallow: /login
+Disallow: /checkout
+Disallow: /register
+Disallow: /dashboard/
+Disallow: /logout
+Disallow: /password/
+Disallow: /profile/
+Disallow: /booking/
+Disallow: /order/
+Disallow: /payment/
+
+Allow: /css/
+Allow: /js/
+Allow: /images/
+Allow: /assets/
+Allow: /*.css$
+Allow: /*.js$
+Allow: /*.jpg$
+Allow: /*.jpeg$
+Allow: /*.png$
+Allow: /*.webp$
+Allow: /*.svg$
+Allow: /*.ico$
+
+Allow: /livewire/livewire.js*
+
+Sitemap: https://www.duracabs.com/sitemap.xml

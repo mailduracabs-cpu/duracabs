@@ -561,19 +561,19 @@
                                                 <div class="">
                                                     <div class="flex mt-2">
                                                         <div class="p-1">
-                                                            <img src="{{ url('/cab_images/plastic-bottle.webp') }}"
+                                                            <img src="{{ url('/cab_images/plastic-bottle.png') }}"
                                                                 alt="{{ $category->name }}"
                                                                 class="object-contain w-6 h-6 mx-auto ">
                                                             <p class="text-xs">Water Bottle</p>
                                                         </div>
                                                         <div class="p-1">
-                                                            <img src="{{ url('/cab_images/cursor.webp') }}"
+                                                            <img src="{{ url('/cab_images/cursor.png') }}"
                                                                 alt="{{ $category->name }}"
                                                                 class="object-contain w-6 h-6 mx-auto ">
                                                             <p class="text-xs">Quick Booking</p>
                                                         </div>
                                                         <div class="p-1">
-                                                            <img src="{{ url('/cab_images/driver.webp') }}"
+                                                            <img src="{{ url('/cab_images/driver.png') }}"
                                                                 alt="{{ $category->name }}"
                                                                 class="object-contain w-6 h-6 mx-auto ">
                                                             <p class="text-xs">Qualified Driver </p>
@@ -780,14 +780,14 @@
 
                                                             <div class="flex mt-2">
                                                                 <div class="px-1">
-                                                                    <img src="{{ url('/cab_images/plastic-bottle.webp') }}"
+                                                                    <img src="{{ url('/cab_images/plastic-bottle.png') }}"
                                                                         alt="{{ $ride->name }}"
                                                                         title="{{ $ride->name }}"
                                                                         class="object-contain w-6 h-6 mx-auto ">
                                                                     <p class="text-xs ">Water Bottle</p>
                                                                 </div>
                                                                 <div class="px-1">
-                                                                    <img src="{{ url('/cab_images/cursor.webp') }}"
+                                                                    <img src="{{ url('/cab_images/cursor.png') }}"
                                                                         alt="{{ $ride->name }}"
                                                                         title="{{ $ride->name }}"
                                                                         class="object-contain w-6 h-6 mx-auto ">
@@ -801,7 +801,7 @@
                                                                             class="object-contain w-6 h-6 mx-auto ">
                                                                         <p class="text-xs ">Clean Car </p>
                                                                     @else
-                                                                        <img src="{{ url('/cab_images/driver.webp') }}"
+                                                                        <img src="{{ url('/cab_images/driver.png') }}"
                                                                             alt="{{ $ride->name }}"
                                                                             title="{{ $ride->name }}"
                                                                             class="object-contain w-6 h-6 mx-auto ">

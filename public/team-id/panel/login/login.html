@@ -1,0 +1,104 @@
+
+<title>Admin</title>
+
+
+<!-- Mirrored from www.dyall.in/panel/login/login.php by HTTrack Website Copier/3.x [XR&CO'2014], Tue, 21 Nov 2023 05:50:38 GMT -->
+<!-- Added by HTTrack --><meta http-equiv="content-type" content="text/html;charset=UTF-8" /><!-- /Added by HTTrack -->
+<head>
+
+ <meta name="keywords" content="Digital Visiting Card">
+ 
+ <meta name="description" content="Best digital visiting card online with great design">
+  <!-- Required meta tags -->
+  <meta charset="utf-8" />
+  <link rel='stylesheet' href='../all.css' integrity='sha384-lZN37f5QGtY3VHgisS14W3ExzMWZxybE1SJSEsQp9S+oqd12jhcu+A56Ebc1zFSJ' crossorigin='anonymous'>
+  
+  <link rel="stylesheet" href="../awesome.min.css">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+ <meta      name='viewport'      content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
+<link rel="fav-icon" href="images/cropped-vcardin-1.html" type="image/png">
+<link rel="stylesheet" href="css.css" >
+<link rel="stylesheet" href="mobile_css.css" >
+<script src="master_js.js"></script>
+
+
+
+</head>
+
+<div class="clip_path1"></div>
+<div class="login">
+	
+	<form action="#" method="post" autocomplete="off" id="login">
+	<h1>Customer Login</h1>
+	<img src="images/user2.png">
+	<p>Please login with your email id and password to create/View your digital visiting card</p>
+		<input type="text" name="user_id" placeholder="Enter Email id or Mobile Number" autocomplete="off" required>
+		<input type="password" name="user_password" placeholder="Password" autocomplete="off" required>
+		<input type="submit" name="login_user" value="Login">
+		<br>
+		<br>
+		<a id="register_en">New User? Create An Account</a><a id="forgot_p">Forgot Password?</a>
+		<br>
+		<br>
+	</form>
+
+	<form action="#" method="post" autocomplete="off" id="register">
+	<h1>Create An Account</h1>
+	<p>Create an account with your email id and password to create your digital visiting card</p>
+		<input type="text" name="user_name" placeholder="Enter Name" autocomplete="off" required>
+		<input type="email" name="user_email" placeholder="Enter Email" autocomplete="off" required>
+		<input type="text" name="user_contact" maxlength="10" min="5555555555" placeholder="Enter Mobile Number" autocomplete="off" required>
+		<input type="password" name="user_password" placeholder="New Password" autocomplete="off" required>
+		<input type="submit" name="register" value="Create Account">
+		<br>
+		<br>
+		<a id="login_en">Existing User? Click to Login</a><a id="forgot_p">Forgot Password?</a>
+		<br>
+		<br>
+	</form>
+
+
+	<form action="#" method="post" autocomplete="off" id="forgot_pass">
+	<h1>Forgot Password?</h1>
+	<p>Mention Email id, you will receive an email with password.</p>
+		
+		<input type="email" name="user_email" placeholder="Enter Email" autocomplete="off" required>
+		
+		
+		<input type="submit" name="forgot_password" value="Send Password">
+		<br>
+		<br>
+		<a id="login_en" href="#">Go Back to Login</a><a id="forgot_p">Forgot Password?</a>
+		<br>
+		<br>
+	</form>
+
+	
+<script>
+
+	$('#register_en').on('click',function(){
+		$('#login').hide();
+		$('#register').show();
+		$('#forgot_pass').hide();
+		
+	})
+	$('#login_en').on('click',function(){
+		$('#register').hide();
+		$('#forgot_pass').hide();
+		$('#login').show();
+	})
+	$('#forgot_p').on('click',function(){
+		$('#register').hide();
+		$('#login').hide();
+		$('#forgot_pass').show();
+	})
+	
+
+</script>
+
+
+
+
+
+
+</div>

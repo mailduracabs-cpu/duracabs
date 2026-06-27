@@ -1434,7 +1434,8 @@
                                         <?php echo e($review->description); ?>
 
                                     </p>
-                                    <input type="checkbox" class="check" area-label="Read More" />
+                                    <input id="read-more-toggle" type="checkbox" class="check" />
+                                    <label for="read-more-toggle" style="display:none;">Read More</label>
                                 </div>
 
                             </div>
@@ -1916,4 +1917,5 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 </section>
 
 
-</div><?php /**PATH /var/www/duracabs/duracabs/resources/views/livewire/homepage.blade.php ENDPATH**/ ?>
+</div>
+<?php /**PATH /var/www/duracabs/duracabs/resources/views/livewire/homepage.blade.php ENDPATH**/ ?>

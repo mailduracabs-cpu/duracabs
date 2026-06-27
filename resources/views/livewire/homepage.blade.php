@@ -1469,7 +1469,8 @@
                                         class="mb-6 text-base text-gray-500 dark:text-gray-400 text-ellipsis card mcard">
                                         {{ $review->description }}
                                     </p>
-                                    <input type="checkbox" class="check" area-label="Read More" />
+                                    <input id="read-more-toggle" type="checkbox" class="check" />
+                                    <label for="read-more-toggle" style="display:none;">Read More</label>
                                 </div>
 
                             </div>
