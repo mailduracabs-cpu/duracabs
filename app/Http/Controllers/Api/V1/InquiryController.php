@@ -2,15 +2,31 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\Api\V1\InquiryRequest;
+use App\Services\InquiryService;
+use Illuminate\Http\Request;
+
 class InquiryController extends BaseApiController
 {
-    public function store()
+    public function store(InquiryRequest $request, InquiryService $inquiryService)
     {
-        return $this->success([], 'Create inquiry API coming in Package 6');
+        $result = $inquiryService->create($request->validated());
+
+        if (!$result['status']) {
+            return $this->error($result['message'], $result['code'] ?? 422, $result['errors'] ?? null);
+        }
+
+        return $this->success($result['data'], $result['message'], 201);
     }
 
-    public function index()
+    public function index(Request $request, InquiryService $inquiryService)
     {
-        return $this->success([], 'My inquiries API coming in Package 6');
+        $data = $inquiryService->myInquiries(
+            mobile: $request->query('mobile'),
+            email: $request->query('email'),
+            limit: (int) $request->query('limit', 20)
+        );
+
+        return $this->success($data, 'Inquiries loaded successfully');
     }
 }
