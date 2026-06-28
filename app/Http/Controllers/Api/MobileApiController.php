@@ -15,7 +15,7 @@ class MobileApiController extends Controller
         return response()->json([
             'status' => true,
             'message' => 'OTP sent successfully',
-            'otp' => '123456'
+            'otp' => '1234'
         ]);
     }
 
@@ -23,10 +23,10 @@ class MobileApiController extends Controller
     {
         $request->validate([
             'mobile' => 'required|digits:10',
-            'otp' => 'required|digits:6',
+            'otp' => 'required|digits:4',
         ]);
 
-        if ($request->otp !== '123456') {
+        if ($request->otp !== '1234') {
             return response()->json(['status' => false, 'message' => 'Invalid OTP'], 401);
         }
 
