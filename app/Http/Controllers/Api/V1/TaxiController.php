@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\FareEstimateRequest;
 use App\Models\Category;
 use App\Models\Product;
-use App\Models\price as Price;
+use App\Models\Price;
 use App\Services\FareService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
