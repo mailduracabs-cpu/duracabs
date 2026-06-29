@@ -2,16 +2,18 @@
 
 namespace App\Models;
 
+use App\Support\DuraImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Category extends Model
 {
+    use HasFactory;
 
-    protected $fillable =[
+    protected $fillable = [
         'name',
-        'slug', 
-        'image', 
+        'slug',
+        'image',
         'is_active',
         'model',
         'passanger_capacity',
@@ -23,12 +25,20 @@ class Category extends Model
         'security',
         'new_vehicle',
         'roof_career',
-        'pet_friendly'
+        'pet_friendly',
     ];
 
-    public function products(){
-        return $this->hasMany(Product::class);
+    protected $appends = [
+        'image_url',
+    ];
+
+    public function getImageUrlAttribute()
+    {
+        return DuraImage::url($this->image);
     }
 
-    use HasFactory;
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
 }
