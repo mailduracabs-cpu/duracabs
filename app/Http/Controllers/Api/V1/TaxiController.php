@@ -64,6 +64,7 @@ class TaxiController extends Controller
                 ->get();
 
             $popularRoutes = Product::query()
+                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity')
                 ->where('is_active', 1)
                 ->where('in_stock', 1)
                 ->select([
@@ -101,7 +102,7 @@ class TaxiController extends Controller
                 ],
             ], 'Taxi home data loaded');
         } catch (\Throwable $e) {
-            Log::error('Taxi home API error', ['error' => $e->getMessage()]);
+            Log::error('Taxi home API error', ['error' => $e->getMessage(), 'line' => $e->getLine()]);
             return $this->error('Unable to load taxi data', 500);
         }
     }
@@ -137,18 +138,30 @@ class TaxiController extends Controller
             }
 
             if ($request->filled('from')) {
-                $query->where('name', 'LIKE', '%' . $request->from . '%');
+                $fromTerms = $this->extractSearchTerms($request->from);
+                $query->where(function ($sub) use ($fromTerms) {
+                    foreach ($fromTerms as $term) {
+                        $sub->orWhere('name', 'LIKE', '%' . $term . '%')
+                            ->orWhere('slug', 'LIKE', '%' . Str::slug($term) . '%');
+                    }
+                });
             }
 
             if ($request->filled('to')) {
-                $query->where('name', 'LIKE', '%' . $request->to . '%');
+                $toTerms = $this->extractSearchTerms($request->to);
+                $query->where(function ($sub) use ($toTerms) {
+                    foreach ($toTerms as $term) {
+                        $sub->orWhere('name', 'LIKE', '%' . $term . '%')
+                            ->orWhere('slug', 'LIKE', '%' . Str::slug($term) . '%');
+                    }
+                });
             }
 
             if ($request->filled('q')) {
-                $q = $request->q;
+                $q = trim((string) $request->q);
                 $query->where(function ($sub) use ($q) {
                     $sub->where('name', 'LIKE', "%{$q}%")
-                        ->orWhere('slug', 'LIKE', "%{$q}%");
+                        ->orWhere('slug', 'LIKE', '%' . Str::slug($q) . '%');
                 });
             }
 
@@ -159,7 +172,7 @@ class TaxiController extends Controller
 
             return $this->success($routes, 'Routes loaded');
         } catch (\Throwable $e) {
-            Log::error('Routes API error', ['error' => $e->getMessage()]);
+            Log::error('Routes API error', ['error' => $e->getMessage(), 'line' => $e->getLine()]);
             return $this->error('Unable to load routes', 500);
         }
     }
@@ -168,27 +181,23 @@ class TaxiController extends Controller
     {
         try {
             $request->validate([
-                'from' => 'nullable|string|max:120',
-                'to' => 'nullable|string|max:120',
-                'q' => 'nullable|string|max:120',
+                'from' => 'nullable|string|max:255',
+                'to' => 'nullable|string|max:255',
+                'q' => 'nullable|string|max:255',
             ]);
 
             $from = trim((string) $request->get('from', ''));
             $to = trim((string) $request->get('to', ''));
             $q = trim((string) $request->get('q', ''));
 
-            $route = Product::query()
+            $fromTerms = $this->extractSearchTerms($from);
+            $toTerms = $this->extractSearchTerms($to);
+            $qTerms = $this->extractSearchTerms($q);
+
+            $routes = Product::query()
+                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity')
                 ->where('is_active', 1)
                 ->where('in_stock', 1)
-                ->when($from, fn ($query) => $query->where('name', 'LIKE', "%{$from}%"))
-                ->when($to, fn ($query) => $query->where('name', 'LIKE', "%{$to}%"))
-                ->when($q, function ($query) use ($q) {
-                    $query->where(function ($sub) use ($q) {
-                        $sub->where('name', 'LIKE', "%{$q}%")
-                            ->orWhere('slug', 'LIKE', "%{$q}%")
-                            ->orWhere('meta_title', 'LIKE', "%{$q}%");
-                    });
-                })
                 ->select([
                     'id',
                     'category_id',
@@ -208,31 +217,44 @@ class TaxiController extends Controller
                     'plan',
                 ])
                 ->orderBy('price')
-                ->first();
+                ->limit(1000)
+                ->get();
 
-            if (!$route) {
+            $matchedRoute = $routes->first(function ($route) use ($fromTerms, $toTerms, $qTerms) {
+                return $this->routeMatches($route, $fromTerms, $toTerms, $qTerms);
+            });
+
+            if (!$matchedRoute) {
                 return $this->success([], 'Route search completed');
             }
 
             $prices = Price::query()
                 ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity')
-                ->where('product_id', $route->id)
+                ->where('product_id', $matchedRoute->id)
                 ->orderBy('price')
                 ->get();
 
             if ($prices->isEmpty()) {
                 return $this->success([
-                    $this->formatRoute($route),
+                    $this->formatRoute($matchedRoute),
                 ], 'Route search completed');
             }
 
-            $vehicles = $prices->map(function ($price) use ($route) {
-                return $this->formatPriceVehicle($route, $price);
+            $vehicles = $prices->map(function ($price) use ($matchedRoute) {
+                return $this->formatPriceVehicle($matchedRoute, $price);
             })->values();
 
             return $this->success($vehicles, 'Route search completed');
         } catch (\Throwable $e) {
-            Log::error('Route search API error', ['error' => $e->getMessage()]);
+            Log::error('Route search API error', [
+                'error' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+                'from' => $request->get('from'),
+                'to' => $request->get('to'),
+                'q' => $request->get('q'),
+            ]);
+
             return $this->error('Unable to search routes', 500);
         }
     }
@@ -245,9 +267,98 @@ class TaxiController extends Controller
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         } catch (\Throwable $e) {
-            Log::error('Fare estimate API error', ['error' => $e->getMessage()]);
+            Log::error('Fare estimate API error', ['error' => $e->getMessage(), 'line' => $e->getLine()]);
             return $this->error('Unable to estimate fare', 500);
         }
+    }
+
+    private function routeMatches($route, array $fromTerms, array $toTerms, array $qTerms = []): bool
+    {
+        [$routeFrom, $routeTo] = $this->splitRouteName($route->name);
+
+        $nameText = $this->normalizeText(($route->name ?? '') . ' ' . ($route->slug ?? ''));
+        $fromText = $this->normalizeText($routeFrom);
+        $toText = $this->normalizeText($routeTo);
+
+        $fromOk = empty($fromTerms) || $this->containsAnyTerm($fromText, $fromTerms) || $this->containsAnyTerm($nameText, $fromTerms);
+        $toOk = empty($toTerms) || $this->containsAnyTerm($toText, $toTerms) || $this->containsAnyTerm($nameText, $toTerms);
+        $qOk = empty($qTerms) || $this->containsAnyTerm($nameText, $qTerms);
+
+        return $fromOk && $toOk && $qOk;
+    }
+
+    private function extractSearchTerms(?string $value): array
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return [];
+        }
+
+        $normalized = $this->normalizeText($value);
+        $parts = preg_split('/[,|\-]+/', $value);
+        $terms = [];
+
+        $firstPart = trim((string) ($parts[0] ?? ''));
+        if ($firstPart !== '') {
+            $terms[] = $firstPart;
+        }
+
+        $wordsToCheck = [
+            'agra', 'delhi', 'new delhi', 'noida', 'gurgaon', 'gurugram', 'jaipur', 'lucknow',
+            'mathura', 'vrindavan', 'gwalior', 'haridwar', 'rishikesh', 'chandigarh', 'meerut',
+            'faridabad', 'ghaziabad', 'airport', 'igi', 'terminal 1', 'terminal 2', 'terminal 3',
+            't1', 't2', 't3'
+        ];
+
+        foreach ($wordsToCheck as $word) {
+            if (str_contains($normalized, $this->normalizeText($word))) {
+                $terms[] = $word;
+            }
+        }
+
+        if (str_contains($normalized, 'igi') || str_contains($normalized, 'airport') || str_contains($normalized, 'terminal')) {
+            $terms[] = 'Delhi';
+            $terms[] = 'New Delhi';
+            $terms[] = 'IGI Airport';
+        }
+
+        $terms[] = $value;
+
+        $cleanTerms = [];
+        foreach ($terms as $term) {
+            $term = trim((string) $term);
+            if ($term === '') {
+                continue;
+            }
+            $term = preg_replace('/\s+/', ' ', $term);
+            if (strlen($term) >= 2) {
+                $cleanTerms[$this->normalizeText($term)] = $term;
+            }
+        }
+
+        return array_values($cleanTerms);
+    }
+
+    private function containsAnyTerm(string $haystack, array $terms): bool
+    {
+        $haystack = $this->normalizeText($haystack);
+
+        foreach ($terms as $term) {
+            $term = $this->normalizeText($term);
+            if ($term !== '' && str_contains($haystack, $term)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeText(?string $value): string
+    {
+        $value = strtolower((string) $value);
+        $value = str_replace(['&', '/', '\\', '_'], ' ', $value);
+        $value = preg_replace('/[^a-z0-9]+/', ' ', $value);
+        return trim(preg_replace('/\s+/', ' ', $value));
     }
 
     private function formatPriceVehicle($route, $price): array
