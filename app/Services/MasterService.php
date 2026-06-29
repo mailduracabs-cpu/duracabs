@@ -4,88 +4,46 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 class MasterService
 {
     public function cities(): array
     {
-        if (!Schema::hasTable('products')) {
-            return [];
+        foreach (['cities', 'city'] as $table) {
+            try {
+                if (Schema::hasTable($table)) {
+                    return DB::table($table)->orderBy('name')->limit(100)->get()->map(fn ($r) => (array) $r)->toArray();
+                }
+            } catch (\Throwable $e) {}
         }
-
-        $routes = DB::table('products')
-            ->where('is_active', 1)
-            ->select('id', 'name')
-            ->limit(2000)
-            ->get();
-
-        $cities = [];
-
-        foreach ($routes as $route) {
-            $name = (string) $route->name;
-
-            if (str_contains($name, ' To ')) {
-                [$from, $to] = explode(' To ', $name, 2);
-                $cities[] = trim($from);
-                $cities[] = trim($to);
-            } elseif (str_contains($name, ' to ')) {
-                [$from, $to] = explode(' to ', $name, 2);
-                $cities[] = trim($from);
-                $cities[] = trim($to);
-            }
-        }
-
-        $cities = collect($cities)
-            ->filter()
-            ->unique()
-            ->values()
-            ->map(function ($city, $index) {
-                return [
-                    'id' => $index + 1,
-                    'name' => $city,
-                    'slug' => Str::slug($city),
-                ];
-            })
-            ->toArray();
-
-        return $cities;
+        return [
+            ['id' => 1, 'name' => 'Agra'],
+            ['id' => 2, 'name' => 'Delhi'],
+            ['id' => 3, 'name' => 'Jaipur'],
+            ['id' => 4, 'name' => 'Mathura'],
+            ['id' => 5, 'name' => 'Vrindavan'],
+        ];
     }
 
-    public function vehicleCategories()
+    public function vehicleCategories(): array
     {
-        if (!Schema::hasTable('categories')) {
-            return [];
-        }
-
-        return DB::table('categories')
-            ->where('is_active', 1)
-            ->orderBy('id')
-            ->get();
+        return app(HomeService::class)->vehicleCategories();
     }
 
-    public function offers()
+    public function offers(): array
     {
-        if (!Schema::hasTable('coupons')) {
-            return [];
-        }
-
-        return DB::table('coupons')
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get();
+        return app(HomeService::class)->offers();
     }
 
-    public function pages()
+    public function pages(): array
     {
-        if (!Schema::hasTable('pages')) {
-            return [];
+        foreach (['pages'] as $table) {
+            try {
+                if (Schema::hasTable($table)) {
+                    return DB::table($table)->orderByDesc('id')->limit(50)->get()->map(fn ($r) => (array) $r)->toArray();
+                }
+            } catch (\Throwable $e) {}
         }
-
-        return DB::table('pages')
-            ->select('id', 'name', 'slug', 'title')
-            ->orderByDesc('id')
-            ->limit(100)
-            ->get();
+        return [];
     }
 }
