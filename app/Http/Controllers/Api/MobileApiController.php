@@ -30,7 +30,7 @@ class MobileApiController extends Controller
             'contacts'   => $mobile,
             'senderid'   => config('services.sambsms.sender_id'),
             'msg'        => $message,
-            'templateid' => config('services.sambsms.template_id'),
+            'tempid' => config('services.sambsms.template_id'),
         ]);
 
         if (!$response->successful()) {
