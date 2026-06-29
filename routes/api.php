@@ -13,12 +13,6 @@ use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\InquiryController;
 use App\Http\Controllers\Api\V1\NotificationController;
 
-/*
-|--------------------------------------------------------------------------
-| Legacy Mobile APIs
-|--------------------------------------------------------------------------
-*/
-
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
@@ -30,20 +24,16 @@ Route::get('/cars', [MobileApiController::class, 'cars']);
 Route::get('/routes', [MobileApiController::class, 'routes']);
 Route::post('/booking', [MobileApiController::class, 'booking']);
 
-/*
-|--------------------------------------------------------------------------
-| Dura Cabs API V1
-|--------------------------------------------------------------------------
-*/
-
 Route::prefix('v1')->group(function () {
-
     Route::post('/send-otp', [AuthController::class, 'sendOtp']);
     Route::post('/verify-otp', [AuthController::class, 'verifyOtp']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::get('/app-config', [HomeController::class, 'appConfig']);
     Route::get('/home', [HomeController::class, 'home']);
+    Route::get('/banners', [HomeController::class, 'banners']);
+    Route::get('/popular-routes', [HomeController::class, 'popularRoutes']);
+    Route::get('/recommended-trips', [HomeController::class, 'recommendedTrips']);
     Route::get('/contact-details', [HomeController::class, 'contact']);
     Route::get('/settings', [HomeController::class, 'settings']);
 
