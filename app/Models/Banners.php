@@ -6,9 +6,11 @@ use App\Support\DuraImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class banners extends Model
+class Banners extends Model
 {
     use HasFactory;
+
+    protected $table = 'banners';
 
     protected $fillable = [
         'name',
@@ -17,6 +19,7 @@ class banners extends Model
         'ride_type',
         'alt',
         'title',
+        'is_active',
     ];
 
     protected $appends = [
