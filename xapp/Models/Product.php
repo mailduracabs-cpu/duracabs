@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use App\Support\DuraImage;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
     use HasFactory;
-    protected $fillable =[
+
+    protected $fillable = [
         'category_id',
         'brand_id',
         'name',
@@ -36,27 +38,46 @@ class Product extends Model
     ];
 
     protected $casts = [
-        'images' => 'array'
+        'images' => 'array',
     ];
 
-    public function category(){
+    protected $appends = [
+        'primary_image',
+        'image_url',
+    ];
+
+    public function getPrimaryImageAttribute()
+    {
+        return DuraImage::first($this->images);
+    }
+
+    public function getImageUrlAttribute()
+    {
+        return $this->primary_image;
+    }
+
+    public function category()
+    {
         return $this->belongsTo(Category::class);
     }
 
-    public function links(){
+    public function links()
+    {
         return $this->hasMany(Links::class);
     }
 
-    public function prices(){
+    public function prices()
+    {
         return $this->hasMany(Price::class);
     }
 
-    public function brand(){
+    public function brand()
+    {
         return $this->belongsTo(Brand::class);
     }
 
-    public function orderItems(){
+    public function orderItems()
+    {
         return $this->hasMany(OrderItem::class);
     }
-   
 }
