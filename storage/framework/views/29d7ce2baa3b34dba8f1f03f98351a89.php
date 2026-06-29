@@ -7,7 +7,7 @@
 
    
 
- <!--[if BLOCK]><![endif]--><?php if($tab === 'one_way'): ?>
+ <?php if($tab === 'one_way'): ?>
         <div class="fixed  z-50 inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full px-4 ">
             <div class="relative top-40 mx-auto shadow-xl rounded-md bg-white max-w-md">
 
@@ -53,9 +53,9 @@
 
             </div>
         </div>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
-    <!--[if BLOCK]><![endif]--><?php if($tab === 'local'): ?>
+    <?php if($tab === 'local'): ?>
         <div class="fixed  z-50 inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full px-4 ">
             <div class="relative top-40 mx-auto shadow-xl rounded-md bg-white max-w-md">
 
@@ -106,9 +106,9 @@
 
             </div>
         </div>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
-    <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive'): ?>
+    <?php if($tab === 'self_drive'): ?>
         <div class="fixed z-50 inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full -top-20 ">
             <div class="relative top-40 mx-auto shadow-xl rounded-md bg-white max-w-md">
 
@@ -153,14 +153,14 @@
                                     </div>
 
 
-                                    <!--[if BLOCK]><![endif]--><?php if($hours): ?>
+                                    <?php if($hours): ?>
                                         <div class="flex items-center justify-between">
                                             <p class="text-center w-full text-xl text-green-600 font-extrabold mt-4">
                                                 Total Hours: <?php echo e($hours); ?> </p>
                                             <p class="text-center w-full text-xl text-green-600 font-extrabold mt-4">
                                                 Total Price: <?php echo e($ride->price * $hours); ?> </p>
                                         </div>
-                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endif; ?>
 
 
                                     <button type="submit"
@@ -176,7 +176,7 @@
 
             </div>
         </div>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
     
 
@@ -201,7 +201,7 @@
                         <h2 class="lg:text-xl text-xm font-medium text-white dark:text-gray-400">Trip Packages For
                         </h2>
 
-                        <!--[if BLOCK]><![endif]--><?php if($ride->ride_type === 'one_way'): ?>
+                        <?php if($ride->ride_type === 'one_way'): ?>
                             <div class="flex  text-white items-center">
                                 <p><?php echo e($ride->brand->name); ?> </p>
                                 <svg width="35" height="25" fill="#fff" xmlns="http://www.w3.org/2000/svg"
@@ -215,7 +215,7 @@
                             <div class="flex ">
                                 <p><?php echo e($ride->brand->name); ?> </p>
                             </div>
-                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endif; ?>
 
 
 
@@ -305,7 +305,7 @@
                     </div>
                     <div class="lg:flex grid flex-wrap items-center">
 
-                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $price): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php $__currentLoopData = $prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $price): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <div
                                 class="w-full mb-2 bg-white p-1 border border-gray-300 dark:border-gray-700 shadow-2xl shadow-sky-100">
                                 <div class="lg:flex  justify-between">
@@ -382,7 +382,7 @@
                                                         <p class="text-xs">Quick Booking</p>
                                                     </div>
                                                     <div class="p-1">
-                                                      <!--[if BLOCK]><![endif]--><?php if($ride->ride_type === 'self_drive'): ?>
+                                                      <?php if($ride->ride_type === 'self_drive'): ?>
                                                                         <img src="<?php echo e(url('/cab_images/car.webp')); ?>"
                                                                             alt="<?php echo e($ride->name); ?>"
                                                                             title="<?php echo e($ride->name); ?>"
@@ -394,7 +394,7 @@
                                                                             title="<?php echo e($ride->name); ?>"
                                                                             class="object-contain w-6 h-6 mx-auto ">
                                                                         <p class="text-xs ">Qualified Driver </p>
-                                                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                                    <?php endif; ?>
                                                     </div>
                                                 </div>
 
@@ -412,7 +412,7 @@
                                                 <?php echo e(Number::currency($price->price, 'INR')); ?><?php echo e($ride->ride_type === 'self_drive'? 'Per Hour' : ''); ?></p>
                                         </div>
                                         
-                                        <!--[if BLOCK]><![endif]--><?php if($ride->ride_type === 'one_way'): ?>
+                                        <?php if($ride->ride_type === 'one_way'): ?>
                                             <div class="flex flex-wrap items-center gap-4">
                                                 <button
                                                     wire:click='tabValue(["one_way","<?php echo e($price->price); ?>","<?php echo e($ride->name); ?>","<?php echo e($price->category->name); ?>", "<?php echo e($ride->toll_tax); ?>","<?php echo e($price->category->new_vehicle); ?>","<?php echo e($price->category->pet_friendly); ?>","<?php echo e($price->category->roof_career); ?>"])'
@@ -437,9 +437,9 @@
                                                     View Fare Breakdown
                                                 </button>
                                             </div>
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
 
-                                        <!--[if BLOCK]><![endif]--><?php if($ride->ride_type === 'local'): ?>
+                                        <?php if($ride->ride_type === 'local'): ?>
                                             <div class="flex flex-wrap items-center gap-4">
                                                 <button
                                                     wire:click='tabValue(["local","<?php echo e($price->price); ?>","<?php echo e($ride->name); ?>","<?php echo e($price->category->name); ?>", "<?php echo e($ride->toll_tax); ?>","<?php echo e($price->category->new_vehicle); ?>","<?php echo e($price->category->pet_friendly); ?>","<?php echo e($price->category->roof_career); ?>"])'
@@ -464,9 +464,9 @@
                                                     View Local Fare Details
                                                 </button>
                                             </div>
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
 
-                                         <!--[if BLOCK]><![endif]--><?php if($ride->ride_type === 'self_drive'): ?>
+                                         <?php if($ride->ride_type === 'self_drive'): ?>
                                             <div class="flex flex-wrap items-center gap-4">
                                                 <button
                                                     wire:click='tabValue(["self_drive","<?php echo e($price->price); ?>","<?php echo e($ride->name); ?>","<?php echo e($price->category->name); ?>","<?php echo e($price->category->security ?? 0); ?>"])'
@@ -491,13 +491,13 @@
                                                     View Self Drive Fare
                                                 </button>
                                             </div>
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
 
                                     </div>
 
                                 </div>
                             </div>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                     </div>
                     <!-- pagination start -->
@@ -612,7 +612,7 @@
                     </thead>
                     <tbody>
 
-                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php $__currentLoopData = $prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <tr class="border-b border-gray-200 dark:border-gray-700">
                                 <th scope="row"
                                     class="px-6 py-4 font-medium text-gray-900 whitespace-nowrap bg-gray-50 dark:text-white dark:bg-gray-800">
@@ -639,7 +639,7 @@
 
                                 </td>
                             </tr>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
 
                     </tbody>
@@ -731,11 +731,11 @@
             <div class="overflow-x-auto shadow-md sm:rounded-lg mt-2 flex justify-center">
                 <div class="p-5 flex  justify-between  w-2/3">
                     <div class="">
-                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $links; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $link): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php $__currentLoopData = $links; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $link): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <li><a wire:navigate href="<?php echo e($link->url); ?>"
                                     class="underline flex-none w-50 text-center ">
                                     <span><?php echo e($link->title); ?> </span></a></li>
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                     </div>
                 </div>
             </div>

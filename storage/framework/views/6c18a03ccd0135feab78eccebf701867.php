@@ -105,7 +105,7 @@ unset($__defined_vars); ?>
             ->class(['fi-fo-field-wrp'])); ?>
 
 >
-    <!--[if BLOCK]><![endif]--><?php if($label && $labelSrOnly): ?>
+    <?php if($label && $labelSrOnly): ?>
         <<?php echo e($labelTag); ?>
 
             <?php if($labelTag === 'label'): ?>
@@ -118,7 +118,7 @@ unset($__defined_vars); ?>
             <?php echo e($label); ?>
 
         </<?php echo e($labelTag); ?>>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
     <div
         class="<?php echo \Illuminate\Support\Arr::toCssClasses([
@@ -131,7 +131,7 @@ unset($__defined_vars); ?>
             } => $hasInlineLabel,
         ]); ?>"
     >
-        <!--[if BLOCK]><![endif]--><?php if(($label && (! $labelSrOnly)) || $labelPrefix || $labelSuffix || filled($hint) || $hintIcon || count($hintActions)): ?>
+        <?php if(($label && (! $labelSrOnly)) || $labelPrefix || $labelSuffix || filled($hint) || $hintIcon || count($hintActions)): ?>
             <div
                 class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                     'flex items-center gap-x-3',
@@ -140,7 +140,7 @@ unset($__defined_vars); ?>
                     ($label instanceof \Illuminate\View\ComponentSlot) ? $label->attributes->get('class') : null,
                 ]); ?>"
             >
-                <!--[if BLOCK]><![endif]--><?php if($label && (! $labelSrOnly)): ?>
+                <?php if($label && (! $labelSrOnly)): ?>
                     <?php if (isset($component)) { $__componentOriginalce0c3abfe32d61e042620ba43c1aa075 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalce0c3abfe32d61e042620ba43c1aa075 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament-forms::components.field-wrapper.label','data' => ['for' => ($labelTag === 'label') ? $id : null,'id' => ($labelTag === 'label') ? null : ($id . '-label'),'tag' => $labelTag,'disabled' => $isDisabled,'prefix' => $labelPrefix,'required' => $required,'suffix' => $labelSuffix]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -169,9 +169,9 @@ unset($__defined_vars); ?>
                 <?php elseif($labelSuffix): ?>
                     <?php echo e($labelSuffix); ?>
 
-                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                <?php endif; ?>
 
-                <!--[if BLOCK]><![endif]--><?php if(filled($hint) || $hintIcon || count($hintActions)): ?>
+                <?php if(filled($hint) || $hintIcon || count($hintActions)): ?>
                     <?php if (isset($component)) { $__componentOriginal1e15ea267b589d7e7cb0450949a7b403 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal1e15ea267b589d7e7cb0450949a7b403 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament-forms::components.field-wrapper.hint','data' => ['actions' => $hintActions,'color' => $hintColor,'icon' => $hintIcon,'tooltip' => $hintIconTooltip]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -194,11 +194,11 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginal1e15ea267b589d7e7cb0450949a7b403; ?>
 <?php unset($__componentOriginal1e15ea267b589d7e7cb0450949a7b403); ?>
 <?php endif; ?>
-                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                <?php endif; ?>
             </div>
-        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+        <?php endif; ?>
 
-        <!--[if BLOCK]><![endif]--><?php if((! \Filament\Support\is_slot_empty($slot)) || $hasError || filled($helperText)): ?>
+        <?php if((! \Filament\Support\is_slot_empty($slot)) || $hasError || filled($helperText)): ?>
             <div
                 class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                     'grid auto-cols-fr gap-y-2',
@@ -208,7 +208,7 @@ unset($__defined_vars); ?>
                 <?php echo e($slot); ?>
 
 
-                <!--[if BLOCK]><![endif]--><?php if($hasError): ?>
+                <?php if($hasError): ?>
                     <?php if (isset($component)) { $__componentOriginal22095ede46a88c291ad3a78cf084ef04 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal22095ede46a88c291ad3a78cf084ef04 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament-forms::components.field-wrapper.error-message','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -231,9 +231,9 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginal22095ede46a88c291ad3a78cf084ef04; ?>
 <?php unset($__componentOriginal22095ede46a88c291ad3a78cf084ef04); ?>
 <?php endif; ?>
-                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                <?php endif; ?>
 
-                <!--[if BLOCK]><![endif]--><?php if(filled($helperText)): ?>
+                <?php if(filled($helperText)): ?>
                     <?php if (isset($component)) { $__componentOriginal8530e05d59f2cbc21adf63528d237ef3 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal8530e05d59f2cbc21adf63528d237ef3 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament-forms::components.field-wrapper.helper-text','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -256,9 +256,9 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginal8530e05d59f2cbc21adf63528d237ef3; ?>
 <?php unset($__componentOriginal8530e05d59f2cbc21adf63528d237ef3); ?>
 <?php endif; ?>
-                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                <?php endif; ?>
             </div>
-        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+        <?php endif; ?>
     </div>
 </div>
 <?php /**PATH /var/www/duracabs/duracabs/vendor/filament/forms/resources/views/components/field-wrapper/index.blade.php ENDPATH**/ ?>

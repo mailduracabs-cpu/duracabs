@@ -3,35 +3,35 @@
         <!-- Grid -->
         <h3 class="text-white text-2xl font-bold text-justify ">Car Rental</h3>
 <div class="mx-20">
-    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $carRental; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $cars): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+    <?php $__currentLoopData = $carRental; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $cars): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
         <a href="<?php echo e($cars->url); ?>" 
            class="text-white text-base hover:underline pe-3 car-rental-item <?php echo e($index >= 20 ? 'hidden' : ''); ?>">
             <?php echo e($cars->title); ?> |
         </a>
-    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-    <!--[if BLOCK]><![endif]--><?php if(count($carRental) > 20): ?>
+    <?php if(count($carRental) > 20): ?>
         <button id="readMoreBtn" 
                 class="text-blue-400 hover:underline mt-2"
                 onclick="showMoreItems()">Read More</button>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 </div>
 
             <div class="mt-5">
     <h3 class="text-white text-2xl font-bold text-justify">Top Routes</h3>
     <div class="mx-20">
-        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $topRoutes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $cars): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+        <?php $__currentLoopData = $topRoutes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $cars): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
             <a href="<?php echo e($cars->url); ?>" 
                class="text-white text-base hover:underline pe-3 top-route-item <?php echo e($index >= 20 ? 'hidden' : ''); ?>">
                 <?php echo e($cars->title); ?> |
             </a>
         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
-        <!--[if BLOCK]><![endif]--><?php if(count($topRoutes) > 20): ?>
+        <?php if(count($topRoutes) > 20): ?>
             <button id="readMoreRoutesBtn" 
                     class="text-blue-400 hover:underline mt-2"
                     onclick="showMoreRoutes()">Read More</button>
-        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+        <?php endif; ?>
     </div>
 </div>
 

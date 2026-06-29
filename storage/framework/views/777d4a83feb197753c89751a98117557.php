@@ -66,7 +66,7 @@ unset($__defined_vars); ?>
     }
 ?>
 
-<!--[if BLOCK]><![endif]--><?php if($hasActions): ?>
+<?php if($hasActions): ?>
     <div
         <?php echo e($attributes->class([
                 'fi-ac gap-3',
@@ -82,18 +82,18 @@ unset($__defined_vars); ?>
             ])); ?>
 
     >
-        <!--[if BLOCK]><![endif]--><?php if($hasSlot): ?>
+        <?php if($hasSlot): ?>
             <?php echo e($slot); ?>
 
         <?php elseif($actionsAreHtmlable): ?>
             <?php echo e($actions); ?>
 
         <?php else: ?>
-            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $actions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $action): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+            <?php $__currentLoopData = $actions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $action): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                 <?php echo e($action); ?>
 
-            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
-        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+        <?php endif; ?>
     </div>
-<?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+<?php endif; ?>
 <?php /**PATH /var/www/duracabs/duracabs/vendor/filament/support/resources/views/components/actions.blade.php ENDPATH**/ ?>

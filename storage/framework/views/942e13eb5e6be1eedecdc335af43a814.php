@@ -11,11 +11,11 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
 ?>
 
 <div>
-    <!--[if BLOCK]><![endif]--><?php if($paginator->hasPages()): ?>
+    <?php if($paginator->hasPages()): ?>
         <nav role="navigation" aria-label="Pagination Navigation" class="flex items-center justify-between">
             <div class="flex justify-between flex-1 sm:hidden">
                 <span>
-                    <!--[if BLOCK]><![endif]--><?php if($paginator->onFirstPage()): ?>
+                    <?php if($paginator->onFirstPage()): ?>
                         <span class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 cursor-default leading-5 rounded-md dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:focus:border-blue-700 dark:active:bg-gray-700 dark:active:text-gray-300">
                             <?php echo __('pagination.previous'); ?>
 
@@ -25,11 +25,11 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                             <?php echo __('pagination.previous'); ?>
 
                         </button>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
                 </span>
 
                 <span>
-                    <!--[if BLOCK]><![endif]--><?php if($paginator->hasMorePages()): ?>
+                    <?php if($paginator->hasMorePages()): ?>
                         <button type="button" wire:click="nextPage('<?php echo e($paginator->getPageName()); ?>')" x-on:click="<?php echo e($scrollIntoViewJsSnippet); ?>" wire:loading.attr="disabled" dusk="nextPage<?php echo e($paginator->getPageName() == 'page' ? '' : '.' . $paginator->getPageName()); ?>.before" class="relative inline-flex items-center px-4 py-2 ml-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 leading-5 rounded-md hover:text-gray-500 focus:outline-none focus:ring ring-blue-300 focus:border-blue-300 active:bg-gray-100 active:text-gray-700 transition ease-in-out duration-150 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:focus:border-blue-700 dark:active:bg-gray-700 dark:active:text-gray-300">
                             <?php echo __('pagination.next'); ?>
 
@@ -39,7 +39,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                             <?php echo __('pagination.next'); ?>
 
                         </span>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
                 </span>
             </div>
 
@@ -60,7 +60,7 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                     <span class="relative z-0 inline-flex rtl:flex-row-reverse rounded-md shadow-sm">
                         <span>
                             
-                            <!--[if BLOCK]><![endif]--><?php if($paginator->onFirstPage()): ?>
+                            <?php if($paginator->onFirstPage()): ?>
                                 <span aria-disabled="true" aria-label="<?php echo e(__('pagination.previous')); ?>">
                                     <span class="relative inline-flex items-center px-2 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 cursor-default rounded-l-md leading-5 dark:bg-gray-800 dark:border-gray-600" aria-hidden="true">
                                         <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -74,23 +74,23 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                                         <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
                                     </svg>
                                 </button>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
                         </span>
 
                         
-                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $elements; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $element): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php $__currentLoopData = $elements; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $element): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             
-                            <!--[if BLOCK]><![endif]--><?php if(is_string($element)): ?>
+                            <?php if(is_string($element)): ?>
                                 <span aria-disabled="true">
                                     <span class="relative inline-flex items-center px-4 py-2 -ml-px text-sm font-medium text-gray-700 bg-white border border-gray-300 cursor-default leading-5 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300"><?php echo e($element); ?></span>
                                 </span>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
                             
-                            <!--[if BLOCK]><![endif]--><?php if(is_array($element)): ?>
-                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $element; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $page => $url): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php if(is_array($element)): ?>
+                                <?php $__currentLoopData = $element; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $page => $url): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <span wire:key="paginator-<?php echo e($paginator->getPageName()); ?>-page<?php echo e($page); ?>">
-                                        <!--[if BLOCK]><![endif]--><?php if($page == $paginator->currentPage()): ?>
+                                        <?php if($page == $paginator->currentPage()): ?>
                                             <span aria-current="page">
                                                 <span class="relative inline-flex items-center px-4 py-2 -ml-px text-sm font-medium text-gray-500 bg-white border border-gray-300 cursor-default leading-5 dark:bg-gray-800 dark:border-gray-600"><?php echo e($page); ?></span>
                                             </span>
@@ -99,15 +99,15 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                                                 <?php echo e($page); ?>
 
                                             </button>
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
                                     </span>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php endif; ?>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                         <span>
                             
-                            <!--[if BLOCK]><![endif]--><?php if($paginator->hasMorePages()): ?>
+                            <?php if($paginator->hasMorePages()): ?>
                                 <button type="button" wire:click="nextPage('<?php echo e($paginator->getPageName()); ?>')" x-on:click="<?php echo e($scrollIntoViewJsSnippet); ?>" dusk="nextPage<?php echo e($paginator->getPageName() == 'page' ? '' : '.' . $paginator->getPageName()); ?>.after" class="relative inline-flex items-center px-2 py-2 -ml-px text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-r-md leading-5 hover:text-gray-400 focus:z-10 focus:outline-none focus:border-blue-300 focus:ring ring-blue-300 active:bg-gray-100 active:text-gray-500 transition ease-in-out duration-150 dark:bg-gray-800 dark:border-gray-600 dark:active:bg-gray-700 dark:focus:border-blue-800" aria-label="<?php echo e(__('pagination.next')); ?>">
                                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -121,12 +121,12 @@ $scrollIntoViewJsSnippet = ($scrollTo !== false)
                                         </svg>
                                     </span>
                                 </span>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
                         </span>
                     </span>
                 </div>
             </div>
         </nav>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 </div>
 <?php /**PATH /var/www/duracabs/duracabs/vendor/livewire/livewire/src/Features/SupportPagination/views/tailwind.blade.php ENDPATH**/ ?>

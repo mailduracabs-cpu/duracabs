@@ -81,7 +81,7 @@
         \Filament\Support\prepare_inherited_attributes($getExtraAttributeBag())
             ->class(['fi-fo-component-ctn gap-6'])
     )]); ?>
-    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $getComponents(withHidden: true); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $formComponent): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+    <?php $__currentLoopData = $getComponents(withHidden: true); $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $formComponent): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
         <?php
             /**
              * Instead of only rendering the hidden components, we should
@@ -136,10 +136,10 @@
                     default => $maxWidth,
                 },
             ]))]); ?>
-            <!--[if BLOCK]><![endif]--><?php if(! $isHidden): ?>
+            <?php if(! $isHidden): ?>
                 <?php echo e($formComponent); ?>
 
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
          <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal6f9d0ad23f77111c926012ad6ce09333)): ?>
@@ -150,7 +150,7 @@
 <?php $component = $__componentOriginal6f9d0ad23f77111c926012ad6ce09333; ?>
 <?php unset($__componentOriginal6f9d0ad23f77111c926012ad6ce09333); ?>
 <?php endif; ?>
-    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal30dbd75eb120a380110a2b340cd88f46)): ?>

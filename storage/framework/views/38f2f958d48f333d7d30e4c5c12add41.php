@@ -10,7 +10,7 @@
         <div class="px-4 py-4 mx-auto max-w-7xl lg:py-1 md:px-6">
 
 
-            <!--[if BLOCK]><![endif]--><?php if($tab): ?>
+            <?php if($tab): ?>
                 <div class="lg:flex mb-5 -mx-3">
                     <div class="w-full pr-2 flex  p-2 main-color rounded-s">
 
@@ -28,7 +28,7 @@
                             </h2>
                             <div class="flex text-white items-center">
                                 <p><?php echo e($nameTo); ?> </p>
-                                <!--[if BLOCK]><![endif]--><?php if($tab == 'one_way'): ?>
+                                <?php if($tab == 'one_way'): ?>
                                     <svg width="35" height="25" fill="#fff" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
                                         <path
@@ -38,8 +38,8 @@
 
                                     <?php echo e($nameFrom); ?>
 
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                <!--[if BLOCK]><![endif]--><?php if($tab == 'return'): ?>
+                                <?php endif; ?>
+                                <?php if($tab == 'return'): ?>
                                     <svg width="35" height="25" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
                                         <path
@@ -49,7 +49,7 @@
 
                                     <?php echo e($cityFrom); ?>
 
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -74,9 +74,9 @@
                     </div>
                 </div>
 
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if($nameTo): ?>
+            <?php if($nameTo): ?>
                 <!-- Edit Query Button -->
                 <div class="w-full flex justify-center mb-6">
                     <button wire:click="showEditQueryModal"
@@ -89,9 +89,9 @@
                         <span class="uppercase tracking-wide">Edit Search Query</span>
                     </button>
                 </div>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if($nameTo): ?>
+            <?php if($nameTo): ?>
                 <div
                     class="p-4 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900 lg:hidden block">
                     <h2 class="text-xl font-medium text-sky-500 dark:text-gray-400">Trip Details</h2>
@@ -107,7 +107,7 @@
 
 
 
-                    <!--[if BLOCK]><![endif]--><?php if($tab === 'one_way'): ?>
+                    <?php if($tab === 'one_way'): ?>
                         <div class="flex mt-3">
                             <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 512 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -116,21 +116,21 @@
                             </svg>
                             &nbsp; <p>Drop City : </p> &nbsp; &nbsp; <span>
 
-                                <!--[if BLOCK]><![endif]--><?php if($tab == 'one_way'): ?>
+                                <?php if($tab == 'one_way'): ?>
                                     <?php echo e($nameFrom); ?>
 
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endif; ?>
 
 
 
-                                <!--[if BLOCK]><![endif]--><?php if($tab == 'return'): ?>
+                                <?php if($tab == 'return'): ?>
                                     <?php echo e($cityFrom); ?>
 
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endif; ?>
                             </span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
                     <div class="flex mt-3">
                         <svg width="30" height="20" xmlns="http://www.w3.org/2000/svg"
@@ -142,7 +142,7 @@
 
                     </div>
 
-                    <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive' || $tab === 'return'): ?>
+                    <?php if($tab === 'self_drive' || $tab === 'return'): ?>
                         <div class="flex mt-3">
                             <svg width="30" height="20" xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -152,9 +152,9 @@
                             &nbsp; <p>Drop Date : </p> &nbsp; &nbsp; <span><?php echo e($dateto); ?></span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
-                    <!--[if BLOCK]><![endif]--><?php if($newTime): ?>
+                    <?php if($newTime): ?>
                         <div class="flex mt-3">
 
 
@@ -167,9 +167,9 @@
                             <span><?php echo e($newTime->format('h:i A')); ?></span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
-                    <!--[if BLOCK]><![endif]--><?php if($endTime): ?>
+                    <?php if($endTime): ?>
                         <div class="flex mt-3">
 
 
@@ -182,12 +182,12 @@
                             <span><?php echo e($timeEnd->format('h:i A')); ?></span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
 
 
 
-                    <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive' || $tab === 'return'): ?>
+                    <?php if($tab === 'self_drive' || $tab === 'return'): ?>
                         <div class="flex mt-3">
                             <svg width="30" height="20" xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -197,9 +197,9 @@
                             &nbsp; <p>Days : </p> &nbsp; &nbsp; <span><?php echo e($days === 0 ? 1 : $days + 1); ?></span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
-                    <!--[if BLOCK]><![endif]--><?php if($tab === 'local'): ?>
+                    <?php if($tab === 'local'): ?>
                         <div class="flex mt-3">
                             <svg width="30" height="20" xmlns="http://www.w3.org/2000/svg"
                                 viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -219,17 +219,17 @@
                             &nbsp; <p>Cars : </p> &nbsp; &nbsp; <span><?php echo e($cars); ?></span>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
                 </div>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
 
 
             <div class="lg:flex flex-wrap mb-24 -mx-3">
                 <div class="w-full pr-2 lg:w-1/4 lg:block hidden">
 
-                    <!--[if BLOCK]><![endif]--><?php if($nameTo): ?>
+                    <?php if($nameTo): ?>
                         <div class="p-2 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900 ">
                             <h2 class="text-xl font-medium text-sky-500 dark:text-gray-400">Trip Details</h2>
                             <div class="flex mt-3 justify-evenly">
@@ -245,7 +245,7 @@
 
 
 
-                            <!--[if BLOCK]><![endif]--><?php if($tab === 'one_way'): ?>
+                            <?php if($tab === 'one_way'): ?>
                                 <div class="flex mt-3">
                                     <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 512 512">
@@ -254,21 +254,21 @@
                                     </svg>
                                     &nbsp; <p class="text-sm">Drop City: </p> &nbsp; &nbsp; <span class="text-sm">
 
-                                        <!--[if BLOCK]><![endif]--><?php if($tab == 'one_way'): ?>
+                                        <?php if($tab == 'one_way'): ?>
                                             <?php echo e($nameFrom); ?>
 
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
 
 
 
-                                        <!--[if BLOCK]><![endif]--><?php if($tab == 'return'): ?>
+                                        <?php if($tab == 'return'): ?>
                                             <?php echo e($cityFrom); ?>
 
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
                                     </span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
                             <div class="flex mt-3">
                                 <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
@@ -281,7 +281,7 @@
 
                             </div>
 
-                            <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive' || $tab === 'return'): ?>
+                            <?php if($tab === 'self_drive' || $tab === 'return'): ?>
                                 <div class="flex mt-3">
                                     <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -292,9 +292,9 @@
                                         class="text-sm"><?php echo e($dateto); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
-                            <!--[if BLOCK]><![endif]--><?php if($newTime): ?>
+                            <?php if($newTime): ?>
                                 <div class="flex mt-3">
 
 
@@ -307,9 +307,9 @@
                                     <span class="text-sm"><?php echo e($newTime->format('h:i A')); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
-                            <!--[if BLOCK]><![endif]--><?php if($endTime): ?>
+                            <?php if($endTime): ?>
                                 <div class="flex mt-3">
 
 
@@ -322,12 +322,12 @@
                                     <span class="text-sm"><?php echo e($timeEnd->format('h:i A')); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
 
 
 
-                            <!--[if BLOCK]><![endif]--><?php if($tab === 'return'): ?>
+                            <?php if($tab === 'return'): ?>
                                 <div class="flex mt-3">
                                     <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -338,9 +338,9 @@
                                     <span class="text-sm"><?php echo e($days === 0 ? 1 : $days + 1); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
-                            <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive'): ?>
+                            <?php if($tab === 'self_drive'): ?>
                                 <div class="flex mt-3">
                                     <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -351,9 +351,9 @@
                                     <span class="text-sm"><?php echo e($days === 0 ? 1 : $days); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
-                            <!--[if BLOCK]><![endif]--><?php if($tab === 'local'): ?>
+                            <?php if($tab === 'local'): ?>
                                 <div class="flex mt-3">
                                     <svg width="20" height="15" xmlns="http://www.w3.org/2000/svg"
                                         viewBox="0 0 448 512"><!--!Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free Copyright 2024 Fonticons, Inc.-->
@@ -375,10 +375,10 @@
                                         class="text-sm"><?php echo e($cars); ?></span>
 
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?>
 
                         </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
                     <div class="p-4 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900">
                         <h2 class="text-xl font-medium text-sky-500 dark:text-gray-400"> Need Help Booking?</h2>
@@ -412,7 +412,7 @@
                         </div>
                     </div>
 
-                    <!--[if BLOCK]><![endif]--><?php if(!$tab): ?>
+                    <?php if(!$tab): ?>
 
                         
                         <div class="p-4 mb-5 bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-900">
@@ -422,7 +422,7 @@
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 text-black font-extrabold  text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                             <div class="w-16 pb-2 mb-6 border-b border-rose-600 dark:border-gray-400"></div>
                             <ul>
-                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $brands; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $brand): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $brands; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $brand): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <li class="mb-4" wire:key='<?php echo e($brand->id); ?>'>
                                         <label for="<?php echo e($brand->slug); ?>"
                                             class="flex items-center dark:text-gray-300">
@@ -432,7 +432,7 @@
                                             <span class="text-lg dark:text-gray-400"><?php echo e($brand->name); ?></span>
                                         </label>
                                     </li>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                             </ul>
 
@@ -456,10 +456,10 @@
                             </div>
                         </div>
 
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
                 </div>
-                <!--[if BLOCK]><![endif]--><?php if($tab === 'return'): ?>
+                <?php if($tab === 'return'): ?>
 
                     <div class="w-full px-3 lg:w-3/4">
                         <div class="px-3 mb-4">
@@ -480,7 +480,7 @@
                         </div>
                         <div class="lg:flex grid flex-wrap items-center ">
 
-                            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $categories2; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $categories2; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <div
                                     class="w-full mb-2 bg-white p-1 border border-gray-300 dark:border-gray-700 shadow-2xl shadow-sky-100">
                                     <div class="lg:flex justify-between">
@@ -647,7 +647,7 @@
 
                                     </div>
                                 </div>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                         </div>
                         <!-- pagination start -->
@@ -679,7 +679,7 @@
 
                             
 
-                            <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $rides; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $ride): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <?php $__currentLoopData = $rides; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $ride): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <div class="bg-slate-300 p-2 my-2 w-full">
                                     <div class=" justify-between gap-2 mb-2">
                                         <h3 class="text-xm font-extrabold uppercase dark:text-gray-400">
@@ -689,7 +689,7 @@
 
                                     </div>
 
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $ride->prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $price): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $ride->prices; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $price): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <div
                                             class="w-full mb-2 bg-white p-1 border border-gray-300 dark:border-gray-700 shadow-2xl shadow-sky-100">
                                             <div class="lg:flex  justify-between  ">
@@ -771,7 +771,7 @@
                                                                     <p class="text-xs ">Quick Booking</p>
                                                                 </div>
                                                                 <div class="px-1">
-                                                                    <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive'): ?>
+                                                                    <?php if($tab === 'self_drive'): ?>
                                                                         <img src="<?php echo e(url('/cab_images/car.webp')); ?>"
                                                                             alt="<?php echo e($ride->name); ?>"
                                                                             title="<?php echo e($ride->name); ?>"
@@ -783,7 +783,7 @@
                                                                             title="<?php echo e($ride->name); ?>"
                                                                             class="object-contain w-6 h-6 mx-auto ">
                                                                         <p class="text-xs ">Qualified Driver </p>
-                                                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                                    <?php endif; ?>
                                                                 </div>
                                                             </div>
 
@@ -792,7 +792,7 @@
 
                                                 </div>
 
-                                                <!--[if BLOCK]><![endif]--><?php if($tab === 'one_way'): ?>
+                                                <?php if($tab === 'one_way'): ?>
                                                     <div class="p-3 text-center lg:w-1/4 w-full">
 
                                                         <div class="text-lg text-center">
@@ -828,8 +828,8 @@
                                                         </button>
                                                         </div>
                                                     </div>
-                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                                <!--[if BLOCK]><![endif]--><?php if(!$tab): ?>
+                                                <?php endif; ?>
+                                                <?php if(!$tab): ?>
                                                     <div class="p-3 text-center lg:w-1/3 w-full">
                                                         <div class="text-lg text-center">
                                                             <p
@@ -857,10 +857,10 @@
                                                             class="text-xs text-blue-600 underline cursor-pointer hover:text-blue-800">Fare
                                                             Summary</button>
                                                     </div>
-                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                <?php endif; ?>
 
 
-                                                <!--[if BLOCK]><![endif]--><?php if($tab === 'self_drive'): ?>
+                                                <?php if($tab === 'self_drive'): ?>
                                                     <div class="p-3 text-center lg:w-1/4 w-full">
 
                                                         <div class="text-lg text-center">
@@ -898,9 +898,9 @@
                                                             Trip Modify
                                                         </button>
                                                     </div>
-                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                <?php endif; ?>
 
-                                                <!--[if BLOCK]><![endif]--><?php if($tab === 'local'): ?>
+                                                <?php if($tab === 'local'): ?>
                                                     <div class="p-3 text-center">
 
                                                         <div class="text-lg text-center">
@@ -944,13 +944,13 @@
                                                             Trip Modify
                                                         </button>
                                                     </div>
-                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                <?php endif; ?>
 
                                             </div>
                                         </div>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
 
 
@@ -965,7 +965,7 @@
                         <!-- pagination end -->
                     </div>
 
-                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                <?php endif; ?>
 
 
 
@@ -1006,7 +1006,7 @@
                     </div>
 
 
-                    <!--[if BLOCK]><![endif]--><?php if(!$tab): ?>
+                    <?php if(!$tab): ?>
 
                         <div class="p-4 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900">
                             <h2 class="text-2xl font-bold dark:text-gray-400">Cab Categories</h2>
@@ -1014,7 +1014,7 @@
                             <div class="w-16 pb-2 mb-6 border-b border-rose-600 dark:border-gray-400"></div>
 
                             <ul>
-                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <li class="mb-4" wire:key='<?php echo e($category->id); ?>'>
                                         <label for="<?php echo e($category->slug); ?>"
                                             class="flex items-center dark:text-gray-400 ">
@@ -1024,7 +1024,7 @@
                                             <span class="text-lg"><?php echo e($category->name); ?> </span>
                                         </label>
                                     </li>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                             </ul>
 
@@ -1036,7 +1036,7 @@
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 text-black font-extrabold  text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                             <div class="w-16 pb-2 mb-6 border-b border-rose-600 dark:border-gray-400"></div>
                             <ul>
-                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $brands; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $brand): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                <?php $__currentLoopData = $brands; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $brand): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <li class="mb-4" wire:key='<?php echo e($brand->id); ?>'>
                                         <label for="<?php echo e($brand->slug); ?>"
                                             class="flex items-center dark:text-gray-300">
@@ -1046,7 +1046,7 @@
                                             <span class="text-lg dark:text-gray-400"><?php echo e($brand->name); ?></span>
                                         </label>
                                     </li>
-                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
 
                             </ul>
 
@@ -1070,7 +1070,7 @@
                             </div>
                         </div>
 
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?>
 
 
                 </div>
@@ -1553,7 +1553,7 @@
     </script>
 
     <!-- Edit Query Modal -->
-    <!--[if BLOCK]><![endif]--><?php if($showEditModal): ?>
+    <?php if($showEditModal): ?>
         <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
             wire:click.self="$set('showEditModal', false)">
             <div class="relative top-20 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-lg bg-white">
@@ -1614,19 +1614,19 @@
                             <input type="text" wire:model.live='edit_query_search' placeholder="From City.."
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 lg:py-10 text-black font-extrabold lg:text-2xl text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_query_search) && !empty($edit_cities_from)): ?>
+                            <?php if(!empty($edit_query_search) && !empty($edit_cities_from)): ?>
                                 <div class="absolute z-10 w-full bg-white rounded shadow-lg">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdate1("<?php echo e($city['name']); ?>", <?php echo e($city['id']); ?>)'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($city['name']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_query_search'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_query_search'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1635,7 +1635,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- To City -->
@@ -1644,19 +1644,19 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <input type="text" wire:model.live='edit_query2_search' placeholder="To City.."
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 lg:py-10 text-black font-extrabold lg:text-2xl text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_query2_search) && !empty($edit_cities_to)): ?>
+                            <?php if(!empty($edit_query2_search) && !empty($edit_cities_to)): ?>
                                 <div class="absolute z-10 w-full bg-white rounded shadow-lg">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_cities_to; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_cities_to; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdate2("<?php echo e($city['name']); ?>", <?php echo e($city['id']); ?>)'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($city['name']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_query2_search'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_query2_search'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1665,7 +1665,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Date -->
@@ -1673,7 +1673,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label><span class="font-semibold">PickUp Date</span></label>
                             <input type="date" wire:model='edit_date'
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 lg:py-10 text-black font-extrabold lg:text-2xl text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_date'];
+                            <?php $__errorArgs = ['edit_date'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1682,7 +1682,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Time -->
@@ -1690,7 +1690,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label><span class="font-semibold">PickUp Time</span></label>
                             <input type="time" wire:model='edit_time'
                                 class="lg:mt-3 bg-gray-50 border border-gray-300 lg:py-10 text-black font-extrabold lg:text-2xl text-xm focus:ring-blue-500 focus:border-blue-500 block w-full ps-2 p-2.5" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_time'];
+                            <?php $__errorArgs = ['edit_time'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1699,7 +1699,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
                     </div>
                 </form>
@@ -1714,20 +1714,20 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <input type="text" wire:model.live='edit_queryFrom_search' placeholder="From City.."
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_queryFrom_search) && !empty($edit_dataFrom)): ?>
+                            <?php if(!empty($edit_queryFrom_search) && !empty($edit_dataFrom)): ?>
                                 <div
                                     class="absolute z-20 w-full bg-white rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_dataFrom; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prediction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_dataFrom; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prediction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdateCityFrom("<?php echo e($prediction['description']); ?>")'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($prediction['description']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_queryFrom_search'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_queryFrom_search'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1736,7 +1736,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- To City -->
@@ -1745,20 +1745,20 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <input type="text" wire:model.live='edit_queryTo_search' placeholder="To City.."
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_queryTo_search) && !empty($edit_dataTo)): ?>
+                            <?php if(!empty($edit_queryTo_search) && !empty($edit_dataTo)): ?>
                                 <div
                                     class="absolute z-20 w-full bg-white rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_dataTo; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prediction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_dataTo; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prediction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdateCityTo("<?php echo e($prediction['description']); ?>")'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($prediction['description']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_queryTo_search'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_queryTo_search'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1767,7 +1767,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Date -->
@@ -1775,7 +1775,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Date</label>
                             <input type="date" wire:model='edit_date'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_date'];
+                            <?php $__errorArgs = ['edit_date'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1784,7 +1784,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- Return Date -->
@@ -1792,7 +1792,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Return Date</label>
                             <input type="date" wire:model='edit_dateto'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_dateto'];
+                            <?php $__errorArgs = ['edit_dateto'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1801,7 +1801,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Time -->
@@ -1809,7 +1809,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Time</label>
                             <input type="time" wire:model='edit_time'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_time'];
+                            <?php $__errorArgs = ['edit_time'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1818,7 +1818,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
                     </div>
                 </form>
@@ -1833,20 +1833,20 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <input type="text" wire:model.live='edit_queryLocal' placeholder="From City.."
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_queryLocal) && !empty($edit_cities_from)): ?>
+                            <?php if(!empty($edit_queryLocal) && !empty($edit_cities_from)): ?>
                                 <div
                                     class="absolute z-20 w-full bg-white rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdate3("<?php echo e($city['name']); ?>", <?php echo e($city['id']); ?>)'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($city['name']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_queryLocal'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_queryLocal'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1855,7 +1855,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- Select Plan -->
@@ -1867,7 +1867,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                 <option value="8 Hour / 80 Km">8 Hour / 80 Km</option>
                                 <option value="12 Hour / 120 Km">12 Hour / 120 Km</option>
                             </select>
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_plan'];
+                            <?php $__errorArgs = ['edit_plan'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1876,7 +1876,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- Number of Cars -->
@@ -1884,7 +1884,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Number of Cars</label>
                             <input type="number" wire:model='edit_cars' min="1" placeholder="No. of cars"
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_cars'];
+                            <?php $__errorArgs = ['edit_cars'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1893,7 +1893,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Date -->
@@ -1901,7 +1901,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Date</label>
                             <input type="date" wire:model='edit_date'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_date'];
+                            <?php $__errorArgs = ['edit_date'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1910,7 +1910,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Time -->
@@ -1918,7 +1918,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Time</label>
                             <input type="time" wire:model='edit_time'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_time'];
+                            <?php $__errorArgs = ['edit_time'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1927,7 +1927,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
                     </div>
                 </form>
@@ -1942,20 +1942,20 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <input type="text" wire:model.live='edit_querySelfDrive' placeholder="From City.."
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
 
-                            <!--[if BLOCK]><![endif]--><?php if(!empty($edit_querySelfDrive) && !empty($edit_cities_from)): ?>
+                            <?php if(!empty($edit_querySelfDrive) && !empty($edit_cities_from)): ?>
                                 <div
                                     class="absolute z-20 w-full bg-white rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
-                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                    <?php $__currentLoopData = $edit_cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                         <button type="button"
                                             wire:click='editUpdate4("<?php echo e($city['name']); ?>", <?php echo e($city['id']); ?>)'
                                             class="block w-full text-left px-4 py-2 text-sm hover:bg-blue-500 hover:text-white cursor-pointer border-b border-gray-100 last:border-b-0">
                                             <?php echo e($city['name']); ?>
 
                                         </button>
-                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                                 </div>
-                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_querySelfDrive'];
+                            <?php endif; ?>
+                            <?php $__errorArgs = ['edit_querySelfDrive'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1964,7 +1964,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Date -->
@@ -1972,7 +1972,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Date</label>
                             <input type="date" wire:model='edit_date'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_date'];
+                            <?php $__errorArgs = ['edit_date'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1981,7 +1981,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- Return Date -->
@@ -1989,7 +1989,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">Return Date</label>
                             <input type="date" wire:model='edit_dateto'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_dateto'];
+                            <?php $__errorArgs = ['edit_dateto'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -1998,7 +1998,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- PickUp Time -->
@@ -2006,7 +2006,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">PickUp Time</label>
                             <input type="time" wire:model='edit_time'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_time'];
+                            <?php $__errorArgs = ['edit_time'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -2015,7 +2015,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
 
                         <!-- End Time -->
@@ -2023,7 +2023,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <label class="block text-sm font-semibold text-gray-700 mb-2">End Time</label>
                             <input type="time" wire:model='edit_endTime'
                                 class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
-                            <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['edit_endTime'];
+                            <?php $__errorArgs = ['edit_endTime'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -2032,7 +2032,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                             <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                         </div>
                     </div>
                 </form>
@@ -2048,7 +2048,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
             </div>
         </div>
 </div>
-<?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+<?php endif; ?>
 
 
 </div>

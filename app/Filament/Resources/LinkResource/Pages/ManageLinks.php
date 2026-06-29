@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Pages;
+namespace App\Filament\Resources\LinkResource\Pages;
 
 use App\Models\Link;
 use Filament\Pages\Page;

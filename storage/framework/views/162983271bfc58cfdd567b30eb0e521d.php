@@ -18,13 +18,13 @@
 
                         <!-- Form -->
 
-                        <!--[if BLOCK]><![endif]--><?php if(session('error')): ?>
+                        <?php if(session('error')): ?>
                             <div class="mt-2 bg-red-500 text-sm text-white rounded-lg p-4 mb-4" role="alert"
                                 tabindex="-1" aria-labelledby="hs-solid-color-danger-label">
                                 <?php echo e(session('error')); ?>
 
                             </div>
-                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endif; ?>
                         <div class="grid gap-y-4">
                             <!-- Form Group -->
                             <form wire:submit.prevent='save'>
@@ -35,7 +35,7 @@
                                             class="py-3 px-4 block w-full border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50 disabled:pointer-events-none dark:bg-slate-900 dark:border-gray-700 dark:text-gray-400 dark:focus:ring-gray-600"
                                             aria-describedby="mobile-error">
                                     </div>
-                                    <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['mobile'];
+                                    <?php $__errorArgs = ['mobile'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -44,7 +44,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                                     <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                                     <button type="<?php echo e(strlen($mobile) == 10 ? 'submit' : 'button'); ?> "
                                         <?php echo e(strlen($mobile) == 10 ? '' : 'disabled'); ?>
 
@@ -73,7 +73,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                             <input type="hidden" maxlength="1" wire:model.live="digit5" inputmode="numeric"
                                             class="passwordLogin w-12 h-12 mx-4 text-center text-xl font-bold border-2 border-gray-300 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-400 outline-none transition">
                                     </div>
-                                    <!--[if BLOCK]><![endif]--><?php $__errorArgs = [$otpError];
+                                    <?php $__errorArgs = [$otpError];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
 if (isset($message)) { $__messageOriginal = $message; }
@@ -82,7 +82,7 @@ $message = $__bag->first($__errorArgs[0]); ?>
                                     <?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }
 endif;
-unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
+unset($__errorArgs, $__bag); ?>
                                     
                                    
                                    
@@ -90,13 +90,13 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                         class="w-full py-3 mt-3 px-4 inline-flex justify-center items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none dark:focus:outline-none dark:focus:ring-1 dark:focus:ring-gray-600">
                                         Verify Code</button>
                                         
-                                        <!--[if BLOCK]><![endif]--><?php if($otpmessage == 1): ?>
+                                        <?php if($otpmessage == 1): ?>
                                     
                                             <div id="alertBox" class="bg-green-500 text-white p-1 mt-3 rounded-lg shadow-md transition-opacity duration-500 text-sm">
                                                   ✅  OTP has been sent successfully to your mobile number.
                                             </div>
                                         
-                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        <?php endif; ?>
                                     
                                         <div class="flex justify-end mt-5">
                                             <button type="button" wire:click='save'>Resend OTP</button>

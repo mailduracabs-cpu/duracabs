@@ -149,7 +149,7 @@ unset($__defined_vars); ?>
             ])); ?>
 
 >
-    <!--[if BLOCK]><![endif]--><?php if($hasPrefix || $hasLoadingIndicator): ?>
+    <?php if($hasPrefix || $hasLoadingIndicator): ?>
         <div
             <?php if(! $hasPrefix): ?>
                 wire:loading.delay.<?php echo e(config('filament.livewire_loading_delay', 'default')); ?>.flex
@@ -165,16 +165,16 @@ unset($__defined_vars); ?>
                 'border-e border-gray-200 pe-3 ps-3 dark:border-white/10' => ! $inlinePrefix,
             ]); ?>"
         >
-            <!--[if BLOCK]><![endif]--><?php if(count($prefixActions)): ?>
+            <?php if(count($prefixActions)): ?>
                 <div class="<?php echo e($actionsClasses); ?>">
-                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $prefixActions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prefixAction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php $__currentLoopData = $prefixActions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $prefixAction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <?php echo e($prefixAction); ?>
 
-                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if($prefixIcon): ?>
+            <?php if($prefixIcon): ?>
                 <?php if (isset($component)) { $__componentOriginalbfc641e0710ce04e5fe02876ffc6f950 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalbfc641e0710ce04e5fe02876ffc6f950 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament::components.icon','data' => ['attributes' => 
@@ -217,9 +217,9 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginalbfc641e0710ce04e5fe02876ffc6f950; ?>
 <?php unset($__componentOriginalbfc641e0710ce04e5fe02876ffc6f950); ?>
 <?php endif; ?>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if($hasLoadingIndicator): ?>
+            <?php if($hasLoadingIndicator): ?>
                 <?php if (isset($component)) { $__componentOriginalbef7c2371a870b1887ec3741fe311a10 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalbef7c2371a870b1887ec3741fe311a10 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament::components.loading-indicator','data' => ['attributes' => 
@@ -254,16 +254,16 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginalbef7c2371a870b1887ec3741fe311a10; ?>
 <?php unset($__componentOriginalbef7c2371a870b1887ec3741fe311a10); ?>
 <?php endif; ?>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if(filled($prefix)): ?>
+            <?php if(filled($prefix)): ?>
                 <span class="<?php echo e($labelClasses); ?>">
                     <?php echo e($prefix); ?>
 
                 </span>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
         </div>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
     <div
         <?php if($hasLoadingIndicator && (! $hasPrefix)): ?>
@@ -282,7 +282,7 @@ unset($__defined_vars); ?>
 
     </div>
 
-    <!--[if BLOCK]><![endif]--><?php if($hasSuffix): ?>
+    <?php if($hasSuffix): ?>
         <div
             class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                 'fi-input-wrp-suffix flex items-center gap-x-3 pe-3',
@@ -291,14 +291,14 @@ unset($__defined_vars); ?>
                 'border-s border-gray-200 ps-3 dark:border-white/10' => ! $inlineSuffix,
             ]); ?>"
         >
-            <!--[if BLOCK]><![endif]--><?php if(filled($suffix)): ?>
+            <?php if(filled($suffix)): ?>
                 <span class="<?php echo e($labelClasses); ?>">
                     <?php echo e($suffix); ?>
 
                 </span>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if($suffixIcon): ?>
+            <?php if($suffixIcon): ?>
                 <?php if (isset($component)) { $__componentOriginalbfc641e0710ce04e5fe02876ffc6f950 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalbfc641e0710ce04e5fe02876ffc6f950 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'filament::components.icon','data' => ['alias' => $suffixIconAlias,'icon' => $suffixIcon,'class' => $getIconClasses($suffixIconColor),'style' => $getIconStyles($suffixIconColor)]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -319,17 +319,17 @@ unset($__defined_vars); ?>
 <?php $component = $__componentOriginalbfc641e0710ce04e5fe02876ffc6f950; ?>
 <?php unset($__componentOriginalbfc641e0710ce04e5fe02876ffc6f950); ?>
 <?php endif; ?>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
 
-            <!--[if BLOCK]><![endif]--><?php if(count($suffixActions)): ?>
+            <?php if(count($suffixActions)): ?>
                 <div class="<?php echo e($actionsClasses); ?>">
-                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $suffixActions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $suffixAction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                    <?php $__currentLoopData = $suffixActions; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $suffixAction): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <?php echo e($suffixAction); ?>
 
-                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                 </div>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+            <?php endif; ?>
         </div>
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 </div>
 <?php /**PATH /var/www/duracabs/duracabs/vendor/filament/support/resources/views/components/input/wrapper.blade.php ENDPATH**/ ?>
