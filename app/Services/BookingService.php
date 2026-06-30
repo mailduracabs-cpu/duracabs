@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -20,22 +21,86 @@ class BookingService
             ];
         }
 
+        $mobile = $data['mobile'] ?? null;
+
+        $lockKey = 'booking_lock_' . md5(json_encode([
+            'mobile' => $mobile,
+            'product_id' => $data['product_id'] ?? null,
+            'vehicle_id' => $data['vehicle_id'] ?? null,
+            'pickup_date' => $data['pickup_date'] ?? null,
+            'pickup_time' => $data['pickup_time'] ?? null,
+            'pickup_address' => $data['pickup_address'] ?? null,
+            'drop_address' => $data['drop_address'] ?? null,
+            'ride_type' => $data['ride_type'] ?? null,
+        ]));
+
+        if (!Cache::add($lockKey, true, now()->addSeconds(60))) {
+            return [
+                'status' => false,
+                'message' => 'Duplicate booking request detected. Please wait.',
+                'code' => 429,
+            ];
+        }
+
         try {
-            return DB::transaction(function () use ($data) {
+            return DB::transaction(function () use ($data, $lockKey) {
                 $userId = $this->findOrCreateUser($data);
                 $product = $this->getProduct($data['product_id'] ?? null);
                 $category = $this->getCategory($data['category_id'] ?? ($product->category_id ?? null));
-                $amount = $this->resolveAmount($data, $product);
+
+                $amount = $this->resolveSafeAmount($data, $product);
+
+                if ($amount <= 0) {
+                    Cache::forget($lockKey);
+
+                    return [
+                        'status' => false,
+                        'message' => 'Invalid booking amount. Please select a valid route or vehicle.',
+                        'code' => 422,
+                    ];
+                }
+
+                $couponValue = $this->resolveCouponValue($data, $amount);
+                $tax = $this->resolveTax($data, $amount, $couponValue);
+                $grandTotal = max(0, round($amount + $tax - $couponValue, 2));
+
+                if ($grandTotal <= 0) {
+                    Cache::forget($lockKey);
+
+                    return [
+                        'status' => false,
+                        'message' => 'Invalid final amount. Booking cannot be created with zero amount.',
+                        'code' => 422,
+                    ];
+                }
+
+                $paymentMethod = $data['payment_method'] ?? 'cash';
+                $isOnline = in_array(strtolower($paymentMethod), ['online', 'razorpay', 'razorpay_payment', 'card', 'upi'], true);
+
+                $orderStatus = $isOnline ? 'pending_payment' : 'confirmed';
+                $paymentStatus = $isOnline ? 'pending' : ($data['payment_status'] ?? 'pending');
+
+                $recentDuplicate = $this->findRecentDuplicate($data);
+
+                if ($recentDuplicate) {
+                    Cache::forget($lockKey);
+
+                    return [
+                        'status' => true,
+                        'message' => 'Booking already submitted.',
+                        'data' => $this->detail($recentDuplicate->id)['data'],
+                    ];
+                }
 
                 $orderId = DB::table('orders')->insertGetId([
                     'user_id' => $userId,
                     'vehicle_id' => $data['vehicle_id'] ?? null,
-                    'grand_total' => $data['grand_total'] ?? $amount,
-                    'coupon_value' => $data['coupon_value'] ?? null,
+                    'grand_total' => $grandTotal,
+                    'coupon_value' => $couponValue,
                     'coupon_name' => $data['coupon_name'] ?? null,
-                    'tax' => $data['tax'] ?? null,
-                    'payment_method' => $data['payment_method'] ?? 'cash',
-                    'payment_status' => $data['payment_status'] ?? 'pending',
+                    'tax' => $tax,
+                    'payment_method' => $paymentMethod,
+                    'payment_status' => $paymentStatus,
                     'total_km' => $data['total_km'] ?? ($product->km_limit ?? null),
                     'date' => $data['pickup_date'] ?? null,
                     'dateTo' => $data['return_date'] ?? null,
@@ -43,7 +108,7 @@ class BookingService
                     'endTime' => $data['return_time'] ?? null,
                     'booking_from' => $data['pickup_address'] ?? null,
                     'booking_to' => $data['drop_address'] ?? null,
-                    'status' => 'new',
+                    'status' => $orderStatus,
                     'plan' => $this->validPlan($data['plan'] ?? ($product->plan ?? 'none')),
                     'currency' => 'INR',
                     'extraOptions' => isset($data['extra_options']) ? json_encode($data['extra_options']) : null,
@@ -51,7 +116,7 @@ class BookingService
                     'cityTo' => $data['drop_city'] ?? null,
                     'productName' => $product->name ?? ($category->name ?? ($data['taxi_type'] ?? 'Taxi Booking')),
                     'image' => $this->resolveImage($product),
-                    'shipping_ammount' => null,
+                    'shipping_ammount' => 0,
                     'taxi_type' => $data['taxi_type'] ?? ($category->name ?? null),
                     'notes' => $data['notes'] ?? 'Booking created from Dura Cabs mobile app.',
                     'ride_type' => $data['ride_type'] ?? ($product->ride_type ?? 'one_way'),
@@ -90,15 +155,17 @@ class BookingService
                     ]);
                 }
 
-                $booking = $this->detail($orderId)['data'];
-
                 return [
                     'status' => true,
-                    'message' => 'Booking created successfully',
-                    'data' => $booking,
+                    'message' => $isOnline
+                        ? 'Booking created. Please complete payment.'
+                        : 'Booking created successfully',
+                    'data' => $this->detail($orderId)['data'],
                 ];
             });
         } catch (\Throwable $e) {
+            Cache::forget($lockKey);
+
             Log::error('V1 Booking Create Error', [
                 'error' => $e->getMessage(),
                 'data' => $data,
@@ -125,10 +192,12 @@ class BookingService
             $query->where('user_id', $userId);
         } elseif ($mobile && Schema::hasTable('addresses')) {
             $orderIds = DB::table('addresses')->where('phone', $mobile)->pluck('order_id')->filter()->toArray();
+
             $query->where(function ($q) use ($mobile, $orderIds) {
                 if (!empty($orderIds)) {
                     $q->whereIn('id', $orderIds);
                 }
+
                 $q->orWhere('booking_from', 'like', '%' . $mobile . '%');
             });
         }
@@ -192,7 +261,7 @@ class BookingService
             ];
         }
 
-        if (in_array($order->status, ['cancelled', 'closed'])) {
+        if (in_array($order->status, ['cancelled', 'closed'], true)) {
             return [
                 'status' => false,
                 'message' => 'Booking cannot be cancelled.',
@@ -211,6 +280,38 @@ class BookingService
             'message' => 'Booking cancelled successfully',
             'data' => $this->detail($data['booking_id'])['data'],
         ];
+    }
+
+    private function findRecentDuplicate(array $data)
+    {
+        if (!Schema::hasTable('addresses')) {
+            return null;
+        }
+
+        $mobile = $data['mobile'] ?? null;
+
+        if (!$mobile) {
+            return null;
+        }
+
+        $orderIds = DB::table('addresses')
+            ->where('phone', $mobile)
+            ->where('created_at', '>=', now()->subSeconds(60))
+            ->pluck('order_id')
+            ->filter()
+            ->toArray();
+
+        if (empty($orderIds)) {
+            return null;
+        }
+
+        return DB::table('orders')
+            ->whereIn('id', $orderIds)
+            ->where('date', $data['pickup_date'] ?? null)
+            ->where('time', $data['pickup_time'] ?? null)
+            ->where('ride_type', $data['ride_type'] ?? null)
+            ->orderByDesc('id')
+            ->first();
     }
 
     private function findOrCreateUser(array $data): ?int
@@ -247,7 +348,8 @@ class BookingService
             return null;
         }
 
-        return DB::table('products')->where('id', $productId)->first();
+        return DB::table('products')->where('id', $productId)->where('is_active', 1)->first()
+            ?? DB::table('products')->where('id', $productId)->first();
     }
 
     private function getCategory($categoryId)
@@ -256,20 +358,49 @@ class BookingService
             return null;
         }
 
-        return DB::table('categories')->where('id', $categoryId)->first();
+        return DB::table('categories')->where('id', $categoryId)->where('is_active', 1)->first()
+            ?? DB::table('categories')->where('id', $categoryId)->first();
     }
 
-    private function resolveAmount(array $data, $product): float
+    private function resolveSafeAmount(array $data, $product): float
     {
-        if (isset($data['grand_total'])) {
-            return (float) $data['grand_total'];
+        $serverAmount = (float) ($product->price ?? 0);
+
+        if ($serverAmount > 0) {
+            return round($serverAmount, 2);
         }
 
-        if (isset($data['amount'])) {
-            return (float) $data['amount'];
+        $fallbackAmount = (float) ($data['amount'] ?? $data['grand_total'] ?? 0);
+
+        return $fallbackAmount > 0 ? round($fallbackAmount, 2) : 0;
+    }
+
+    private function resolveCouponValue(array $data, float $amount): float
+    {
+        $couponValue = (float) ($data['coupon_value'] ?? 0);
+
+        if ($couponValue < 0) {
+            return 0;
         }
 
-        return (float) ($product->price ?? 0);
+        if ($couponValue > $amount) {
+            return 0;
+        }
+
+        return round($couponValue, 2);
+    }
+
+    private function resolveTax(array $data, float $amount, float $couponValue): float
+    {
+        if (isset($data['tax'])) {
+            $tax = (float) $data['tax'];
+
+            return $tax >= 0 ? round($tax, 2) : 0;
+        }
+
+        $taxableAmount = max(0, $amount - $couponValue);
+
+        return round(($taxableAmount * 5) / 100, 2);
     }
 
     private function resolveImage($product): ?string
