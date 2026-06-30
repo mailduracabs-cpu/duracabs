@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -18,11 +19,52 @@ class InquiryService
             ];
         }
 
+        $mobile = $data['mobile'] ?? null;
+        $service = $data['service'] ?? 'one_way';
+        $type = $data['type'] ?? 'quick_inquiry';
+        $message = trim($data['message'] ?? '');
+        $city = trim($data['city'] ?? '');
+        $address = trim($data['address'] ?? '');
+
+        $duplicateKey = 'inquiry_lock_' . md5(
+            $mobile . '|' . $service . '|' . $type . '|' . $message . '|' . $city . '|' . $address
+        );
+
+        if (!Cache::add($duplicateKey, true, now()->addSeconds(60))) {
+            $latest = DB::table('inquirys')
+                ->where('mobile', $mobile)
+                ->where('created_at', '>=', now()->subSeconds(60))
+                ->orderByDesc('id')
+                ->first();
+
+            return [
+                'status' => true,
+                'message' => 'Inquiry already submitted. Our team will contact you shortly.',
+                'data' => $latest,
+            ];
+        }
+
         try {
+            $recentDuplicate = DB::table('inquirys')
+                ->where('mobile', $mobile)
+                ->where('service', $service)
+                ->where('type', $type)
+                ->where('created_at', '>=', now()->subSeconds(60))
+                ->orderByDesc('id')
+                ->first();
+
+            if ($recentDuplicate) {
+                return [
+                    'status' => true,
+                    'message' => 'Inquiry already submitted. Our team will contact you shortly.',
+                    'data' => $recentDuplicate,
+                ];
+            }
+
             $id = DB::table('inquirys')->insertGetId([
                 'name' => $data['name'] ?? 'Dura Cabs Customer',
                 'cab_name' => $data['cab_name'] ?? null,
-                'mobile' => $data['mobile'],
+                'mobile' => $mobile,
                 'email' => $data['email'] ?? null,
                 'message' => $data['message'] ?? null,
                 'oraganization_name' => $data['oraganization_name'] ?? null,
@@ -30,8 +72,8 @@ class InquiryService
                 'city' => $data['city'] ?? null,
                 'state' => $data['state'] ?? null,
                 'pincode' => $data['pincode'] ?? null,
-                'type' => $data['type'] ?? 'quick_inquiry',
-                'service' => $data['service'] ?? 'one_way',
+                'type' => $type,
+                'service' => $service,
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
@@ -41,7 +83,10 @@ class InquiryService
                 'message' => 'Inquiry submitted successfully',
                 'data' => DB::table('inquirys')->where('id', $id)->first(),
             ];
+
         } catch (\Throwable $e) {
+            Cache::forget($duplicateKey);
+
             Log::error('V1 Inquiry Create Error', [
                 'error' => $e->getMessage(),
                 'data' => $data,
