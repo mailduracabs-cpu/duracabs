@@ -1,139 +1,197 @@
 import './bootstrap';
-import 'preline'
+import 'preline';
 
-document.addEventListener('livewire:navigated', ()=> {
-    window.HSStaticMethods.autoInit();
-})
+// ------------------------------
+// Livewire + Preline
+// ------------------------------
+document.addEventListener('livewire:navigated', () => {
+    if (window.HSStaticMethods) {
+        window.HSStaticMethods.autoInit();
+    }
+});
 
+// ------------------------------
+// Alpine Carousel
+// ------------------------------
 window.carousel = function () {
-  return {
-    container: null,
-    prev: null,
-    next: null,
-    init() {
-      this.container = this.$refs.container
+    return {
+        container: null,
+        prev: null,
+        next: null,
 
-      this.update();
+        init() {
+            this.container = this.$refs.container;
 
-      this.container.addEventListener('scroll', this.update.bind(this), {passive: true});
-    },
-    update() {
-      const rect = this.container.getBoundingClientRect();
+            if (!this.container) return;
 
-      const visibleElements = Array.from(this.container.children).filter((child) => {
-        const childRect = child.getBoundingClientRect()
+            this.update();
 
-        return childRect.left >= rect.left && childRect.right <= rect.right;
-      });
+            this.container.addEventListener(
+                "scroll",
+                this.update.bind(this),
+                { passive: true }
+            );
+        },
 
-      if (visibleElements.length > 0) {
-        this.prev = this.getPrevElement(visibleElements);
-        this.next = this.getNextElement(visibleElements);
-      }
-    },
-    getPrevElement(list) {
-      const sibling = list[0].previousElementSibling;
+        update() {
 
-      if (sibling instanceof HTMLElement) {
-        return sibling;
-      }
+            if (!this.container) return;
 
-      return null;
-    },
-    getNextElement(list) {
-      const sibling = list[list.length - 1].nextElementSibling;
+            const rect = this.container.getBoundingClientRect();
 
-      if (sibling instanceof HTMLElement) {
-        return sibling;
-      }
+            const visibleElements = Array.from(this.container.children).filter(
+                (child) => {
+                    const childRect = child.getBoundingClientRect();
 
-      return null;
-    },
-    scrollTo(element) {
-      const current = this.container;
+                    return (
+                        childRect.left >= rect.left &&
+                        childRect.right <= rect.right
+                    );
+                }
+            );
 
-      if (!current || !element) return;
+            if (visibleElements.length) {
+                this.prev = this.getPrevElement(visibleElements);
+                this.next = this.getNextElement(visibleElements);
+            }
+        },
 
-      const nextScrollPosition =
-        element.offsetLeft +
-        element.getBoundingClientRect().width / 2 -
-        current.getBoundingClientRect().width / 2;
+        getPrevElement(list) {
+            const sibling = list[0]?.previousElementSibling;
 
-      current.scroll({
-        left: nextScrollPosition,
-        behavior: 'smooth',
-      });
+            return sibling instanceof HTMLElement ? sibling : null;
+        },
+
+        getNextElement(list) {
+            const sibling = list[list.length - 1]?.nextElementSibling;
+
+            return sibling instanceof HTMLElement ? sibling : null;
+        },
+
+        scrollTo(element) {
+
+            if (!this.container || !element) return;
+
+            this.container.scroll({
+                left:
+                    element.offsetLeft +
+                    element.offsetWidth / 2 -
+                    this.container.offsetWidth / 2,
+
+                behavior: "smooth",
+            });
+        },
+    };
+};
+
+// ------------------------------
+// Read More
+// ------------------------------
+window.readMore = function () {
+
+    return {
+
+        open: false,
+
+        isTruncated: false,
+
+        lineNumber: 6,
+
+        lineHeight: 20,
+
+        truncateHeight: 0,
+
+        init() {
+
+            if (!this.$refs.content) return;
+
+            this.truncateHeight = this.lineNumber * this.lineHeight;
+
+            this.isTruncated =
+                this.$refs.content.offsetHeight > this.truncateHeight;
+        },
+    };
+};
+
+// ------------------------------
+// Card Read More
+// ------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+
+    const cardHeight = 200;
+
+    const cards = document.querySelectorAll(".card");
+
+    cards.forEach((card) => {
+
+        const description = card.querySelector(".description");
+
+        const readMore = card.querySelector(".button");
+
+        if (!description || !readMore) return;
+
+        description.style.maxHeight = `${cardHeight}px`;
+
+        if (description.scrollHeight <= cardHeight) {
+
+            readMore.style.display = "none";
+
+            return;
+        }
+
+        const addSpan = () => {
+
+            if (description.nextElementSibling?.classList.contains("dots"))
+                return;
+
+            const span = document.createElement("span");
+
+            span.className = "dots";
+
+            span.innerHTML = "&hellip;";
+
+            description.after(span);
+        };
+
+        addSpan();
+
+        readMore.addEventListener("click", () => {
+
+            if (description.style.maxHeight === `${cardHeight}px`) {
+
+                description.style.maxHeight =
+                    `${description.scrollHeight}px`;
+
+                readMore.innerHTML = "Read Less";
+
+                description.nextElementSibling?.remove();
+
+            } else {
+
+                description.style.maxHeight = `${cardHeight}px`;
+
+                readMore.innerHTML = "Read More";
+
+                addSpan();
+            }
+
+        });
+
+    });
+
+});
+
+// ------------------------------
+// Booking Date Fix
+// ------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+
+    const bookingInput = document.querySelector('input[name="book"]');
+
+    if (bookingInput) {
+
+        bookingInput.min = new Date().toISOString().slice(0, 16);
+
     }
-  };
-}
 
-function readMore() {
-  return {
-    open: false,
-    isTruncated: false,
-    lineNumber: 6,
-    lineHeight: 20,
-    truncateHeight: 0,
-    init() {
-      this.truncateHeight = this.getTruncateHeight();
-      this.isTruncated = this.$refs.content.offsetHeight > this.truncateHeight;
-    },
-    getTruncateHeight() {
-      return this.lineNumber * this.lineHeight;
-    }
-  }
-}
-
-
-// define the card height when it is not expanded
-const cardHeight = 200;
-
-// get all cards
-const cards = document.querySelectorAll(".card");
-
-// loop through cards
-for (let card of cards) {
-  const description = card.querySelector(".description");
-  const readMore = card.querySelector(".button");
-
-  // limit description height to s200px
-  description.style.maxHeight = `${cardHeight}px`;
-  // hide read more button if description is less than card height
-  if (description.scrollHeight <= cardHeight) {
-    readMore.style.display = "none";
-  }
-
-  // function to add span with hellip
-  const addSpan = () => {
-    let span = document.createElement("span");
-    span.innerHTML = "&hellip;";
-    // append span after description
-    description.parentNode.insertBefore(span, description.nextSibling);
-  };
-
-  // add a span with hellip at the end of the container if the card is not expanded
-  if (description.scrollHeight > cardHeight) {
-    addSpan();
-  }
-
-  // add event listener to read more button to toggle description height
-  readMore.addEventListener("click", () => {
-    if (description.style.maxHeight === `${cardHeight}px`) {
-      description.style.maxHeight = `${description.scrollHeight}px`;
-      readMore.innerHTML = "Read less";
-      // remove span with hellip when description is expanded
-      description.nextSibling.remove();
-    } else {
-      description.style.maxHeight = `${cardHeight}px`;
-      readMore.innerHTML = "Read more";
-      // add span with hellip when description is collapsed
-      addSpan();
-    }
-  });
-}
-
-var today = new Date().toISOString().slice(0, 16);
-
-document.getElementsByName("book")[0].min = today;
-
-
+});
