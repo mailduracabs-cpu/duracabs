@@ -3,24 +3,18 @@
 namespace App\Livewire;
 
 use App\Helpers\CartManagement;
-use App\Mail\OrderPlaced;
 use App\Models\address;
 use App\Models\Coupons;
 use App\Models\Order;
-use App\Models\Product;
-use DateTime;
-use Illuminate\Support\Facades\Mail;
+use GuzzleHttp\Client;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Title;
 use Livewire\Component;
-use Stripe\Stripe;
-use Stripe\Checkout\Session;
-use GuzzleHttp\Client;
-use Razorpay\Api\Api;
 
 #[Title('Checkout')]
 class CheckoutPage extends Component
 {
-
     public $full_name;
     public $phone;
     public $phone2;
@@ -33,65 +27,86 @@ class CheckoutPage extends Component
     public $coupon;
     public $couponData = false;
     public $couponName;
-    public $couponValue;
+    public $couponValue = 0;
     public $payment_method;
 
     public $order_id;
-    public $grandTotal;
-    public $tollTax;
-    public $security;
-    public $extraAmountArr = array(
-        array("is_checked" => false, "type" => "newWehical" ,"title" => "New Vehical", "price" => 0),
-        array("is_checked" => false, "type" => "petFrindly" ,"title" => "Pet Friendly", "price" => 0),
-        array("is_checked" => false, "type" => "roofCareer" ,"title" => "Roof Career", "price" => 0),
-       
-    );
-
+    public $grandTotal = 0;
+    public $tollTax = 0;
+    public $security = 0;
     public $extraTotal = 0;
+    public $isSubmitting = false;
 
+    public $extraAmountArr = [
+        ["is_checked" => false, "type" => "newWehical", "title" => "New Vehical", "price" => 0],
+        ["is_checked" => false, "type" => "petFrindly", "title" => "Pet Friendly", "price" => 0],
+        ["is_checked" => false, "type" => "roofCareer", "title" => "Roof Career", "price" => 0],
+    ];
 
-  public function mount()
+    public function mount()
     {
+        $cart_items = CartManagement::getCartItemsFromCookie();
 
-         $cart_items = CartManagement::getCartItemsFromCookie();
+        if (empty($cart_items)) {
+            return redirect('/');
+        }
 
-     
-
-  
-
-        $this->roofCareer = $cart_items[0]['roof_career'] ?? 0;
-        $this->newWehical = $cart_items[0]['new_vehicle'] ?? 0;
-        $this->petFrindly = $cart_items[0]['pet_friendly'] ?? 0;
         $this->security = $cart_items[0]['security'] ?? 0;
-        $type = $cart_items[0]['type'] ?? 0;
+        $type = $cart_items[0]['type'] ?? '';
 
-        if($type === 'self_drive'){
-            $this->extraAmountArr = array(
-                array("is_checked" => false, "description" => "dsgfsdgsd sdfsdfsdf d" ,"title" => "Security", "price" => $this->security)
-            );
-        }else{
-        $this->extraAmountArr = array(
-            array("is_checked" => false, "description" => "Car with roof carrier for adjusting extra luggage" ,"title" => "Roof Career", "price" => $cart_items[0]['roof_career'] ?? 0),
-            array("is_checked" => false, "description" => "Promised new car with 2023 or newer model" ,"title" => "New Vehical", "price" => $cart_items[0]['new_vehicle'] ?? 0),
-            array("is_checked" => false, "description" => "Choose your pet friendly car for a smoother ride" ,"title" => "Pet Friendly", "price" => $cart_items[0]['pet_friendly'] ?? 0),
-        );
-    }
+        if ($type === 'self_drive') {
+            $this->extraAmountArr = [
+                [
+                    "is_checked" => true,
+                    "description" => "Refundable security deposit",
+                    "title" => "Security",
+                    "price" => (float) $this->security,
+                ],
+            ];
+            $this->extraTotal = (float) $this->security;
+        } else {
+            $this->extraAmountArr = [
+                [
+                    "is_checked" => false,
+                    "description" => "Car with roof carrier for adjusting extra luggage",
+                    "title" => "Roof Career",
+                    "price" => (float) ($cart_items[0]['roof_career'] ?? 0),
+                ],
+                [
+                    "is_checked" => false,
+                    "description" => "Promised new car with 2023 or newer model",
+                    "title" => "New Vehical",
+                    "price" => (float) ($cart_items[0]['new_vehicle'] ?? 0),
+                ],
+                [
+                    "is_checked" => false,
+                    "description" => "Choose your pet friendly car for a smoother ride",
+                    "title" => "Pet Friendly",
+                    "price" => (float) ($cart_items[0]['pet_friendly'] ?? 0),
+                ],
+            ];
+        }
+
+        $this->recalculateTotals();
     }
 
     public function newWehicalValueFun($key)
     {
-        $this->extraAmountArr[$key]['is_checked'] = ! $this->extraAmountArr[$key]['is_checked'];
+        if (!isset($this->extraAmountArr[$key])) {
+            return;
+        }
+
+        $this->extraAmountArr[$key]['is_checked'] = !$this->extraAmountArr[$key]['is_checked'];
         $this->extraTotal = $this->totalPrice;
+        $this->recalculateTotals();
     }
 
     public function getTotalPriceProperty()
-{
-    
-    return collect($this->extraAmountArr)
-        ->where('is_checked', operator: true)
-        ->sum('price');
-}
-
+    {
+        return collect($this->extraAmountArr)
+            ->where('is_checked', true)
+            ->sum('price');
+    }
 
     public function updatedCoupon()
     {
@@ -99,6 +114,7 @@ class CheckoutPage extends Component
             $this->couponData = false;
             $this->couponName = '';
             $this->couponValue = 0;
+            $this->recalculateTotals();
             return;
         }
 
@@ -109,14 +125,16 @@ class CheckoutPage extends Component
             ->first();
 
         if ($coupon) {
-            $this->couponData = $coupon->value;
+            $this->couponData = (float) $coupon->value;
             $this->couponName = $coupon->name;
-            $this->couponValue = $coupon->value;
+            $this->couponValue = (float) $coupon->value;
         } else {
             $this->couponData = false;
             $this->couponName = '';
             $this->couponValue = 0;
         }
+
+        $this->recalculateTotals();
     }
 
     public function applyCoupon($couponName)
@@ -125,222 +143,229 @@ class CheckoutPage extends Component
         $this->updatedCoupon();
     }
 
+    private function recalculateTotals(): float
+    {
+        $cart_items = CartManagement::getCartItemsFromCookie();
 
-  
+        if (empty($cart_items)) {
+            $this->grandTotal = 0;
+            return 0;
+        }
+
+        $gtotal = (float) CartManagement::calculateGrandTotal($cart_items);
+        $this->tollTax = (float) ($cart_items[0]['toll'] ?? 0);
+        $this->extraTotal = (float) $this->totalPrice;
+
+        $taxAmount = round((5 / 100) * ($gtotal + $this->tollTax + $this->extraTotal), 2);
+
+        $beforeDiscount = $gtotal + $this->tollTax + $this->extraTotal + $taxAmount;
+
+        $discountAmount = 0;
+        if ($this->couponData) {
+            $discountAmount = round(($this->couponData / 100) * $beforeDiscount, 2);
+        }
+
+        $this->grandTotal = max(0, round($beforeDiscount - $discountAmount, 2));
+
+        return $this->grandTotal;
+    }
 
     public function sendSMS($orderId)
     {
-
         $mobileval = '7088873332,7088873331,7017364693';
         $templateid = '1507166123259919760';
 
-        $message = ' Dear Admin, You have received a new booking number ' . $orderId . ' please log in your account and check the booking status From DURACABS ';
+        $message = 'Dear Admin, You have received a new booking number ' . $orderId . ' please log in your account and check the booking status From DURACABS';
 
-
-
-        $api_url = "http://manage.sambsms.com/app/smsapi/index.php?key=3627633B7AC9C6&entity=1701165124480381903&tempid=" . $templateid . "&campaign=0&routeid=7&type=text&contacts=" . $mobileval . "&senderid=DURACB&msg=" . $message;
-
-        $client = new Client();
+        $api_url = "http://manage.sambsms.com/app/smsapi/index.php?key=3627633B7AC9C6&entity=1701165124480381903&tempid=" . $templateid . "&campaign=0&routeid=7&type=text&contacts=" . $mobileval . "&senderid=DURACB&msg=" . urlencode($message);
 
         try {
-            // Make a GET request to the OpenWeather API
-            $response = $client->get($api_url);
+            $client = new Client();
+            $client->get($api_url, ['timeout' => 10]);
         } catch (\Exception $e) {
-            // Handle any errors that occur during the API request
-            return view('api_error', ['error' => $e->getMessage()]);
+            report($e);
         }
-
     }
+
     public function placeOrder()
     {
+        if ($this->isSubmitting) {
+            return;
+        }
 
-
+        $this->isSubmitting = true;
 
         $this->validate([
-            'full_name' => 'required',
-            'phone' => 'required',
-            'email' => 'required',
-
-            'pickup_address' => 'required',
-
-            'payment_method' => 'required',
+            'full_name' => 'required|string|max:150',
+            'phone' => 'required|digits:10',
+            'phone2' => 'nullable|digits:10',
+            'email' => 'required|email|max:150',
+            'pickup_address' => 'required|string|max:500',
+            'drop_address' => 'nullable|string|max:500',
+            'payment_method' => 'required|in:cash,RazorPay',
         ]);
 
         $cart_items = CartManagement::getCartItemsFromCookie();
 
-
-        $line_items = [];
-
-        foreach ($cart_items as $item) {
-            $line_items[] = [
-                'price_data' => [
-                    'currency' => 'inr',
-                    'unit_amount' => $item['unit_ammount'] * 100,
-                    'product_data' => [
-                        'name' => $item['name'],
-                    ]
-                ],
-                'quantity' => $item['quantity']
-            ];
+        if (empty($cart_items)) {
+            $this->isSubmitting = false;
+            session()->flash('error', 'Cart is empty.');
+            return redirect('/cart');
         }
 
+        $grandTotal = $this->recalculateTotals();
 
-
-        $gtotal = CartManagement::calculateGrandTotal($cart_items);
-
-    
-
-        $this->tollTax = $cart_items[0]['toll'];
-        $this->roofCareer = $cart_items[0]['roof_career'] ?? 0;
-        $this->newWehical = $cart_items[0]['new_vehicle'] ?? 0;
-        $this->petFrindly = $cart_items[0]['pet_friendly'] ?? 0;
-
-        $total = $gtotal - $this->couponData;
-
-
-        $taxAmmount = (5 / 100) * ($gtotal +  (int)$this->tollTax + $this->extraTotal);
-
-        $grandTotal = $this->couponData 
-                    ? 
-                    ($gtotal +  (5 / 100) * ($gtotal +  (int)$this->tollTax )+ $this->extraTotal) - ($this->couponData / 100) * ($gtotal +  (int)$this->tollTax + (5 / 100) * ($gtotal +  (int)$this->tollTax )+ $this->extraTotal)  
-                    : $gtotal +  (5 / 100) * ($gtotal +  (int)$this->tollTax )+ $this->extraTotal ;
-
-      
-
-        if ($this->tollTax) {
-            $grandTotal = $grandTotal + $this->tollTax;
-        } else {
-            $this->grandTotal = $grandTotal;
+        if ($grandTotal <= 0) {
+            $this->isSubmitting = false;
+            session()->flash('error', 'Invalid booking amount. Please try again.');
+            return;
         }
 
-       
-       
+        $lockKey = 'checkout_lock_' . auth()->id();
 
-
-        $order = new order();
-        $order->user_id = auth()->user()->id;
-
-        $order->grand_total = $grandTotal;
-        $order->tax = $taxAmmount;
-        
-        $order->payment_method = $this->payment_method;
-        $order->payment_status = 'pending';
-        $order->status = 'new';
-        $order->currency = 'inr';
-        $order->shipping_ammount = 0;
-
-
-        //$order->time = new DateTime('now');
-        $order->notes = 'order placed by' . auth()->user()->name;
-
-        if ($cart_items[0]['type'] === 'one_way') {
-            $order->cityTo = $cart_items[0]['cityTo'];
-            $order->productName = $cart_items[0]['cabModel'];
-            $order->date = $cart_items[0]['date'];
-            $order->time = $cart_items[0]['time'];
-            $order->ride_type = $cart_items[0]['type'];
-            $order->extraOptions = $this->extraAmountArr;
+        if (!Cache::add($lockKey, true, now()->addSeconds(30))) {
+            $this->isSubmitting = false;
+            session()->flash('error', 'Please wait. Your booking is already processing.');
+            return;
         }
 
-        if ($cart_items[0]['type'] === 'local') {
-            $order->cityTo = $cart_items[0]['cityTo'];
-            $order->productName = $cart_items[0]['cabModel'];
-            $order->date = $cart_items[0]['date'];
-            $order->time = $cart_items[0]['time'];
-            $order->ride_type = $cart_items[0]['type'];
-            $order->plan = $cart_items[0]['plan'];
-            $order->extraOptions = $this->extraAmountArr;
+        try {
+            $order = DB::transaction(function () use ($cart_items, $grandTotal) {
+                $gtotal = (float) CartManagement::calculateGrandTotal($cart_items);
+                $taxAmount = round((5 / 100) * ($gtotal + (float) $this->tollTax + (float) $this->extraTotal), 2);
+
+                $order = new Order();
+                $order->user_id = auth()->user()->id;
+                $order->grand_total = $grandTotal;
+                $order->tax = $taxAmount;
+                $order->payment_method = $this->payment_method;
+                $order->payment_status = 'pending';
+
+                if ($this->payment_method === 'RazorPay') {
+                    $order->status = 'pending_payment';
+                } else {
+                    $order->status = 'confirmed';
+                }
+
+                $order->currency = 'inr';
+                $order->shipping_ammount = 0;
+                $order->notes = 'order placed by ' . auth()->user()->name;
+
+                $type = $cart_items[0]['type'] ?? '';
+
+                if ($type === 'one_way') {
+                    $order->cityTo = $cart_items[0]['cityTo'] ?? null;
+                    $order->productName = $cart_items[0]['cabModel'] ?? null;
+                    $order->date = $cart_items[0]['date'] ?? null;
+                    $order->time = $cart_items[0]['time'] ?? null;
+                    $order->ride_type = $type;
+                    $order->extraOptions = $this->extraAmountArr;
+                }
+
+                if ($type === 'local') {
+                    $order->cityTo = $cart_items[0]['cityTo'] ?? null;
+                    $order->productName = $cart_items[0]['cabModel'] ?? null;
+                    $order->date = $cart_items[0]['date'] ?? null;
+                    $order->time = $cart_items[0]['time'] ?? null;
+                    $order->ride_type = $type;
+                    $order->plan = $cart_items[0]['plan'] ?? null;
+                    $order->extraOptions = $this->extraAmountArr;
+                }
+
+                if ($type === 'self_drive') {
+                    $order->cityTo = $cart_items[0]['cityTo'] ?? null;
+                    $order->cityFrom = $cart_items[0]['cityFrom'] ?? null;
+                    $order->productName = $cart_items[0]['cabModel'] ?? null;
+                    $order->date = $cart_items[0]['date'] ?? null;
+                    $order->dateTo = $cart_items[0]['dateTo'] ?? null;
+                    $order->time = $cart_items[0]['time'] ?? null;
+                    $order->endTime = $cart_items[0]['endTime'] ?? null;
+                    $order->ride_type = $type;
+                    $order->extraOptions = $this->extraAmountArr;
+                }
+
+                if ($type === 'return') {
+                    $order->cityTo = $cart_items[0]['cityTo'] ?? null;
+                    $order->cityFrom = $cart_items[0]['cityFrom'] ?? null;
+                    $order->productName = $cart_items[0]['cabModel'] ?? null;
+                    $order->image = $cart_items[0]['image'] ?? null;
+                    $order->date = $cart_items[0]['date'] ?? null;
+                    $order->dateTo = $cart_items[0]['dateTo'] ?? null;
+                    $order->ride_type = $type;
+                    $order->time = $cart_items[0]['time'] ?? null;
+                    $order->total_km = $cart_items[0]['TotalKm'] ?? null;
+                    $order->extraOptions = $this->extraAmountArr;
+                }
+
+                $order->coupon_value = $this->couponData ? round(($this->couponData / 100) * $gtotal, 2) : 0;
+                $order->coupon_name = $this->coupon;
+                $order->save();
+
+                $address = new address();
+                $address->order_id = $order->id;
+                $address->full_name = $this->full_name;
+                $address->email = $this->email;
+                $address->phone = $this->phone;
+                $address->phone2 = $this->phone2;
+                $address->pickup_address = $this->pickup_address;
+                $address->drop_address = $this->drop_address;
+                $address->number_travellers = $this->number_travellers;
+                $address->number_luggage = $this->number_luggage;
+                $address->comments = $this->comments;
+                $address->save();
+
+                $order->items()->createMany($cart_items);
+
+                return $order;
+            });
+
+            if ($this->payment_method === 'RazorPay') {
+                return redirect(
+                    route('razorpay') .
+                    '?amount=' . $this->grandTotal .
+                    '&name=' . urlencode($this->full_name) .
+                    '&email=' . urlencode($this->email) .
+                    '&phone=' . urlencode($this->phone) .
+                    '&id=' . $order->id
+                );
+            }
+
+            $this->sendSMS($order->id);
+            CartManagement::clearCartItems($cart_items);
+
+            return redirect(route('success') . '?id=' . $order->id);
+
+        } catch (\Throwable $e) {
+            report($e);
+            $this->isSubmitting = false;
+            Cache::forget($lockKey);
+            session()->flash('error', 'Unable to place order. Please try again.');
+            return;
         }
-
-        if ($cart_items[0]['type'] === 'self_drive') {
-            $order->cityTo = $cart_items[0]['cityTo'];
-            $order->cityFrom = $cart_items[0]['cityFrom'];
-            $order->productName = $cart_items[0]['cabModel'];
-            $order->date = $cart_items[0]['date'];
-            $order->dateTo = $cart_items[0]['dateTo'];
-            $order->time = $cart_items[0]['time'];
-            $order->endTime = $cart_items[0]['endTime'];
-            $order->ride_type = $cart_items[0]['type'];
-            $order->extraOptions = $this->extraAmountArr;
-            
-        }
-
-        if ($cart_items[0]['type'] === 'return') {
-            $order->cityTo = $cart_items[0]['cityTo'];
-            $order->cityFrom = $cart_items[0]['cityFrom'];
-            $order->productName = $cart_items[0]['cabModel'];
-            $order->image = $cart_items[0]['image'];
-            $order->date = $cart_items[0]['date'];
-            $order->dateTo = $cart_items[0]['dateTo'];
-            $order->ride_type = $cart_items[0]['type'];
-            $order->time = $cart_items[0]['time'];
-            $order->total_km = $cart_items[0]['TotalKm'];
-            $order->extraOptions = $this->extraAmountArr;
-        }
-
-        $order->coupon_value = ($this->couponData / 100) * $gtotal;
-        $order->coupon_name = $this->coupon;
-
-        $address = new address();
-        $address->full_name = $this->full_name;
-        $address->email = $this->email;
-        $address->phone = $this->phone;
-        $address->phone2 = $this->phone2;
-        $address->pickup_address = $this->pickup_address;
-        $address->drop_address = $this->drop_address;
-        $address->number_travellers = $this->number_travellers;
-        $address->number_luggage = $this->number_luggage;
-        $address->comments = $this->comments;
-
-        $redirect_url = '';
-
-
-        $order->save();
-        if ($this->payment_method == 'RazorPay') {
-
-
-            $redirect_url = route('razorpay') . '?amount=' . $this->grandTotal . '&name=' . $this->full_name . '&email=' . $this->email . '&phone=' . $this->phone . '&id=' . $order->id;
-
-
-        } else {
-            $redirect_url = route('success');
-
-        }
-        $address->order_id = $order->id;
-        $address->save();
-        $order->items()->createMany($cart_items);
-        $this->sendSMS($order->id);
-        CartManagement::clearCartItems($cart_items);
-        return redirect($redirect_url);
     }
-
-
-
 
     public function render()
     {
         $cart_items = CartManagement::getCartItemsFromCookie();
-        
-        if(empty($cart_items)){
-             redirect()->route('homepage');
+
+        if (empty($cart_items)) {
+            return view('livewire.checkout-page', [
+                'cart_items' => [],
+                'grand_total' => 0,
+                'availableCoupons' => collect(),
+            ]);
         }
 
-
         $grand_total = CartManagement::calculateGrandTotal($cart_items);
-
         $this->tollTax = $cart_items[0]['toll'] ?? 0;
-        $this->roofCareer = $cart_items[0]['roof_career'] ?? 0;
-        $this->newWehical = $cart_items[0]['new_vehicle'] ?? 0;
-        $this->petFrindly = $cart_items[0]['pet_friendly'] ?? 0;
 
-        // Get available Coupons
         $availableCoupons = Coupons::where('status', 'active')
             ->whereDate('from_date', '<=', now())
             ->whereDate('to_date', '>=', now())
             ->orderBy('value', 'desc')
             ->get();
 
-        
+        $this->recalculateTotals();
 
         return view('livewire.checkout-page', [
             'cart_items' => $cart_items,
