@@ -1,0 +1,14 @@
+app\Filament\Resources\FleetResource.php:6:use App\Models\FleetManagement\Fleet;
+app\Filament\Resources\FleetResource.php:23:    protected static ?string $model = Fleet::class;
+app\Filament\Resources\FleetResource.php:299:            'create' => Pages\CreateFleet::route('/create'),
+app\Filament\Resources\FleetResource.php:300:            'edit' => Pages\EditFleet::route('/{record}/edit'),
+app\Livewire\PartnerDashboard.php:125:        $this->loadFleets();
+app\Livewire\PartnerDashboard.php:156:            $this->loadFleets();
+app\Livewire\PartnerDashboard.php:389:        $this->loadFleets();
+app\Livewire\PartnerDashboard.php:465:        $this->loadFleets();
+app\Livewire\PartnerDashboard.php:477:        $this->loadFleets();
+app\Livewire\PartnerDashboard.php:483:    public function loadFleets(): void
+app\Models\FleetManagement\TransporterProfile.php:93:    public function fleets(): HasMany
+app\Models\FleetManagement\TransporterProfile.php:96:            Fleet::class,
+app\Models\FleetManagement\TransporterProfile.php:264:            && ! $this->fleets()->exists();
+app\Models\FleetManagement\TransporterProfile.php:283:        if ($this->fleets()->exists()) {

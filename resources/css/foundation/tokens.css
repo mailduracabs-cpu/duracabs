@@ -1,0 +1,42 @@
+:root {
+    /* Brand */
+    --dura-primary: #0b78e3;
+    --dura-primary-hover: #0968c7;
+    --dura-primary-dark: #0756a8;
+    --dura-accent: #38bdf8;
+
+    /* Backgrounds */
+    --dura-page-bg: #f8fafc;
+    --dura-panel-bg: #ffffff;
+    --dura-panel-border: #e2e8f0;
+    --dura-surface: #ffffff;
+
+    /* Text */
+    --dura-ink: #0f172a;
+    --dura-muted: #64748b;
+    --dura-soft-text: #475569;
+
+    /* Status */
+    --dura-success: #16a34a;
+    --dura-warning: #d97706;
+    --dura-danger: #dc2626;
+
+    /* Radius */
+    --dura-radius-sm: 10px;
+    --dura-radius: 14px;
+    --dura-radius-lg: 20px;
+
+    /* Lightweight shadows */
+    --dura-shadow-sm:
+        0 1px 2px rgba(15, 23, 42, 0.06);
+
+    --dura-shadow:
+        0 8px 24px rgba(15, 23, 42, 0.08);
+
+    --dura-shadow-hover:
+        0 14px 32px rgba(15, 23, 42, 0.12);
+
+    /* Motion */
+    --dura-duration: 180ms;
+    --dura-ease: cubic-bezier(.2, .8, .2, 1);
+}

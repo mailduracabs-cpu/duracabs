@@ -1,0 +1,243 @@
+	.view_counter {
+	    width: fit-content;
+	    max-width: 200px;
+	    text-align: center;
+	    font-size: 11px;
+	    padding: 6px 12px;
+	    background: #00000078;
+	    color: white;
+	    margin: 0 auto;
+	    top: 5px;
+	    z-index: 5;
+	    position: absolute;
+	    right: 3px;
+	    border: 2px solid white;
+	    border-radius: 37px;
+	}
+
+	.wtsp_share_btn {
+	    background: #1aab2c;
+	    font-size: 12px;
+	    padding: 10px;
+	    cursor: pointer;
+	    width: fit-content;
+	    display: inline-block;
+	}
+
+	#qr_code_d {
+	    left: 50%;
+	    position: relative;
+	    transform: translate(-50%, 0px);
+	    margin: 0px 0px 11px;
+	}
+
+	.share_box .close {
+	    font-size: 47px;
+	    text-align: end;
+	    padding: 0px 10px;
+	    font-weight: 400;
+	    color: red;
+	}
+
+	#whatsapp2 {
+	    background: #1aab2c;
+	    color: white
+	}
+
+	.fa-comment-dots {
+	    background: #1cbdff;
+	    color: white;
+	}
+
+	.share_box .close i {}
+
+	.share_box {
+	    display: none;
+	    background: white;
+	    color: black;
+	    position: fixed;
+	    top: 10%;
+	    width: 351px;
+	    padding: 10px;
+	    box-shadow: 0px 0px 10px 0px #00000033;
+	    z-index: 3;
+	    border-radius: 11px;
+	    left: 50%;
+	    transform: translate(-50%);
+	    text-align: center;
+	}
+
+	.shar_btns {
+	    width: 100px;
+	    text-align: center;
+	    display: inline-block;
+	}
+
+	.shar_btns i {
+	    padding: 10px;
+	    border-radius: 8px;
+	}
+
+	.shar_btns p {
+	    font-size: 10px;
+	}
+
+	.error_page i {
+	    font-size: 70px;
+	    margin: 34px;
+	    color: #f56342;
+	}
+
+	.error_page h1 {
+	    color: gray;
+	}
+
+	.error_page p {
+	    font-size: 14px;
+	    color: gray;
+	    font-weight: 500;
+	    margin: 20px;
+	    font-style: italic;
+	}
+
+	.error_page {
+	    position: fixed;
+	    width: -webkit-fill-available;
+	    height: -webkit-fill-available;
+	    background: white;
+	    z-index: 1100;
+	    top: 0;
+	    left: 0;
+	    text-align: center;
+	}
+
+	.error_page .home_btn {
+	    background: #2196f3;
+	    width: fit-content;
+	    margin: 10 auto;
+	    padding: 13px 30px;
+	    color: white;
+	    border-radius: 5px;
+	    font-weight: 500;
+	}
+
+	/* Position the image container (needed to position the left and right arrows) */
+
+	.containerimgback {}
+
+	.containerimg {
+	    position: relative;
+	    width: 400px;
+	    margin: 0 auto;
+	}
+
+	/* Hide the images by default */
+
+	.mySlides {
+	    display: none;
+	    height: 400px;
+	    overflow: hidden;
+	    text-align: center;
+	}
+
+	/* Add a pointer when hovering over the thumbnail images */
+
+	.cursor {
+	    cursor: pointer;
+	}
+
+	/* Next & previous buttons */
+
+	.prev,
+	.next {
+	    cursor: pointer;
+	    position: absolute;
+	    top: 40%;
+	    width: auto;
+	    padding: 16px;
+	    margin-top: -50px;
+	    color: white;
+	    font-weight: bold;
+	    font-size: 20px;
+	    border-radius: 0 3px 3px 0;
+	    user-select: none;
+	    -webkit-user-select: none;
+	    background: rgba(0, 0, 0, 0.8);
+	}
+
+	/* Position the "next button" to the right */
+
+	.next {
+	    right: 0;
+	    border-radius: 3px 0 0 3px;
+	}
+
+	/* On hover, add a black background color with a little bit see-through */
+
+	.prev:hover,
+	.next:hover {
+	    background-color: rgba(0, 0, 0, 0.8);
+	}
+
+	/* Number text (1/3 etc) */
+
+	.numbertext {
+	    color: #f2f2f2;
+	    font-size: 12px;
+	    padding: 8px 12px;
+	    position: absolute;
+	    top: 0;
+	}
+
+	/* Container for image text */
+
+	.caption-container {
+	    text-align: center;
+	    background-color: #222;
+	    padding: 2px 16px;
+	    color: white;
+	}
+
+	.row:after {
+	    content: "";
+	    display: table;
+	    clear: both;
+	}
+
+	/* Six columns side by side */
+
+	.column {
+	    width: 16.66%;
+	    margin: 7px 3px;
+	    border: 2px solid #000000;
+	    border-radius: 4px;
+	    display: inline-block;
+	    vertical-align: text-top;
+	}
+
+	/* Add a transparency effect for thumnbail images */
+
+	.demo {
+	    opacity: 0.9;
+	    min-height: 55px;
+	    max-height: 100px;
+	}
+
+	.active,
+	.demo:hover {
+	    opacity: 1;
+	}
+
+	.mySlides img {
+	    max-width: 100%;
+	    height: 100%;
+	}
+
+	@media screen and (max-width:700px) {
+	    .containerimg {
+	        position: relative;
+	        max-width: 400px;
+	        width: auto;
+	        margin: 0 auto;
+	    }
+	}
