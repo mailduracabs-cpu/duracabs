@@ -229,21 +229,44 @@
 
 @script
 <script>
-    const initializeNavbar = () => {
-        const navbarRoot = document.querySelector('[data-main-navbar]');
-
-        if (!navbarRoot || navbarRoot.dataset.initialized === 'true') {
+    (() => {
+        /*
+         * Event delegation is used here so the navbar continues working
+         * after login/logout and after Livewire replaces navbar HTML.
+         */
+        if (window.__duraNavbarEventsReady) {
             return;
         }
 
-        navbarRoot.dataset.initialized = 'true';
+        window.__duraNavbarEventsReady = true;
 
-        const menuButton = navbarRoot.querySelector('#mobile-menu-button');
-        const menu = navbarRoot.querySelector('#main-navbar');
-        const openIcon = navbarRoot.querySelector('#mobile-menu-open-icon');
-        const closeIcon = navbarRoot.querySelector('#mobile-menu-close-icon');
+        const getNavbar = (element = null) => {
+            if (element instanceof Element) {
+                return element.closest('[data-main-navbar]');
+            }
 
-        const closeMobileMenu = () => {
+            return document.querySelector('[data-main-navbar]');
+        };
+
+        const getParts = (navbar) => ({
+            menuButton: navbar?.querySelector('#mobile-menu-button'),
+            menu: navbar?.querySelector('#main-navbar'),
+            openIcon: navbar?.querySelector('#mobile-menu-open-icon'),
+            closeIcon: navbar?.querySelector('#mobile-menu-close-icon'),
+            dropdown: navbar?.querySelector('[data-user-dropdown]'),
+            dropdownButton: navbar?.querySelector('[data-user-dropdown-button]'),
+            dropdownMenu: navbar?.querySelector('[data-user-dropdown-menu]'),
+            dropdownChevron: navbar?.querySelector('[data-user-dropdown-chevron]'),
+        });
+
+        const closeMobileMenu = (navbar) => {
+            const {
+                menuButton,
+                menu,
+                openIcon,
+                closeIcon,
+            } = getParts(navbar);
+
             if (!menu || !menuButton) {
                 return;
             }
@@ -256,7 +279,14 @@
             closeIcon?.classList.add('hidden');
         };
 
-        const openMobileMenu = () => {
+        const openMobileMenu = (navbar) => {
+            const {
+                menuButton,
+                menu,
+                openIcon,
+                closeIcon,
+            } = getParts(navbar);
+
             if (!menu || !menuButton) {
                 return;
             }
@@ -269,88 +299,167 @@
             closeIcon?.classList.remove('hidden');
         };
 
-        menuButton?.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
+        const closeUserDropdown = (navbar) => {
+            const {
+                dropdownButton,
+                dropdownMenu,
+                dropdownChevron,
+            } = getParts(navbar);
 
-            const isOpen = menuButton.getAttribute('aria-expanded') === 'true';
-
-            if (isOpen) {
-                closeMobileMenu();
-            } else {
-                openMobileMenu();
-            }
-        });
-
-        navbarRoot.querySelectorAll('#main-navbar a').forEach((link) => {
-            link.addEventListener('click', () => {
-                if (window.innerWidth < 768) {
-                    closeMobileMenu();
-                }
-            });
-        });
-
-        window.addEventListener('resize', () => {
-            if (window.innerWidth >= 768) {
-                menu?.classList.remove('hidden');
-                menuButton?.setAttribute('aria-expanded', 'false');
-                openIcon?.classList.remove('hidden');
-                closeIcon?.classList.add('hidden');
-            } else {
-                closeMobileMenu();
-            }
-        });
-
-        const dropdown = navbarRoot.querySelector('[data-user-dropdown]');
-        const dropdownButton = navbarRoot.querySelector('[data-user-dropdown-button]');
-        const dropdownMenu = navbarRoot.querySelector('[data-user-dropdown-menu]');
-        const dropdownChevron = navbarRoot.querySelector('[data-user-dropdown-chevron]');
-
-        const closeUserDropdown = () => {
             dropdownMenu?.classList.add('hidden');
             dropdownButton?.setAttribute('aria-expanded', 'false');
             dropdownChevron?.classList.remove('rotate-180');
         };
 
-        dropdownButton?.addEventListener('click', (event) => {
-            event.preventDefault();
-            event.stopPropagation();
+        const toggleUserDropdown = (navbar) => {
+            const {
+                dropdownButton,
+                dropdownMenu,
+                dropdownChevron,
+            } = getParts(navbar);
 
-            const isOpen = dropdownButton.getAttribute('aria-expanded') === 'true';
+            if (!dropdownButton || !dropdownMenu) {
+                return;
+            }
+
+            const isOpen =
+                dropdownButton.getAttribute('aria-expanded') === 'true';
 
             if (isOpen) {
-                closeUserDropdown();
-            } else {
-                dropdownMenu?.classList.remove('hidden');
-                dropdownButton.setAttribute('aria-expanded', 'true');
-                dropdownChevron?.classList.add('rotate-180');
+                closeUserDropdown(navbar);
+                return;
             }
-        });
+
+            dropdownMenu.classList.remove('hidden');
+            dropdownButton.setAttribute('aria-expanded', 'true');
+            dropdownChevron?.classList.add('rotate-180');
+        };
 
         document.addEventListener('click', (event) => {
-            if (dropdown && !dropdown.contains(event.target)) {
-                closeUserDropdown();
+            const target = event.target;
+
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            const menuButton = target.closest('#mobile-menu-button');
+
+            if (menuButton) {
+                const navbar = getNavbar(menuButton);
+
+                if (!navbar) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                const isOpen =
+                    menuButton.getAttribute('aria-expanded') === 'true';
+
+                if (isOpen) {
+                    closeMobileMenu(navbar);
+                } else {
+                    openMobileMenu(navbar);
+                }
+
+                return;
+            }
+
+            const dropdownButton =
+                target.closest('[data-user-dropdown-button]');
+
+            if (dropdownButton) {
+                const navbar = getNavbar(dropdownButton);
+
+                if (!navbar) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+
+                toggleUserDropdown(navbar);
+                return;
+            }
+
+            const navbar = getNavbar(target);
+
+            if (navbar) {
+                const { dropdown } = getParts(navbar);
+
+                if (dropdown && !dropdown.contains(target)) {
+                    closeUserDropdown(navbar);
+                }
+
+                const clickedMenuLink = target.closest('#main-navbar a');
+
+                if (clickedMenuLink && window.innerWidth < 768) {
+                    closeMobileMenu(navbar);
+                }
+            } else {
+                document
+                    .querySelectorAll('[data-main-navbar]')
+                    .forEach(closeUserDropdown);
             }
         });
 
         document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-                closeMobileMenu();
-                closeUserDropdown();
+            if (event.key !== 'Escape') {
+                return;
             }
+
+            document
+                .querySelectorAll('[data-main-navbar]')
+                .forEach((navbar) => {
+                    closeMobileMenu(navbar);
+                    closeUserDropdown(navbar);
+                });
         });
-    };
 
-    initializeNavbar();
+        window.addEventListener('resize', () => {
+            document
+                .querySelectorAll('[data-main-navbar]')
+                .forEach((navbar) => {
+                    const {
+                        menuButton,
+                        menu,
+                        openIcon,
+                        closeIcon,
+                    } = getParts(navbar);
 
-    document.addEventListener('livewire:navigated', () => {
-        const navbarRoot = document.querySelector('[data-main-navbar]');
+                    if (window.innerWidth >= 768) {
+                        menu?.classList.remove('hidden');
+                        menuButton?.setAttribute('aria-expanded', 'false');
+                        menuButton?.setAttribute(
+                            'aria-label',
+                            'Open navigation menu'
+                        );
+                        openIcon?.classList.remove('hidden');
+                        closeIcon?.classList.add('hidden');
+                    } else {
+                        closeMobileMenu(navbar);
+                    }
 
-        if (navbarRoot) {
-            navbarRoot.dataset.initialized = 'false';
-        }
+                    closeUserDropdown(navbar);
+                });
+        });
 
-        initializeNavbar();
-    });
+        /*
+         * Reset visual state after Livewire navigation.
+         * Event listeners do not need to be attached again.
+         */
+        document.addEventListener('livewire:navigated', () => {
+            document
+                .querySelectorAll('[data-main-navbar]')
+                .forEach((navbar) => {
+                    closeUserDropdown(navbar);
+
+                    if (window.innerWidth < 768) {
+                        closeMobileMenu(navbar);
+                    }
+                });
+        });
+    })();
 </script>
 @endscript
