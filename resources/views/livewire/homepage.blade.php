@@ -28,7 +28,7 @@
     <section class="premium-home-hero premium-reveal premium-reveal-hero is-visible w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
     <div class="mx-auto max-w-[85rem]">
         <h1 class="premium-hero-title premium-hero-animate hidden text-center font-bold text-white lg:block lg:text-4xl lg:leading-tight">
-            Book Outstation Taxi, One Way Cab, Car Rentals Online Sanjay-
+            Book Outstation Taxi, One Way Cab, Car Rentals Online Sanjay singh-
             <span class="text-white">Duracabs</span>
         </h1>
 
