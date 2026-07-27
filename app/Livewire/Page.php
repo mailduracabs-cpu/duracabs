@@ -47,7 +47,11 @@ public ?string $query2_search = '';
     public $query;
 
     public $queryLocal;
-    public $querySelfDrive;
+    public $querySelfDrive = '';
+    public $selfDrivePlaceId = '';
+    public $selfDriveLatitude;
+    public $selfDriveLongitude;
+    public bool $selfDriveAutocompleteSearched = false;
     public $query_id;
 
     public $queryFrom;
@@ -882,10 +886,287 @@ public ?string $query2_search = '';
         $this->clearError('query');
     }
     
-    public function updatedQuerySelfDrive($querySelfDrive)
+    public function updatedQuerySelfDrive($querySelfDrive): void
     {
-        $this->cities_from = Brand::where('name', 'like', '%' . $this->querySelfDrive . '%')->where('is_active', 1)->where('is_selfdrive', 1)->get();
         $this->clearError('query');
+        $this->resetSelfDriveSelectedPlace();
+
+        $input = trim((string) $querySelfDrive);
+
+        if (mb_strlen($input) < 3) {
+            $this->cities_from = [];
+            $this->selfDriveAutocompleteSearched = false;
+
+            return;
+        }
+
+        $this->selfDriveAutocompleteSearched = true;
+        $this->cities_from = $this->googleSelfDriveAutocomplete($input);
+    }
+
+    public function selectGooglePlace(string $type, string $placeId): void
+    {
+        if ($type !== 'self_drive' || trim($placeId) === '') {
+            return;
+        }
+
+        $place = $this->googlePlaceDetails($placeId);
+
+        if ($place === null) {
+            $this->cities_from = [];
+            $this->addSelfDriveLocationError('Unable to read this location. Please select another suggestion.');
+
+            return;
+        }
+
+        $brand = $this->resolveSelfDriveBrand($place);
+
+        if ($brand === null) {
+            $this->cities_from = [];
+            $this->addSelfDriveLocationError('Self Drive service is not available in this city yet.');
+
+            return;
+        }
+
+        $description = trim((string) ($place['formatted_address'] ?? $place['name'] ?? $brand->name));
+        $location = data_get($place, 'geometry.location', []);
+
+        $this->querySelfDrive = $description !== '' ? $description : $brand->name;
+        $this->query = $brand->name;
+        $this->query_id = $brand->id;
+        $this->selfDrivePlaceId = $placeId;
+        $this->selfDriveLatitude = data_get($location, 'lat');
+        $this->selfDriveLongitude = data_get($location, 'lng');
+        $this->cities_from = [];
+        $this->selfDriveAutocompleteSearched = false;
+        $this->clearError('query');
+    }
+
+    private function googleSelfDriveAutocomplete(string $input): array
+{
+    $apiKey = $this->googleMapsApiKey();
+
+    if ($apiKey === '') {
+        Log::warning(
+            'Google Maps API key is missing for self-drive autocomplete.'
+        );
+
+        return [];
+    }
+
+    try {
+        $response = (new Client([
+            'timeout' => 8,
+        ]))->get(
+            'https://maps.googleapis.com/maps/api/place/autocomplete/json',
+            [
+                'query' => [
+                    'input' => $input,
+                    'key' => $apiKey,
+                    'components' => 'country:in',
+                    'language' => 'en',
+                ],
+            ]
+        );
+
+        $payload = json_decode(
+            (string) $response->getBody(),
+            true
+        );
+
+        $status = (string) ($payload['status'] ?? '');
+
+        if (!in_array($status, ['OK', 'ZERO_RESULTS'], true)) {
+            Log::warning(
+                'Google self-drive autocomplete returned an error.',
+                [
+                    'status' => $status,
+                    'error_message' => $payload['error_message'] ?? null,
+                ]
+            );
+
+            return [];
+        }
+
+        return collect($payload['predictions'] ?? [])
+            ->filter(function ($prediction) {
+                return is_array($prediction)
+                    && filled($prediction['place_id'] ?? null)
+                    && filled($prediction['description'] ?? null);
+            })
+            ->map(function (array $prediction) {
+                return (object) [
+                    /*
+                     * id is included for compatibility with any old Blade
+                     * code that still reads $city->id.
+                     */
+                    'id' => (string) $prediction['place_id'],
+
+                    'place_id' => (string) $prediction['place_id'],
+
+                    'name' => (string) $prediction['description'],
+
+                    'description' => (string) $prediction['description'],
+
+                    'structured_formatting' => (object) [
+                        'main_text' => (string) data_get(
+                            $prediction,
+                            'structured_formatting.main_text',
+                            $prediction['description']
+                        ),
+
+                        'secondary_text' => (string) data_get(
+                            $prediction,
+                            'structured_formatting.secondary_text',
+                            ''
+                        ),
+                    ],
+                ];
+            })
+            ->values()
+            ->all();
+
+    } catch (\Throwable $exception) {
+        Log::error(
+            'Google self-drive autocomplete failed.',
+            [
+                'input' => $input,
+                'error' => $exception->getMessage(),
+            ]
+        );
+
+        return [];
+    }
+}
+
+    private function googlePlaceDetails(string $placeId): ?array
+    {
+        $apiKey = $this->googleMapsApiKey();
+
+        if ($apiKey === '') {
+            return null;
+        }
+
+        try {
+            $response = (new Client(['timeout' => 8]))->get(
+                'https://maps.googleapis.com/maps/api/place/details/json',
+                [
+                    'query' => [
+                        'place_id' => $placeId,
+                        'key' => $apiKey,
+                        'language' => 'en',
+                        'fields' => 'place_id,name,formatted_address,address_components,geometry',
+                    ],
+                ]
+            );
+
+            $payload = json_decode((string) $response->getBody(), true);
+
+            if (($payload['status'] ?? null) !== 'OK' || !is_array($payload['result'] ?? null)) {
+                Log::warning('Google place details returned an error.', [
+                    'place_id' => $placeId,
+                    'status' => $payload['status'] ?? null,
+                    'error_message' => $payload['error_message'] ?? null,
+                ]);
+
+                return null;
+            }
+
+            return $payload['result'];
+        } catch (\Throwable $exception) {
+            Log::error('Google place details failed.', [
+                'place_id' => $placeId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function resolveSelfDriveBrand(array $place): ?Brand
+    {
+        $locationNames = [];
+
+        foreach (($place['address_components'] ?? []) as $component) {
+            if (!is_array($component)) {
+                continue;
+            }
+
+            $types = $component['types'] ?? [];
+
+            if (array_intersect([
+                'locality',
+                'administrative_area_level_3',
+                'administrative_area_level_2',
+                'postal_town',
+            ], $types)) {
+                $locationNames[] = (string) ($component['long_name'] ?? '');
+                $locationNames[] = (string) ($component['short_name'] ?? '');
+            }
+        }
+
+        $locationNames[] = (string) ($place['name'] ?? '');
+        $locationNames[] = (string) ($place['formatted_address'] ?? '');
+        $locationNames = array_values(array_unique(array_filter(array_map('trim', $locationNames))));
+
+        $brands = Brand::query()
+            ->where('is_active', 1)
+            ->where('is_selfdrive', 1)
+            ->get(['id', 'name']);
+
+        foreach ($brands as $brand) {
+            $brandCity = trim((string) Str::before((string) $brand->name, ','));
+            $normalisedBrandCity = $this->normaliseLocationName($brandCity);
+
+            if ($normalisedBrandCity === '') {
+                continue;
+            }
+
+            foreach ($locationNames as $locationName) {
+                $normalisedLocation = $this->normaliseLocationName($locationName);
+
+                if ($normalisedLocation === $normalisedBrandCity
+                    || str_contains($normalisedLocation, $normalisedBrandCity)) {
+                    return $brand;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function normaliseLocationName(string $value): string
+    {
+        return Str::of($value)
+            ->lower()
+            ->ascii()
+            ->replaceMatches('/[^a-z0-9]+/', ' ')
+            ->squish()
+            ->toString();
+    }
+
+    private function googleMapsApiKey(): string
+    {
+        return trim((string) (
+            config('services.google_maps.key')
+            ?: env('GOOGLE_MAPS_API_KEY')
+            ?: $this->apiKey
+        ));
+    }
+
+    private function resetSelfDriveSelectedPlace(): void
+    {
+        $this->selfDrivePlaceId = '';
+        $this->selfDriveLatitude = null;
+        $this->selfDriveLongitude = null;
+        $this->query = null;
+        $this->query_id = null;
+    }
+
+    private function addSelfDriveLocationError(string $message): void
+    {
+        $this->validationErrors['query'] = $message;
+        $this->showValidation = true;
     }
     
     public function updatedQueryLocal($queryLocal)
@@ -974,14 +1255,16 @@ public ?string $query2_search = '';
 
 
     }
-	public function updateSelfDriveCity($name, $id): void
-{
-    $this->querySelfDrive = $name;
-    $this->query = $name;
-    $this->query_id = $id;
-    $this->cities_from = [];
-    $this->clearError('query');
-}
+    public function updateSelfDriveCity($name, $id): void
+    {
+        $this->querySelfDrive = $name;
+        $this->query = $name;
+        $this->query_id = $id;
+        $this->selfDrivePlaceId = 'brand-' . $id;
+        $this->cities_from = [];
+        $this->selfDriveAutocompleteSearched = false;
+        $this->clearError('query');
+    }
 
     public function update2($name, $id)
     {

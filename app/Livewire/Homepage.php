@@ -918,10 +918,26 @@ class Homepage extends Component
     }
 
     public function updatedQuerySelfDrive($value)
-    {
-        $this->clearSelectedPlace('self_drive');
-        $this->cities_from = $this->googleAutocomplete($value);
+
+{
+    // Agar Google Place already select ho chuka hai to
+    // dobara autocomplete mat chalao.
+    if (!empty($this->selfDrivePlaceId)) {
+        $this->cities_from = null;
+        return;
     }
+
+    $this->clearSelectedPlace('self_drive');
+
+    $value = trim((string) $value);
+
+    if (mb_strlen($value) < 3) {
+        $this->cities_from = null;
+        return;
+    }
+
+    $this->cities_from = $this->googleAutocomplete($value);
+}
 
     public function updatedQueryFromSearch($value)
     {
@@ -1042,6 +1058,8 @@ class Homepage extends Component
                 $this->oneWayFromLatitude = $latitude;
                 $this->oneWayFromLongitude = $longitude;
                 $this->cities_from = null;
+				// Force dropdown close
+				$this->dispatch('$refresh');
                 if (!$brand) {
                     $this->validationErrors['query'] = 'Service is not available from this city.';
                     $this->showValidation = true;

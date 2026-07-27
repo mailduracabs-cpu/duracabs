@@ -50,7 +50,7 @@
     ?>
 
     <section
-        class="relative overflow-hidden bg-slate-950"
+        class="relative overflow-visible bg-slate-950"
         x-data="{
             rentalMode: <?php echo \Illuminate\Support\Js::from($defaultMode)->toHtml() ?>,
             deliverySelected: false
@@ -83,11 +83,11 @@
         </div>
 
         <!--[if BLOCK]><![endif]--><?php if($searchEnabled): ?>
-            <div class="relative z-30 mx-auto -mt-28 w-full max-w-7xl px-4 pb-10 sm:-mt-32 sm:px-6 lg:px-8">
+            <div class="relative z-[100] mx-auto -mt-28 w-full max-w-7xl px-4 pb-10 sm:-mt-32 sm:px-6 lg:px-8">
                 <form
                     wire:submit.prevent="searchPackage"
                     autocomplete="off"
-                    class="rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/20 sm:p-5"
+                    class="relative z-[110] overflow-visible rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/20 sm:p-5"
                 >
                     <div class="mx-auto -mt-12 mb-5 flex max-w-3xl overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
                         <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $rentalModes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $mode): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -141,7 +141,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 overflow-visible rounded-2xl border border-slate-200 bg-white lg:grid-cols-4">
-                        <div class="relative border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
+                        <div class="relative z-[120] border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
                             <label for="self-drive-city" class="flex items-center gap-2 text-xs font-bold text-slate-500">
                                 <i class="fa-solid fa-location-dot text-emerald-600"></i>
                                 Pickup City / Location
@@ -156,25 +156,38 @@
                                 class="mt-2 w-full border-0 bg-transparent p-0 text-base font-black text-slate-900 outline-none ring-0 placeholder:font-semibold placeholder:text-slate-400 focus:ring-0"
                             >
 
-                            <!--[if BLOCK]><![endif]--><?php if(mb_strlen(trim((string) $querySelfDrive)) >= 2): ?>
-                                <div class="absolute left-2 right-2 top-full z-50 mt-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl">
-                                    <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
+                            <!--[if BLOCK]><![endif]--><?php if(
+    mb_strlen(trim((string) $querySelfDrive)) >= 3
+    && empty($selfDrivePlaceId)
+): ?>
+                                <div class="absolute left-0 top-full z-[9999] mt-2 max-h-[320px] w-full min-w-[340px] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl sm:min-w-[420px]">
+                                    <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from) && count($cities_from) > 0): ?>
                                         <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <button
                                                 type="button"
-                                                wire:key="self-drive-city-<?php echo e(data_get($city, 'id', $loop->index)); ?>"
-                                                wire:click="updateSelfDriveCity(<?php echo \Illuminate\Support\Js::from(data_get($city, 'name'))->toHtml() ?>, <?php echo e((int) data_get($city, 'id')); ?>)"
-                                                class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                                                wire:key="self-drive-city-<?php echo e($city->id); ?>"
+                                                wire:click="updateSelfDriveCity(<?php echo \Illuminate\Support\Js::from($city->name)->toHtml() ?>, <?php echo \Illuminate\Support\Js::from($city->id)->toHtml() ?>)"
+                                                class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-emerald-50"
                                             >
                                                 <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
                                                     <i class="fa-solid fa-location-dot text-xs"></i>
                                                 </span>
-                                                <span class="truncate"><?php echo e(data_get($city, 'name')); ?></span>
+
+                                                <span class="min-w-0">
+                                                    <span class="block truncate text-sm font-bold text-slate-900">
+                                                        <?php echo e($city->name); ?>
+
+                                                    </span>
+
+                                                    <span class="mt-0.5 block text-xs font-semibold text-slate-400">
+                                                        Self Drive available
+                                                    </span>
+                                                </span>
                                             </button>
                                         <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                     <?php else: ?>
                                         <div class="px-3 py-4 text-sm font-semibold text-slate-500">
-                                            No self-drive city found.
+                                            No Self Drive city found.
                                         </div>
                                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
@@ -296,7 +309,7 @@
         <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
     </section>
 
-    <main class="mx-auto w-full max-w-7xl space-y-12 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+    <main class="relative z-0 mx-auto w-full max-w-7xl space-y-12 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <!--[if BLOCK]><![endif]--><?php if($showCategories): ?>
             <section aria-labelledby="popular-categories-heading">
                 <div class="text-center">
