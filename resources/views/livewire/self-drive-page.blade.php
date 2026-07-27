@@ -1,4 +1,4 @@
-<div class="min-h-screen bg-slate-50 text-slate-900">
+<div class="min-h-screen w-full overflow-x-hidden bg-slate-50 text-slate-900">
     @section('title', $page->meta_title)
     @section('description', $page->meta_description)
     @section('image', $imageMeta)
@@ -50,7 +50,7 @@
     @endphp
 
     <section
-        class="relative overflow-visible bg-slate-950"
+        class="relative w-full overflow-x-clip overflow-y-visible bg-slate-950"
         x-data="{
             rentalMode: @js($defaultMode),
             deliverySelected: false
@@ -63,7 +63,7 @@
             <div class="absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl"></div>
         </div>
 
-        <div class="relative mx-auto w-full max-w-7xl px-4 pb-36 pt-12 sm:px-6 sm:pb-40 sm:pt-16 lg:px-8 lg:pb-44 lg:pt-20">
+        <div class="relative mx-auto w-full max-w-7xl px-4 pb-10 pt-10 sm:px-6 sm:pb-40 sm:pt-16 lg:px-8 lg:pb-44 lg:pt-20">
             <div class="mx-auto max-w-4xl text-center">
                 <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-extrabold uppercase tracking-widest text-emerald-100 backdrop-blur">
                     <i class="fa-solid fa-car-side"></i>
@@ -81,13 +81,13 @@
         </div>
 
         @if ($searchEnabled)
-            <div class="relative z-[100] mx-auto -mt-28 w-full max-w-7xl px-4 pb-10 sm:-mt-32 sm:px-6 lg:px-8">
+            <div class="relative z-[40] mx-auto mt-0 w-full max-w-7xl overflow-visible px-4 pb-10 sm:-mt-32 sm:px-6 lg:px-8">
                 <form
                     wire:submit.prevent="searchPackage"
                     autocomplete="off"
-                    class="relative z-[110] overflow-visible rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/20 sm:p-5"
+                    class="relative z-[40] w-full max-w-full overflow-visible rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/20 sm:p-5"
                 >
-                    <div class="mx-auto -mt-12 mb-5 flex max-w-3xl overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl">
+                    <div class="mx-auto mt-0 mb-5 grid w-full max-w-3xl grid-cols-4 overflow-visible rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl sm:-mt-12">
                         @foreach ($rentalModes as $mode)
                             <button
                                 type="button"
@@ -98,7 +98,7 @@
                                 x-bind:class="rentalMode === @js($mode)
                                     ? 'bg-emerald-600 text-white shadow-md'
                                     : 'bg-white text-slate-600 hover:bg-slate-50'"
-                                class="relative min-w-28 flex-1 rounded-xl px-4 py-3 text-center transition"
+                                class="relative min-w-0 rounded-xl px-1 py-3 text-center transition sm:px-4"
                             >
                                 @if ($mode === 'weekly' && $weeklyDiscount > 0)
                                     <span class="absolute -right-1 -top-2 rounded-full bg-rose-500 px-2 py-0.5 text-xs font-black text-white">
@@ -110,12 +110,12 @@
                                     </span>
                                 @endif
 
-                                <span class="block text-sm font-black">
+                                <span class="block truncate text-xs font-black sm:text-sm">
                                     {{ ucfirst($mode) }}
                                 </span>
 
                                 <span
-                                    class="mt-0.5 block text-xs font-semibold"
+                                    class="mt-0.5 block truncate text-[10px] font-semibold sm:text-xs"
                                     x-bind:class="rentalMode === @js($mode) ? 'text-emerald-100' : 'text-slate-400'"
                                 >
                                     @switch($mode)
@@ -153,26 +153,23 @@
                                 class="mt-2 w-full border-0 bg-transparent p-0 text-base font-black text-slate-900 outline-none ring-0 placeholder:font-semibold placeholder:text-slate-400 focus:ring-0"
                             >
 
-                            @if (
-    mb_strlen(trim((string) $querySelfDrive)) >= 3
-    && empty($selfDrivePlaceId)
-)
-                                <div class="absolute left-0 top-full z-[9999] mt-2 max-h-[320px] w-full min-w-[340px] overflow-y-auto overscroll-contain rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl sm:min-w-[420px]">
+                            @if (mb_strlen(trim((string) $querySelfDrive)) >= 3 && empty($selfDrivePlaceId))
+                                <div class="absolute left-0 top-full z-[9999] mt-2 max-h-[240px] w-[calc(100vw-3rem)] max-w-[420px] overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[280px] sm:w-[420px] lg:max-w-[700px]">
                                     @if (!empty($cities_from) && count($cities_from) > 0)
                                         @foreach ($cities_from as $city)
                                             <button
                                                 type="button"
-                                                wire:key="self-drive-city-{{ $city->id }}"
-                                                wire:click="updateSelfDriveCity(@js($city->name), @js($city->id))"
-                                                class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-emerald-50"
+                                                wire:key="self-drive-place-{{ $city->place_id }}"
+                                                wire:click="selectGooglePlace('self_drive', @js($city->place_id))"
+                                                class="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-emerald-50"
                                             >
                                                 <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600">
                                                     <i class="fa-solid fa-location-dot text-xs"></i>
                                                 </span>
 
                                                 <span class="min-w-0">
-                                                    <span class="block truncate text-sm font-bold text-slate-900">
-                                                        {{ $city->name }}
+                                                    <span class="block truncate text-sm font-bold text-slate-800">
+                                                        {{ $city->description ?? $city->name }}
                                                     </span>
 
                                                     <span class="mt-0.5 block text-xs font-semibold text-slate-400">
@@ -181,9 +178,9 @@
                                                 </span>
                                             </button>
                                         @endforeach
-                                    @else
+                                    @elseif (!empty($selfDriveAutocompleteSearched))
                                         <div class="px-3 py-4 text-sm font-semibold text-slate-500">
-                                            No Self Drive city found.
+                                            No matching location found.
                                         </div>
                                     @endif
                                 </div>

@@ -33,7 +33,6 @@
             {{-- Logo --}}
             <a
                 href="/"
-                wire:navigate
                 class="flex min-w-0 flex-1 items-center justify-center md:flex-none md:justify-start"
                 aria-label="Dura Cabs Home"
             >
@@ -51,7 +50,6 @@
             {{-- Mobile bell icon --}}
             <a
                 href="{{ auth()->check() ? '/my-account' : '/login' }}"
-                wire:navigate
                 class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 md:hidden"
                 aria-label="Notifications"
             >
@@ -80,7 +78,6 @@
                     {{-- Home --}}
                     <a
                         href="/"
-                        wire:navigate
                         class="{{ $navLink }} {{ request()->is('/') ? $active : $idle }}"
                         @if(request()->is('/')) aria-current="page" @endif
                     >
@@ -94,7 +91,6 @@
                     {{-- Checkout --}}
                     <a
                         href="/checkout"
-                        wire:navigate
                         rel="nofollow"
                         class="{{ $navLink }} {{ request()->is('checkout') ? $active : $idle }}"
                         @if(request()->is('checkout')) aria-current="page" @endif
@@ -109,7 +105,6 @@
                     {{-- Contact --}}
                     <a
                         href="/contact-us"
-                        wire:navigate
                         class="{{ $navLink }} {{ request()->is('contact-us') ? $active : $idle }}"
                         @if(request()->is('contact-us')) aria-current="page" @endif
                     >
@@ -151,7 +146,6 @@
                         {{-- Login --}}
                         <a
                             href="/login"
-                            wire:navigate
                             class="inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 font-bold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
                         >
                             <i
@@ -194,7 +188,6 @@
                             >
                                 <a
                                     href="/my-orders"
-                                    wire:navigate
                                     class="flex items-center rounded-lg px-3 py-2.5 text-slate-700 transition hover:bg-slate-100"
                                 >
                                     <i
@@ -206,7 +199,6 @@
 
                                 <a
                                     href="/my-account"
-                                    wire:navigate
                                     class="flex items-center rounded-lg px-3 py-2.5 text-slate-700 transition hover:bg-slate-100"
                                 >
                                     <i
