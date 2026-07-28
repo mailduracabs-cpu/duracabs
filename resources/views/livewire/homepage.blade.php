@@ -348,7 +348,14 @@
     </div>
 </section>
 
-<img class="premium-wide-banner premium-reveal mx-auto mt-14 w-[calc(100%-1.5rem)] max-w-[90rem] lg:mt-16" src="/img/home/banner.webp" width="100%" alt="Duracabs – Online Cab Booking for One Way, Round Trip, and Local Taxi Services in India" title="Book One Way, Round Trip, and Local Taxis Online with Duracabs" />
+<img
+    class="premium-wide-banner premium-reveal mx-auto mt-14 w-[calc(100%-1.5rem)] max-w-[90rem] lg:mt-16"
+    src="/img/home/banner.webp"
+    alt="Duracabs – Online Cab Booking"
+    width="1440"
+    height="500"
+    fetchpriority="high"
+    decoding="async"title="Book One Way, Round Trip, and Local Taxis Online with Duracabs" />
 <div class="premium-about-card premium-reveal mx-auto mt-12 w-[calc(100%-1.5rem)] max-w-6xl bg-white p-5 sm:p-8 lg:mt-16">
   <section id="about-duracabs" class="seo-content">
     <h2><strong>Duracabs – India's Trusted Self Drive Car Rental Services</strong></h2>
@@ -881,7 +888,13 @@
 	
 	
 </section>
-<img src="/img/home/banner2.webp" width="100%" alt="Duracabs Banner" />
+<img
+    src="/img/home/banner2.webp"
+    width="1440"
+    height="500"
+    loading="lazy"
+    decoding="async"
+    alt="Duracabs Banner">
 <div class="p-2 bg-white mt-3">
     
 	
@@ -1413,10 +1426,11 @@
                                     </p>
                                 @endif
 
-                                <div
-                                    class="mt-2 flex items-center gap-1"
-                                    aria-label="{{ $reviewStars }} out of 5 stars"
-                                >
+                                
+                                    <div
+    class="mt-2 flex items-center gap-1"
+    role="img"
+    aria-label="{{ $reviewStars }} out of 5 stars">
                                     @for ($star = 1; $star <= 5; $star++)
                                         <i
                                             class="fa-solid fa-star text-sm
