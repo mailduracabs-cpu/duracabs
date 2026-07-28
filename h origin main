@@ -1,0 +1,39 @@
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m134[m[36m-[m                @if($totalBanners > 1)
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m135[m[36m-[m                    <div class="hidden shrink-0 items-center gap-2 sm:flex">
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m:[m[32m136[m[36m:[m                        [1;31m<button[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m137[m[36m-[m                            type="button"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m138[m[36m-[m                            data-dura-banner-prev
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m139[m[36m-[m                            class="grid h-11 w-11 place-items-center rounded-full
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m140[m[36m-[m                                   border
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m141[m[36m-[m                                   border-[var(--dura-panel-border,#dbeafe)]
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m142[m[36m-[m                                   bg-white
+[36m--[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m158[m[36m-[m                        </button>
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m159[m[36m-[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m:[m[32m160[m[36m:[m                        [1;31m<button[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m161[m[36m-[m                            type="button"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m162[m[36m-[m                            data-dura-banner-next
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m163[m[36m-[m                            class="grid h-11 w-11 place-items-center rounded-full
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m164[m[36m-[m                                   border
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m165[m[36m-[m                                   border-[var(--dura-panel-border,#dbeafe)]
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m166[m[36m-[m                                   bg-white
+[36m--[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m806[m[36m-[m                               sm:hidden"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m807[m[36m-[m                    >
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m:[m[32m808[m[36m:[m                        [1;31m<button[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m809[m[36m-[m                            type="button"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m810[m[36m-[m                            data-dura-banner-prev
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m811[m[36m-[m                            class="grid h-9 w-9 place-items-center
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m812[m[36m-[m                                   rounded-full border bg-white
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m813[m[36m-[m                                   text-[var(--dura-primary,#2563eb)]"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m814[m[36m-[m                            aria-label="Previous banners"
+[36m--[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m825[m[36m-[m                        ></div>
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m826[m[36m-[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m:[m[32m827[m[36m:[m                        [1;31m<button[m
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m828[m[36m-[m                            type="button"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m829[m[36m-[m                            data-dura-banner-next
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m830[m[36m-[m                            class="grid h-9 w-9 place-items-center
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m831[m[36m-[m                                   rounded-full border bg-white
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m832[m[36m-[m                                   text-[var(--dura-primary,#2563eb)]"
+[35mresources/views/components/home/premium-banner-only.blade.php[m[36m-[m[32m833[m[36m-[m                            aria-label="Next banners"

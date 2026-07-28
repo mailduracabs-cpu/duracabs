@@ -15,6 +15,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Number;
 
+
 #[Title('Ride Detail - Duracabs')]
 class ProductDetailedPage extends Component
 {
@@ -568,8 +569,13 @@ public function tabValue($val){
             ? ' Fares start from ' . Number::currency((float) $lowestFare, 'INR') . '.'
             : '';
 
-        $seoDescription = filled($ride->meta_description)
-            ? trim((string) $ride->meta_description)
+        $seoDescription = trim(strip_tags($seoDescription));
+
+if (mb_strlen($seoDescription) > 160) {
+    $seoDescription = mb_substr($seoDescription, 0, 157);
+    $seoDescription = preg_replace('/\s+\S*$/u', '', $seoDescription);
+    $seoDescription .= '...';
+}
             : $this->buildFallbackSeoDescription($routeName, $tripLabel, $contentType, $fareText);
 
         $canonicalUrl = filled($ride->canonical_url)
