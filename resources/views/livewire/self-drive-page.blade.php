@@ -200,7 +200,11 @@
                             </label>
 
                             <div class="mt-2 grid grid-cols-2 gap-3">
+                                <label for="self-drive-start-date" class="sr-only">
+                                    Trip start date
+                                </label>
                                 <input
+                                    id="self-drive-start-date"
                                     type="date"
                                     wire:model="date"
                                     min="{{ date('Y-m-d') }}"
@@ -208,7 +212,11 @@
                                     class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
                                 >
 
+                                <label for="self-drive-start-time" class="sr-only">
+                                    Trip start time
+                                </label>
                                 <input
+                                    id="self-drive-start-time"
                                     type="time"
                                     wire:model="time"
                                     required
@@ -230,7 +238,11 @@
                             </label>
 
                             <div class="mt-2 grid grid-cols-2 gap-3">
+                                <label for="self-drive-end-date" class="sr-only">
+                                    Trip end date
+                                </label>
                                 <input
+                                    id="self-drive-end-date"
                                     type="date"
                                     wire:model="dateto"
                                     min="{{ date('Y-m-d') }}"
@@ -238,7 +250,11 @@
                                     class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
                                 >
 
+                                <label for="self-drive-end-time" class="sr-only">
+                                    Trip end time
+                                </label>
                                 <input
+                                    id="self-drive-end-time"
                                     type="time"
                                     wire:model="endTime"
                                     required
@@ -357,7 +373,7 @@
 
         <section aria-labelledby="why-self-drive-heading">
             <div class="mx-auto mb-8 max-w-3xl text-center">
-                <p class="text-xs font-black uppercase tracking-widest text-emerald-600">
+                <p class="text-xs font-black uppercase tracking-widest text-emerald-800">
                     Why choose Dura Cabs
                 </p>
 
@@ -397,7 +413,7 @@
         @if (filled($page->description))
             <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 px-5 py-6 sm:px-8">
-                    <p class="text-xs font-black uppercase tracking-widest text-emerald-600">
+                    <p class="text-xs font-black uppercase tracking-widest text-emerald-800">
                         Self Drive Guide
                     </p>
 
@@ -407,11 +423,20 @@
                 </div>
 
                 <style>
-                    .self-drive-description,
+                    .self-drive-description {
+                        color: #334155 !important;
+                    }
+
+                    .self-drive-description * {
+                        border-color: #cbd5e1;
+                    }
+
                     .self-drive-description p,
                     .self-drive-description li,
-                    .self-drive-description span {
+                    .self-drive-description span,
+                    .self-drive-description div {
                         color: #334155 !important;
+                        opacity: 1 !important;
                     }
 
                     .self-drive-description h1,
@@ -423,11 +448,14 @@
                     .self-drive-description strong,
                     .self-drive-description b {
                         color: #0f172a !important;
+                        opacity: 1 !important;
                     }
 
                     .self-drive-description a,
+                    .self-drive-description u,
                     .self-drive-description [style*="text-decoration: underline"] {
                         color: #065f46 !important;
+                        opacity: 1 !important;
                         text-decoration: underline;
                     }
 
@@ -444,7 +472,7 @@
 
         @if ($showFaqs && !empty($faqSchema))
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-                <p class="text-xs font-black uppercase tracking-widest text-emerald-600">
+                <p class="text-xs font-black uppercase tracking-widest text-emerald-800">
                     Need help?
                 </p>
 
