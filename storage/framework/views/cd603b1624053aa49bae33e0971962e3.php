@@ -1,9 +1,9 @@
 <div class="min-h-screen w-full overflow-x-hidden bg-slate-50 text-slate-900">
-    @section('title', $page->meta_title)
-    @section('description', $page->meta_description)
-    @section('image', $imageMeta)
+    <?php $__env->startSection('title', $page->meta_title); ?>
+    <?php $__env->startSection('description', $page->meta_description); ?>
+    <?php $__env->startSection('image', $imageMeta); ?>
 
-    @php
+    <?php
         $settings = is_array($selfDriveSettings ?? null) ? $selfDriveSettings : [];
 
         $pageName = filled($page->name) ? $page->name : 'Self Drive Cars';
@@ -47,12 +47,12 @@
         $showCategories = (bool) data_get($settings, 'show_categories', true);
         $showOffers = (bool) data_get($settings, 'show_offers', true);
         $showFaqs = (bool) data_get($settings, 'show_faqs', true);
-    @endphp
+    ?>
 
     <section
         class="relative w-full overflow-x-clip overflow-y-visible bg-slate-950"
         x-data="{
-            rentalMode: @js($defaultMode),
+            rentalMode: <?php echo \Illuminate\Support\Js::from($defaultMode)->toHtml() ?>,
             deliverySelected: false
         }"
     >
@@ -71,16 +71,18 @@
                 </span>
 
                 <h1 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
-                    {{ $heroTitle }}
+                    <?php echo e($heroTitle); ?>
+
                 </h1>
 
                 <p class="mx-auto mt-4 max-w-3xl text-sm font-medium leading-7 text-slate-300 sm:text-base">
-                    {{ $heroSubtitle }}
+                    <?php echo e($heroSubtitle); ?>
+
                 </p>
             </div>
         </div>
 
-        @if ($searchEnabled)
+        <!--[if BLOCK]><![endif]--><?php if($searchEnabled): ?>
             <div class="relative z-[40] mx-auto mt-0 w-full max-w-7xl overflow-visible px-4 pb-10 sm:-mt-32 sm:px-6 lg:px-8">
                 <form
                     wire:submit.prevent="searchPackage"
@@ -88,53 +90,54 @@
                     class="relative z-[40] w-full max-w-full overflow-visible rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/20 sm:p-5"
                 >
                     <div class="mx-auto mt-0 mb-5 grid w-full max-w-3xl grid-cols-4 overflow-visible rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl sm:-mt-12">
-                        @foreach ($rentalModes as $mode)
+                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $rentalModes; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $mode): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <button
                                 type="button"
                                 x-on:click="
-                                    rentalMode = @js($mode);
-                                    $wire.set('plan', @js($mode), false);
+                                    rentalMode = <?php echo \Illuminate\Support\Js::from($mode)->toHtml() ?>;
+                                    $wire.set('plan', <?php echo \Illuminate\Support\Js::from($mode)->toHtml() ?>, false);
                                 "
-                                x-bind:class="rentalMode === @js($mode)
+                                x-bind:class="rentalMode === <?php echo \Illuminate\Support\Js::from($mode)->toHtml() ?>
                                     ? 'bg-emerald-700 text-white shadow-md'
                                     : 'bg-white text-slate-700 hover:bg-slate-50'"
                                 class="relative min-w-0 rounded-xl px-1 py-3 text-center transition sm:px-4"
                             >
-                                @if ($mode === 'weekly' && $weeklyDiscount > 0)
+                                <!--[if BLOCK]><![endif]--><?php if($mode === 'weekly' && $weeklyDiscount > 0): ?>
                                     <span class="absolute -right-1 -top-2 rounded-full bg-rose-700 px-2 py-0.5 text-xs font-black text-white">
-                                        {{ $weeklyDiscount }}% OFF
+                                        <?php echo e($weeklyDiscount); ?>% OFF
                                     </span>
-                                @elseif ($mode === 'monthly' && $monthlyDiscount > 0)
+                                <?php elseif($mode === 'monthly' && $monthlyDiscount > 0): ?>
                                     <span class="absolute -right-1 -top-2 rounded-full bg-rose-700 px-2 py-0.5 text-xs font-black text-white">
-                                        {{ $monthlyDiscount }}% OFF
+                                        <?php echo e($monthlyDiscount); ?>% OFF
                                     </span>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                                 <span class="block truncate text-xs font-black sm:text-sm">
-                                    {{ ucfirst($mode) }}
+                                    <?php echo e(ucfirst($mode)); ?>
+
                                 </span>
 
                                 <span
                                     class="mt-0.5 block truncate text-[10px] font-semibold sm:text-xs"
-                                    x-bind:class="rentalMode === @js($mode) ? 'text-emerald-50' : 'text-slate-600'"
+                                    x-bind:class="rentalMode === <?php echo \Illuminate\Support\Js::from($mode)->toHtml() ?> ? 'text-emerald-50' : 'text-slate-600'"
                                 >
-                                    @switch($mode)
-                                        @case('hourly')
+                                    <!--[if BLOCK]><![endif]--><?php switch($mode):
+                                        case ('hourly'): ?>
                                             Short rides
-                                            @break
-                                        @case('daily')
+                                            <?php break; ?>
+                                        <?php case ('daily'): ?>
                                             Up to 7 days
-                                            @break
-                                        @case('weekly')
+                                            <?php break; ?>
+                                        <?php case ('weekly'): ?>
                                             7+ day rides
-                                            @break
-                                        @case('monthly')
+                                            <?php break; ?>
+                                        <?php case ('monthly'): ?>
                                             Long-term
-                                            @break
-                                    @endswitch
+                                            <?php break; ?>
+                                    <?php endswitch; ?><!--[if ENDBLOCK]><![endif]-->
                                 </span>
                             </button>
-                        @endforeach
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div class="grid grid-cols-1 overflow-visible rounded-2xl border border-slate-200 bg-white lg:grid-cols-4">
@@ -148,19 +151,19 @@
                                 id="self-drive-city"
                                 type="text"
                                 wire:model.live.debounce.350ms="querySelfDrive"
-                                placeholder="{{ $pickupPlaceholder }}"
+                                placeholder="<?php echo e($pickupPlaceholder); ?>"
                                 autocomplete="off"
                                 class="mt-2 w-full border-0 bg-transparent p-0 text-base font-black text-slate-900 outline-none ring-0 placeholder:font-semibold placeholder:text-slate-500 focus:ring-0"
                             >
 
-                            @if (mb_strlen(trim((string) $querySelfDrive)) >= 3 && empty($selfDrivePlaceId))
+                            <!--[if BLOCK]><![endif]--><?php if(mb_strlen(trim((string) $querySelfDrive)) >= 3 && empty($selfDrivePlaceId)): ?>
                                 <div class="absolute left-0 top-full z-[9999] mt-2 max-h-[240px] w-[calc(100vw-3rem)] max-w-[420px] overflow-y-auto overflow-x-hidden overscroll-contain rounded-2xl border border-slate-200 bg-white shadow-2xl sm:max-h-[280px] sm:w-[420px] lg:max-w-[700px]">
-                                    @if (!empty($cities_from) && count($cities_from) > 0)
-                                        @foreach ($cities_from as $city)
+                                    <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from) && count($cities_from) > 0): ?>
+                                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                             <button
                                                 type="button"
-                                                wire:key="self-drive-place-{{ $city->place_id }}"
-                                                wire:click="selectGooglePlace('self_drive', @js($city->place_id))"
+                                                wire:key="self-drive-place-<?php echo e($city->place_id); ?>"
+                                                wire:click="selectGooglePlace('self_drive', <?php echo \Illuminate\Support\Js::from($city->place_id)->toHtml() ?>)"
                                                 class="flex w-full items-start gap-3 border-b border-slate-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-emerald-50"
                                             >
                                                 <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-800">
@@ -169,7 +172,8 @@
 
                                                 <span class="min-w-0">
                                                     <span class="block truncate text-sm font-bold text-slate-800">
-                                                        {{ $city->description ?? $city->name }}
+                                                        <?php echo e($city->description ?? $city->name); ?>
+
                                                     </span>
 
                                                     <span class="mt-0.5 block text-xs font-semibold text-slate-600">
@@ -177,20 +181,21 @@
                                                     </span>
                                                 </span>
                                             </button>
-                                        @endforeach
-                                    @elseif (!empty($selfDriveAutocompleteSearched))
+                                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php elseif(!empty($selfDriveAutocompleteSearched)): ?>
                                         <div class="px-3 py-4 text-sm font-semibold text-slate-500">
                                             No matching location found.
                                         </div>
-                                    @endif
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
-                            @if ($this->hasError('query'))
+                            <!--[if BLOCK]><![endif]--><?php if($this->hasError('query')): ?>
                                 <p class="mt-2 text-xs font-bold text-red-600">
-                                    {{ $this->getError('query') }}
+                                    <?php echo e($this->getError('query')); ?>
+
                                 </p>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
 
                         <div class="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
@@ -203,7 +208,7 @@
                                 <input
                                     type="date"
                                     wire:model="date"
-                                    min="{{ date('Y-m-d') }}"
+                                    min="<?php echo e(date('Y-m-d')); ?>"
                                     required
                                     class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
                                 >
@@ -216,11 +221,11 @@
                                 >
                             </div>
 
-                            @if ($this->hasError('date'))
-                                <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('date') }}</p>
-                            @elseif ($this->hasError('time'))
-                                <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('time') }}</p>
-                            @endif
+                            <!--[if BLOCK]><![endif]--><?php if($this->hasError('date')): ?>
+                                <p class="mt-2 text-xs font-bold text-red-600"><?php echo e($this->getError('date')); ?></p>
+                            <?php elseif($this->hasError('time')): ?>
+                                <p class="mt-2 text-xs font-bold text-red-600"><?php echo e($this->getError('time')); ?></p>
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
 
                         <div class="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
@@ -233,7 +238,7 @@
                                 <input
                                     type="date"
                                     wire:model="dateto"
-                                    min="{{ date('Y-m-d') }}"
+                                    min="<?php echo e(date('Y-m-d')); ?>"
                                     required
                                     class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
                                 >
@@ -246,11 +251,11 @@
                                 >
                             </div>
 
-                            @if ($this->hasError('dateto'))
-                                <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('dateto') }}</p>
-                            @elseif ($this->hasError('endTime'))
-                                <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('endTime') }}</p>
-                            @endif
+                            <!--[if BLOCK]><![endif]--><?php if($this->hasError('dateto')): ?>
+                                <p class="mt-2 text-xs font-bold text-red-600"><?php echo e($this->getError('dateto')); ?></p>
+                            <?php elseif($this->hasError('endTime')): ?>
+                                <p class="mt-2 text-xs font-bold text-red-600"><?php echo e($this->getError('endTime')); ?></p>
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
 
                         <div class="flex items-center p-3">
@@ -261,14 +266,14 @@
                                 class="flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-black uppercase tracking-wide text-white shadow-lg shadow-emerald-700/25 transition hover:bg-emerald-800 focus:outline-none focus:ring-4 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <i wire:loading.remove wire:target="searchPackage" class="fa-solid fa-magnifying-glass"></i>
-                                <span wire:loading.remove wire:target="searchPackage">{{ $searchButtonText }}</span>
+                                <span wire:loading.remove wire:target="searchPackage"><?php echo e($searchButtonText); ?></span>
                                 <span wire:loading wire:target="searchPackage">Searching...</span>
                             </button>
                         </div>
                     </div>
 
                     <div class="mt-4 flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between">
-                        @if ($deliveryEnabled)
+                        <!--[if BLOCK]><![endif]--><?php if($deliveryEnabled): ?>
                             <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-slate-600">
                                 <input
                                     type="checkbox"
@@ -277,9 +282,9 @@
                                 >
                                 Delivery & Pick-up from anywhere
                             </label>
-                        @else
+                        <?php else: ?>
                             <span></span>
-                        @endif
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                         <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-600">
                             <span>
@@ -288,7 +293,7 @@
                             </span>
                             <span>
                                 <i class="fa-solid fa-location-crosshairs mr-1 text-sky-500"></i>
-                                Up to {{ $serviceRadius }} km
+                                Up to <?php echo e($serviceRadius); ?> km
                             </span>
                             <span>
                                 <i class="fa-solid fa-headset mr-1 text-amber-500"></i>
@@ -298,11 +303,11 @@
                     </div>
                 </form>
             </div>
-        @endif
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
     </section>
 
     <main class="relative z-0 mx-auto w-full max-w-7xl space-y-12 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-        @if ($showCategories)
+        <!--[if BLOCK]><![endif]--><?php if($showCategories): ?>
             <section aria-labelledby="popular-categories-heading">
                 <div class="text-center">
                     <p class="text-xs font-black uppercase tracking-widest text-emerald-800">
@@ -310,32 +315,34 @@
                     </p>
 
                     <h2 id="popular-categories-heading" class="mt-2 text-3xl font-black tracking-tight text-slate-900">
-                        Find Popular Cars{{ $cityName ? " in {$cityName}" : '' }}
+                        Find Popular Cars<?php echo e($cityName ? " in {$cityName}" : ''); ?>
+
                     </h2>
                 </div>
 
                 <div class="mt-6 flex flex-wrap justify-center gap-3">
-                    @foreach ([
+                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = [
                         ['fa-star', 'Popular'],
                         ['fa-truck-pickup', 'SUV'],
                         ['fa-car-side', 'Hatchback'],
                         ['fa-car', 'Sedan'],
                         ['fa-van-shuttle', 'MUV / MPV'],
                         ['fa-bolt', 'Electric'],
-                    ] as [$icon, $label])
+                    ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as [$icon, $label]): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                         <button
                             type="button"
                             class="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-5 text-xs font-black text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
                         >
-                            <i class="fa-solid {{ $icon }} text-emerald-700"></i>
-                            {{ $label }}
+                            <i class="fa-solid <?php echo e($icon); ?> text-emerald-700"></i>
+                            <?php echo e($label); ?>
+
                         </button>
-                    @endforeach
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
             </section>
-        @endif
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
-        @if ($showOffers && (!empty($smartHeroBanners) || !empty($carousel)))
+        <!--[if BLOCK]><![endif]--><?php if($showOffers && (!empty($smartHeroBanners) || !empty($carousel))): ?>
             <section aria-labelledby="self-drive-offers-heading">
                 <div class="mb-6">
                     <p class="text-xs font-black uppercase tracking-widest text-emerald-800">
@@ -347,13 +354,28 @@
                     </h2>
                 </div>
 
-                <x-home.premium-banner-only
-                    :smart-hero-banners="$smartHeroBanners ?? []"
-                    :carousel="$carousel ?? []"
-                    banner-tab="self_drive"
-                />
+                <?php if (isset($component)) { $__componentOriginal4d68288665eec0c29e0a32fcbf212fb9 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.home.premium-banner-only','data' => ['smartHeroBanners' => $smartHeroBanners ?? [],'carousel' => $carousel ?? [],'bannerTab' => 'self_drive']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('home.premium-banner-only'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['smart-hero-banners' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($smartHeroBanners ?? []),'carousel' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($carousel ?? []),'banner-tab' => 'self_drive']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9)): ?>
+<?php $attributes = $__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9; ?>
+<?php unset($__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal4d68288665eec0c29e0a32fcbf212fb9)): ?>
+<?php $component = $__componentOriginal4d68288665eec0c29e0a32fcbf212fb9; ?>
+<?php unset($__componentOriginal4d68288665eec0c29e0a32fcbf212fb9); ?>
+<?php endif; ?>
             </section>
-        @endif
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
         <section aria-labelledby="why-self-drive-heading">
             <div class="mx-auto mb-8 max-w-3xl text-center">
@@ -371,30 +393,32 @@
             </div>
 
             <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                @foreach ([
+                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = [
                     ['fa-clock', 'Flexible Rental Plans', 'Choose hourly, daily, weekly or monthly rental according to your travel plan.'],
                     ['fa-shield-halved', 'Verified Vehicles', 'Browse maintained cars supplied by verified self-drive partners.'],
                     ['fa-tags', 'Transparent Pricing', 'See applicable rental pricing and discounts before completing your booking.'],
                     ['fa-headset', '24×7 Assistance', 'Get support for booking, pickup, trip and return-related help.'],
-                ] as [$icon, $title, $text])
+                ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as [$icon, $title, $text]): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg">
                         <div class="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-xl text-emerald-800">
-                            <i class="fa-solid {{ $icon }}"></i>
+                            <i class="fa-solid <?php echo e($icon); ?>"></i>
                         </div>
 
                         <h3 class="mt-5 text-lg font-black text-slate-900">
-                            {{ $title }}
+                            <?php echo e($title); ?>
+
                         </h3>
 
                         <p class="mt-2 text-sm leading-6 text-slate-600">
-                            {{ $text }}
+                            <?php echo e($text); ?>
+
                         </p>
                     </article>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
             </div>
         </section>
 
-        @if (filled($page->description))
+        <!--[if BLOCK]><![endif]--><?php if(filled($page->description)): ?>
             <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <div class="border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 px-5 py-6 sm:px-8">
                     <p class="text-xs font-black uppercase tracking-widest text-emerald-600">
@@ -402,7 +426,8 @@
                     </p>
 
                     <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900">
-                        {{ $pageName }}
+                        <?php echo e($pageName); ?>
+
                     </h2>
                 </div>
 
@@ -437,12 +462,13 @@
                 </style>
 
                 <div class="self-drive-description description prose prose-slate max-w-none px-5 py-6 text-slate-700 sm:px-8 sm:py-8">
-                    {!! str($page->description)->sanitizeHtml() !!}
+                    <?php echo str($page->description)->sanitizeHtml(); ?>
+
                 </div>
             </section>
-        @endif
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
-        @if ($showFaqs && !empty($faqSchema))
+        <!--[if BLOCK]><![endif]--><?php if($showFaqs && !empty($faqSchema)): ?>
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
                 <p class="text-xs font-black uppercase tracking-widest text-emerald-600">
                     Need help?
@@ -453,16 +479,16 @@
                 </h2>
 
                 <div class="mt-6 divide-y divide-slate-200">
-                    @foreach ($faqSchema as $index => $faq)
-                        @php
+                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $faqSchema; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $index => $faq): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                        <?php
                             $question = data_get($faq, 'question', data_get($faq, 'name'));
                             $answer = data_get($faq, 'answer', data_get($faq, 'acceptedAnswer.text'));
-                        @endphp
+                        ?>
 
-                        @if (filled($question) && filled($answer))
+                        <!--[if BLOCK]><![endif]--><?php if(filled($question) && filled($answer)): ?>
                             <details class="group py-4">
                                 <summary class="flex cursor-pointer list-none items-center justify-between gap-4 font-bold text-slate-900">
-                                    <span>{{ $index + 1 }}. {{ $question }}</span>
+                                    <span><?php echo e($index + 1); ?>. <?php echo e($question); ?></span>
 
                                     <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-800 transition group-open:rotate-180">
                                         <i class="fa-solid fa-chevron-down text-xs"></i>
@@ -470,19 +496,20 @@
                                 </summary>
 
                                 <div class="pr-10 pt-3 text-sm leading-6 text-slate-600">
-                                    {!! str((string) $answer)->sanitizeHtml() !!}
+                                    <?php echo str((string) $answer)->sanitizeHtml(); ?>
+
                                 </div>
                             </details>
-                        @endif
-                    @endforeach
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
             </section>
-        @endif
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
     </main>
 
-    @teleport('body')
+    <template x-teleport="<?php echo e('body'); ?>">
         <div
-            class="fixed inset-0 z-[999999] {{ $sendOtp ? 'flex' : 'hidden' }} items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-6 backdrop-blur-sm"
+            class="fixed inset-0 z-[999999] <?php echo e($sendOtp ? 'flex' : 'hidden'); ?> items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-6 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-labelledby="self-drive-mobile-title"
@@ -497,7 +524,7 @@
                     ×
                 </button>
 
-                @if (!$sendOtpVerify)
+                <!--[if BLOCK]><![endif]--><?php if(!$sendOtpVerify): ?>
                     <div class="text-center">
                         <div class="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-2xl text-emerald-600">
                             <i class="fa-solid fa-mobile-screen-button"></i>
@@ -544,7 +571,7 @@
                             <span wire:loading wire:target="sendOtpToBack">Sending OTP...</span>
                         </button>
                     </form>
-                @else
+                <?php else: ?>
                     <div class="text-center">
                         <div class="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-emerald-50 text-2xl text-emerald-600">
                             <i class="fa-solid fa-shield-halved"></i>
@@ -555,7 +582,7 @@
                         </h2>
 
                         <p class="mt-2 text-sm leading-6 text-slate-600">
-                            Enter the 4-digit OTP sent to +91 {{ $mobileNumber }}.
+                            Enter the 4-digit OTP sent to +91 <?php echo e($mobileNumber); ?>.
                         </p>
                     </div>
 
@@ -588,9 +615,9 @@
                             Resend OTP
                         </button>
                     </form>
-                @endif
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
         </div>
-    @endteleport
+    </template>
 
-</div>
+</div><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/livewire/self-drive-page.blade.php ENDPATH**/ ?>
