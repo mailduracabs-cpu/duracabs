@@ -36,7 +36,15 @@ use App\Livewire\PartnerDashboard;
 use App\Livewire\VendorRegistration;
 use App\Livewire\PartnerLogin;
 
+
+
+
 use Illuminate\Support\Facades\Route;
+
+Route::permanentRedirect('/page/self-drive-service-in-agra', '/pages/self-drive-service-in-agra');
+Route::permanentRedirect('/page/b2b', '/vendor-register');
+Route::permanentRedirect('/page/event-planner', '/');
+Route::permanentRedirect('/tours', '/');
 
 /*
 |--------------------------------------------------------------------------

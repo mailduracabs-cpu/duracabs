@@ -96,7 +96,7 @@ class AiController extends BaseApiController
                 [
                     'type' => 'service',
                     'title' => 'Self Drive Car Rental in Agra',
-                    'url' => '/page/self-drive-service-in-agra',
+                    'url' => '/pages/self-drive-service-in-agra',
                 ],
             ],
         ], 'AI search results');
