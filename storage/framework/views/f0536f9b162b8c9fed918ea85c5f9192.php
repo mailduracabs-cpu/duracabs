@@ -1,10 +1,42 @@
-@props([
+<?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
+
+$__newAttributes = [];
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames(([
     'smartHeroBanners' => [],
     'carousel' => [],
     'bannerTab' => 'one_way',
-])
+]));
 
-@php
+foreach ($attributes->all() as $__key => $__value) {
+    if (in_array($__key, $__propNames)) {
+        $$__key = $$__key ?? $__value;
+    } else {
+        $__newAttributes[$__key] = $__value;
+    }
+}
+
+$attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
+
+unset($__propNames);
+unset($__newAttributes);
+
+foreach (array_filter(([
+    'smartHeroBanners' => [],
+    'carousel' => [],
+    'bannerTab' => 'one_way',
+]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+    $$__key = $$__key ?? $__value;
+}
+
+$__defined_vars = get_defined_vars();
+
+foreach ($attributes->all() as $__key => $__value) {
+    if (array_key_exists($__key, $__defined_vars)) unset($$__key);
+}
+
+unset($__defined_vars); ?>
+
+<?php
     /*
      * The SmartBannerService sends banners for several services together.
      * Filter them here using the selected homepage banner tab.
@@ -59,12 +91,12 @@
     $totalBanners = $smartBanners->isNotEmpty()
         ? $smartBanners->count()
         : $fallbackBanners->count();
-@endphp
+?>
 
 <div class="contents">
     <section
-        wire:key="premium-banner-only-{{ $bannerTab }}"
-        data-banner-service="{{ $bannerTab }}"
+        wire:key="premium-banner-only-<?php echo e($bannerTab); ?>"
+        data-banner-service="<?php echo e($bannerTab); ?>"
         class="dura-premium-routes relative overflow-hidden rounded-[26px]
                border border-[var(--dura-panel-border,#dbeafe)]
                bg-[var(--dura-panel-bg,#ffffff)]
@@ -73,7 +105,7 @@
                sm:px-5 sm:py-6 lg:px-6"
         aria-labelledby="dura-popular-routes-title"
     >
-        {{-- Decorative background --}}
+        
         <div
             class="pointer-events-none absolute -right-24 -top-28
                    h-72 w-72 rounded-full
@@ -91,7 +123,7 @@
         ></div>
 
         <div class="relative z-10">
-            {{-- Header --}}
+            
             <div class="mb-5 flex items-end justify-between gap-4 sm:mb-6">
                 <div class="min-w-0">
                     <div
@@ -131,7 +163,7 @@
                     </p>
                 </div>
 
-                @if($totalBanners > 1)
+                <!--[if BLOCK]><![endif]--><?php if($totalBanners > 1): ?>
                     <div class="hidden shrink-0 items-center gap-2 sm:flex">
                         <button
                             type="button"
@@ -181,14 +213,14 @@
                             ></i>
                         </button>
                     </div>
-                @endif
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
 
-            {{-- Carousel --}}
+            
             <div
                 data-dura-banner-carousel
-                data-banner-tab="{{ $bannerTab }}"
-                data-total-banners="{{ $totalBanners }}"
+                data-banner-tab="<?php echo e($bannerTab); ?>"
+                data-total-banners="<?php echo e($totalBanners); ?>"
                 class="relative"
             >
                 <div
@@ -199,8 +231,8 @@
                     aria-label="Popular cab routes"
                     tabindex="0"
                 >
-                    @forelse($smartBanners as $banner)
-                        @php
+                    <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $smartBanners; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $banner): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                        <?php
                             $serviceType = data_get(
                                 $banner,
                                 'action.service_type',
@@ -278,7 +310,7 @@
                                     $actionParameters
                                 );
                             }
-                        @endphp
+                        ?>
 
                         <article
     data-dura-banner-card
@@ -296,7 +328,7 @@
            lg:basis-[calc((100%-2rem)/3)]
            xl:basis-[calc((100%-2rem)/3)]"
 >
-                            {{-- Curved theme background --}}
+                            
                             <div
                                 class="pointer-events-none absolute
                                        -right-14 -top-20
@@ -321,7 +353,7 @@
                             ></div>
 
                             <a
-                                href="{{ $actionUrl }}"
+                                href="<?php echo e($actionUrl); ?>"
                                 class="relative z-10 flex min-h-[260px]
                                        flex-col p-4 text-inherit no-underline
                                        sm:min-h-[275px]
@@ -345,9 +377,10 @@
                                                    bg-white"
                                         ></span>
 
-                                        {{ str($serviceType)
+                                        <?php echo e(str($serviceType)
                                             ->replace('_', ' ')
-                                            ->title() }}
+                                            ->title()); ?>
+
                                     </span>
                                 </div>
 
@@ -356,8 +389,9 @@
        leading-[1.15] tracking-tight
        text-[var(--dura-heading,#0f172a)]"
                                 >
-                                    @if(filled($fromCity) && filled($toCity))
-                                        {{ $fromCity }}
+                                    <!--[if BLOCK]><![endif]--><?php if(filled($fromCity) && filled($toCity)): ?>
+                                        <?php echo e($fromCity); ?>
+
 
                                         <span
                                             class="mx-1
@@ -371,17 +405,19 @@
                                             ></i>
                                         </span>
 
-                                        {{ $toCity }}
-                                    @else
-                                        {{ data_get(
+                                        <?php echo e($toCity); ?>
+
+                                    <?php else: ?>
+                                        <?php echo e(data_get(
                                             $banner,
                                             'title',
                                             'Book Your Ride'
-                                        ) }}
-                                    @endif
+                                        )); ?>
+
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </h3>
 
-                                @if(filled($routeLabel))
+                                <!--[if BLOCK]><![endif]--><?php if(filled($routeLabel)): ?>
                                     <div
                                         class="mt-1.5 flex max-w-[68%]
                                                items-center gap-1.5 text-xs
@@ -394,10 +430,11 @@
                                         ></i>
 
                                         <span class="truncate">
-                                            {{ $routeLabel }}
+                                            <?php echo e($routeLabel); ?>
+
                                         </span>
                                     </div>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                                 <div
                                     class="my-3 h-px max-w-[48%]
@@ -405,7 +442,7 @@
                                 ></div>
 
                                 <div class="max-w-[58%]">
-                                    @if(filled($displayFare))
+                                    <!--[if BLOCK]><![endif]--><?php if(filled($displayFare)): ?>
                                         <span
                                             class="block text-xs font-medium
                                                    text-slate-500"
@@ -419,11 +456,12 @@
                                                    tracking-tight
                                                    text-[var(--dura-primary,#2563eb)]"
                                         >
-                                            {{ $displayFare }}
-                                        </strong>
-                                    @endif
+                                            <?php echo e($displayFare); ?>
 
-                                    @if(filled($vehicleName))
+                                        </strong>
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                                    <!--[if BLOCK]><![endif]--><?php if(filled($vehicleName)): ?>
                                         <span
                                             class="mt-2 inline-flex
                                                    max-w-full items-center
@@ -434,13 +472,14 @@
                                                    text-[var(--dura-primary,#2563eb)]"
                                         >
                                             <span class="truncate">
-                                                {{ $vehicleName }}
+                                                <?php echo e($vehicleName); ?>
+
                                             </span>
                                         </span>
-                                    @endif
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
 
-                                {{-- Vehicle circle --}}
+                                
                                 <div
                                     class="pointer-events-none absolute
                                            right-1 top-[92px] z-20
@@ -487,26 +526,26 @@
                                                bg-white
                                                shadow-[0_12px_28px_rgba(15,23,42,0.16)]"
                                     >
-                                        @if(filled($imageUrl))
+                                        <!--[if BLOCK]><![endif]--><?php if(filled($imageUrl)): ?>
                                             <img
-                                                src="{{ $imageUrl }}"
-                                                alt="{{ data_get(
+                                                src="<?php echo e($imageUrl); ?>"
+                                                alt="<?php echo e(data_get(
                                                     $banner,
                                                     'title',
                                                     'Duracabs vehicle'
-                                                ) }}"
+                                                )); ?>"
                                                 class="dura-car-float
                                                        relative z-10
                                                        h-[100%] w-[100%]
 													   object-contain
 													      scale-[1.9]
-                                                loading="{{ $loop->first
+                                                loading="<?php echo e($loop->first
                                                     ? 'eager'
-                                                    : 'lazy' }}"
+                                                    : 'lazy'); ?>"
                                                 decoding="async"
-                                                fetchpriority="{{ $loop->first
+                                                fetchpriority="<?php echo e($loop->first
                                                     ? 'high'
-                                                    : 'low' }}"
+                                                    : 'low'); ?>"
                                                 onerror="
                                                     this.hidden = true;
                                                     this.nextElementSibling
@@ -521,14 +560,14 @@
                                                        text-[var(--dura-primary,#2563eb)]"
                                                 aria-hidden="true"
                                             ></i>
-                                        @else
+                                        <?php else: ?>
                                             <i
                                                 class="fa-solid fa-car-side
                                                        text-4xl
                                                        text-[var(--dura-primary,#2563eb)]"
                                                 aria-hidden="true"
                                             ></i>
-                                        @endif
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                     </div>
                                 </div>
 
@@ -615,9 +654,9 @@
                                 </span>
                             </div>
                         </article>
-                    @empty
-                        @forelse($fallbackBanners as $item)
-                            @php
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
+                        <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $fallbackBanners; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $item): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                            <?php
                                 $fallbackImage = data_get($item, 'image');
 
                                 $fallbackUrl = data_get(
@@ -649,7 +688,7 @@
                                                 )
                                             );
                                 }
-                            @endphp
+                            ?>
 
                             <article
                                 data-dura-banner-card
@@ -667,20 +706,20 @@
                                        lg:basis-[calc((100%-2rem)/3)]"
                             >
                                 <a
-                                    href="{{ $fallbackUrl }}"
+                                    href="<?php echo e($fallbackUrl); ?>"
                                     class="block h-full overflow-hidden no-underline
                                            focus-visible:outline-none
                                            focus-visible:ring-2
                                            focus-visible:ring-inset
                                            focus-visible:ring-[var(--dura-primary,#2563eb)]"
                                 >
-                                    @if(filled($fallbackImageUrl))
+                                    <!--[if BLOCK]><![endif]--><?php if(filled($fallbackImageUrl)): ?>
                                         <div class="relative aspect-[16/9] overflow-hidden bg-slate-100">
                                             <img
-                                                src="{{ $fallbackImageUrl }}"
-                                                alt="{{ data_get($item, 'alt', 'Duracabs cab booking offer') }}"
+                                                src="<?php echo e($fallbackImageUrl); ?>"
+                                                alt="<?php echo e(data_get($item, 'alt', 'Duracabs cab booking offer')); ?>"
                                                 class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                                                loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+                                                loading="<?php echo e($loop->first ? 'eager' : 'lazy'); ?>"
                                                 decoding="async"
                                             >
 
@@ -692,7 +731,8 @@
                                                        text-[10px] font-extrabold uppercase tracking-[0.08em] text-white shadow-sm"
                                             >
                                                 <span class="h-1.5 w-1.5 rounded-full bg-white"></span>
-                                                {{ str($bannerTab)->replace('_', ' ')->title() }}
+                                                <?php echo e(str($bannerTab)->replace('_', ' ')->title()); ?>
+
                                             </span>
                                         </div>
 
@@ -701,7 +741,8 @@
                                                 class="line-clamp-2 text-[17px] font-black leading-snug tracking-tight
                                                        text-[var(--dura-heading,#0f172a)] sm:text-lg"
                                             >
-                                                {{ data_get($item, 'title', 'Book Your Ride with Duracabs') }}
+                                                <?php echo e(data_get($item, 'title', 'Book Your Ride with Duracabs')); ?>
+
                                             </h3>
 
                                             <div class="mt-auto flex items-center justify-between gap-3 pt-4">
@@ -717,7 +758,7 @@
                                                 </span>
                                             </div>
                                         </div>
-                                    @else
+                                    <?php else: ?>
                                         <div
                                             class="flex min-h-[260px]
                                                    flex-col justify-center
@@ -738,11 +779,12 @@
                                                        font-black
                                                        text-[var(--dura-heading,#0f172a)]"
                                             >
-                                                {{ data_get(
+                                                <?php echo e(data_get(
                                                     $item,
                                                     'title',
                                                     'Book Your Ride with Duracabs'
-                                                ) }}
+                                                )); ?>
+
                                             </h3>
 
                                             <span
@@ -757,10 +799,10 @@
                                                 Book Now
                                             </span>
                                         </div>
-                                    @endif
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </a>
                             </article>
-                        @empty
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                             <article
                                 data-dura-banner-card
                                 class="relative min-h-[260px] shrink-0
@@ -773,7 +815,7 @@
                                        xl:basis-[calc((100%-3rem)/4)]"
                             >
                                 <a
-                                    href="{{ route('rides') }}"
+                                    href="<?php echo e(route('rides')); ?>"
                                     class="flex min-h-[260px] flex-col
                                            justify-center no-underline"
                                 >
@@ -796,11 +838,11 @@
                                     </p>
                                 </a>
                             </article>
-                        @endforelse
-                    @endforelse
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                @if($totalBanners > 1)
+                <!--[if BLOCK]><![endif]--><?php if($totalBanners > 1): ?>
                     <div
                         class="mt-2 flex items-center justify-between
                                sm:hidden"
@@ -808,7 +850,7 @@
                         <button
                             type="button"
                             data-dura-banner-prev
-                            class="grid h-11 w-11 place-items-center
+                            class="grid h-9 w-9 place-items-center
                                    rounded-full border bg-white
                                    text-[var(--dura-primary,#2563eb)]"
                             aria-label="Previous banners"
@@ -827,7 +869,7 @@
                         <button
                             type="button"
                             data-dura-banner-next
-                            class="grid h-11 w-11 place-items-center
+                            class="grid h-9 w-9 place-items-center
                                    rounded-full border bg-white
                                    text-[var(--dura-primary,#2563eb)]"
                             aria-label="Next banners"
@@ -844,12 +886,12 @@
                         class="mt-4 hidden items-center justify-center
                                gap-1.5 sm:flex"
                     ></div>
-                @endif
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
         </div>
     </section>
 
-    @once
+    <?php if (! $__env->hasRenderedOnce('f9edce60-ead1-4e41-8c81-804da2d54a4f')): $__env->markAsRenderedOnce('f9edce60-ead1-4e41-8c81-804da2d54a4f'); ?>
         <script>
             (() => {
                 'use strict';
@@ -965,19 +1007,25 @@
                                 const active =
                                     dotIndex === activePage;
 
-                                const indicator =
-                                    dot.firstElementChild;
+                                dot.classList.toggle(
+                                    'w-5',
+                                    active
+                                );
 
-                                if (!(indicator instanceof HTMLElement)) {
-                                    return;
-                                }
+                                dot.classList.toggle(
+                                    'w-2',
+                                    !active
+                                );
 
-                                indicator.className = active
-                                    ? 'h-2 w-5 rounded-full '
-                                        + 'bg-[var(--dura-primary,#2563eb)] '
-                                        + 'transition-all'
-                                    : 'h-2 w-2 rounded-full '
-                                        + 'bg-slate-200 transition-all';
+                                dot.classList.toggle(
+                                    'bg-[var(--dura-primary,#2563eb)]',
+                                    active
+                                );
+
+                                dot.classList.toggle(
+                                    'bg-slate-200',
+                                    !active
+                                );
                             });
                         });
                     }
@@ -1026,31 +1074,13 @@
 
                                 dot.type = 'button';
                                 dot.className =
-                                    'inline-flex h-11 w-11 items-center '
-                                    + 'justify-center rounded-full '
-                                    + 'focus-visible:outline-none '
-                                    + 'focus-visible:ring-2 '
-                                    + 'focus-visible:ring-[var(--dura-primary,#2563eb)] '
-                                    + 'focus-visible:ring-offset-2';
+                                    'h-2 w-2 rounded-full '
+                                    + 'bg-slate-200 transition-all';
 
                                 dot.setAttribute(
                                     'aria-label',
                                     `Show route group ${page + 1}`
                                 );
-
-                                const indicator =
-                                    document.createElement('span');
-
-                                indicator.setAttribute(
-                                    'aria-hidden',
-                                    'true'
-                                );
-
-                                indicator.className =
-                                    'h-2 w-2 rounded-full '
-                                    + 'bg-slate-200 transition-all';
-
-                                dot.appendChild(indicator);
 
                                 dot.addEventListener(
                                     'click',
@@ -1213,5 +1243,5 @@
                 );
             })();
         </script>
-    @endonce
-</div>
+    <?php endif; ?>
+</div><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/components/home/premium-banner-only.blade.php ENDPATH**/ ?>

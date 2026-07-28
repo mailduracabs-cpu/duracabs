@@ -1,5 +1,5 @@
 <div class="background-options premium-home premium-motion-page">
-    @php
+    <?php
         $homepageSeo = $seoPage ?? null;
 
         $homepageTitle = filled($homepageSeo?->meta_title)
@@ -18,13 +18,13 @@
                     ? $homepageSeo->image
                     : asset('storage/' . ltrim($homepageSeo->image, '/'));
         }
-    @endphp
+    ?>
 
-    @section('title', $homepageTitle)
-    @section('description', $homepageDescription)
-    @section('image', $homepageImage)
+    <?php $__env->startSection('title', $homepageTitle); ?>
+    <?php $__env->startSection('description', $homepageDescription); ?>
+    <?php $__env->startSection('image', $homepageImage); ?>
 
-    {{-- Hero + booking search --}}
+    
     <section class="premium-home-hero premium-reveal premium-reveal-hero is-visible w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
     <div class="mx-auto max-w-[85rem]">
         <h1 class="premium-hero-title premium-hero-animate hidden text-center font-bold text-white lg:block lg:text-4xl lg:leading-tight">
@@ -33,17 +33,29 @@
         </h1>
 
         <div class="mt-0 lg:mt-7">
-            <livewire:service-search-panel
-                default-tab="one_way"
-                :key="'homepage-service-search-panel'"
-            />
+            <?php
+$__split = function ($name, $params = []) {
+    return [$name, $params];
+};
+[$__name, $__params] = $__split('service-search-panel', ['defaultTab' => 'one_way']);
+
+$__html = app('livewire')->mount($__name, $__params, 'homepage-service-search-panel', $__slots ?? [], get_defined_vars());
+
+echo $__html;
+
+unset($__html);
+unset($__name);
+unset($__params);
+unset($__split);
+if (isset($__slots)) unset($__slots);
+?>
         </div>
     </div>
 </section>
 
-    {{-- Main homepage flow --}}
+    
     <div class="mx-auto w-full max-w-[90rem] px-3 sm:px-5 lg:px-8">
-        {{-- Quick actions --}}
+        
         <nav
             class="premium-quick-actions premium-reveal relative z-10 mt-6 grid grid-cols-2 overflow-hidden rounded-2xl bg-white text-center text-sm font-medium text-gray-700 shadow-lg lg:mt-8 lg:grid-cols-4"
             aria-label="Quick actions"
@@ -83,9 +95,9 @@
             </a>
         </nav>
 
-        {{-- Banner service filter tabs --}}
+        
         <div
-            x-data="{ activeBannerTab: @js($bannerTab ?? 'one_way'), changingBanner: false }"
+            x-data="{ activeBannerTab: <?php echo \Illuminate\Support\Js::from($bannerTab ?? 'one_way')->toHtml() ?>, changingBanner: false }"
             x-on:banner-filter-finished.window="changingBanner = false"
             class="relative z-10"
         >
@@ -94,48 +106,63 @@
                 role="tablist"
                 aria-label="Filter homepage banners by service"
             >
-                @foreach([
+                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = [
                     'one_way' => 'One Way',
                     'return' => 'Round Trip',
                     'local' => 'Local',
                     'self_drive' => 'Self Drive',
-                ] as $tabValue => $tabLabel)
+                ]; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $tabValue => $tabLabel): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                     <li class="min-w-0 flex-1" role="presentation">
                         <button
                             type="button"
                             role="tab"
-                            wire:key="homepage-banner-filter-{{ $tabValue }}"
+                            wire:key="homepage-banner-filter-<?php echo e($tabValue); ?>"
                             x-on:click="
-                                if (!changingBanner && activeBannerTab !== @js($tabValue)) {
+                                if (!changingBanner && activeBannerTab !== <?php echo \Illuminate\Support\Js::from($tabValue)->toHtml() ?>) {
                                     changingBanner = true;
-                                    activeBannerTab = @js($tabValue);
+                                    activeBannerTab = <?php echo \Illuminate\Support\Js::from($tabValue)->toHtml() ?>;
 
-                                    $wire.call('changeBanner', @js($tabValue))
+                                    $wire.call('changeBanner', <?php echo \Illuminate\Support\Js::from($tabValue)->toHtml() ?>)
                                         .finally(() => changingBanner = false);
                                 }
                             "
-                            x-bind:aria-selected="activeBannerTab === @js($tabValue)"
+                            x-bind:aria-selected="activeBannerTab === <?php echo \Illuminate\Support\Js::from($tabValue)->toHtml() ?>"
                             x-bind:disabled="changingBanner"
-                            x-bind:class="activeBannerTab === @js($tabValue)
+                            x-bind:class="activeBannerTab === <?php echo \Illuminate\Support\Js::from($tabValue)->toHtml() ?>
                                 ? 'bg-sky-50 text-sky-600'
                                 : 'bg-white text-gray-700 hover:bg-gray-50'"
                             class="flex min-h-14 w-full items-center justify-center border-r border-gray-200 px-2 py-3 text-xs font-extrabold uppercase transition disabled:cursor-wait disabled:opacity-70 sm:text-sm"
                         >
-                            <span>{{ $tabLabel }}</span>
+                            <span><?php echo e($tabLabel); ?></span>
                         </button>
                     </li>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
             </ul>
 
             <div
-                wire:key="homepage-banner-results-{{ $bannerTab ?? 'one_way' }}"
+                wire:key="homepage-banner-results-<?php echo e($bannerTab ?? 'one_way'); ?>"
                 class="mt-6 lg:mt-8"
             >
-                <x-home.premium-banner-only
-                    :smart-hero-banners="$smartHeroBanners ?? []"
-                    :carousel="$carousel ?? []"
-                    :banner-tab="$bannerTab ?? 'one_way'"
-                />
+                <?php if (isset($component)) { $__componentOriginal4d68288665eec0c29e0a32fcbf212fb9 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9 = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.home.premium-banner-only','data' => ['smartHeroBanners' => $smartHeroBanners ?? [],'carousel' => $carousel ?? [],'bannerTab' => $bannerTab ?? 'one_way']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('home.premium-banner-only'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['smart-hero-banners' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($smartHeroBanners ?? []),'carousel' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($carousel ?? []),'banner-tab' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($bannerTab ?? 'one_way')]); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9)): ?>
+<?php $attributes = $__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9; ?>
+<?php unset($__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal4d68288665eec0c29e0a32fcbf212fb9)): ?>
+<?php $component = $__componentOriginal4d68288665eec0c29e0a32fcbf212fb9; ?>
+<?php unset($__componentOriginal4d68288665eec0c29e0a32fcbf212fb9); ?>
+<?php endif; ?>
             </div>
         </div>
     </div>
@@ -148,7 +175,7 @@
 >
     <div class="dura-container">
 
-        {{-- Section heading --}}
+        
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
@@ -170,7 +197,7 @@
                 </p>
             </div>
 
-            {{-- Desktop navigation --}}
+            
             <div
                 class="hidden items-center gap-2 md:flex"
                 aria-label="Travel destination navigation"
@@ -205,7 +232,7 @@
             </div>
         </div>
 
-        {{-- Destination carousel --}}
+        
         <div class="relative">
             <div
                 x-ref="container"
@@ -214,9 +241,9 @@
                 role="list"
                 aria-label="Popular travel destinations"
             >
-                @forelse ($brands as $brand)
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $brands; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $brand): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
 
-                    @php
+                    <?php
                         $destinationUrl = filled($brand->slug)
                             ? url('/' . ltrim($brand->slug, '/'))
                             : url('/');
@@ -224,24 +251,24 @@
                         $destinationImage = filled($brand->image)
                             ? url('storage/' . ltrim($brand->image, '/'))
                             : asset('img/home/banner.webp');
-                    @endphp
+                    ?>
 
                     <article
-                        wire:key="homepage-destination-{{ $brand->id }}"
+                        wire:key="homepage-destination-<?php echo e($brand->id); ?>"
                         role="listitem"
                         class="dura-card group snap-start w-[82%] shrink-0 overflow-hidden
                                sm:w-[47%] lg:w-[31%] xl:w-[24%]"
                     >
                         <a
-                            href="{{ $destinationUrl }}"
+                            href="<?php echo e($destinationUrl); ?>"
                             class="block"
-                            aria-label="Explore taxi services in {{ $brand->name }}"
+                            aria-label="Explore taxi services in <?php echo e($brand->name); ?>"
                         >
                             <div class="relative aspect-[4/3] overflow-hidden bg-slate-100">
 
                                 <img
-                                    src="{{ $destinationImage }}"
-                                    alt="Taxi and cab service in {{ $brand->name }}"
+                                    src="<?php echo e($destinationImage); ?>"
+                                    alt="Taxi and cab service in <?php echo e($brand->name); ?>"
                                     loading="lazy"
                                     decoding="async"
                                     width="480"
@@ -275,7 +302,8 @@
                                         class="line-clamp-2 text-lg font-bold leading-6 text-white
                                                sm:text-xl"
                                     >
-                                        {{ $brand->name }}
+                                        <?php echo e($brand->name); ?>
+
                                     </h3>
 
                                     <span
@@ -297,7 +325,7 @@
                         </a>
                     </article>
 
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
 
                     <div
                         class="w-full rounded-dura-lg border border-dashed
@@ -308,10 +336,10 @@
                         </p>
                     </div>
 
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
 
-            {{-- Mobile navigation --}}
+            
             <div class="mt-4 flex justify-center gap-3 md:hidden">
 
                 <button
@@ -372,24 +400,8 @@
         <br>
         <p>We also offer trustworthy chauffeur-driven taxi services for people who would prefer not to drive. These include local city rides, airport transfers, railway station pickups, and one-way taxis like Agra to Delhi or Delhi to Vrindavan. We can even set up Tempo Travelers for big groups, so everyone on board will be comfortable. Duracabs gives you a chance to build your business by letting you register as a cab or taxi vendor on our platform. This gives you access to daily customer reservations and dedicated assistance.</p>
         <br>
-        <p>
-    Planning your trip has never been easier than with Duracabs.
-    You can book your car directly from our
-    <a
-        href="https://www.duracabs.com/"
-        class="font-semibold text-sky-600 underline hover:text-sky-700"
-    >
-        Duracabs website
-    </a>,
-    or you can phone our trip experts at
-    <a
-        href="tel:+917088873331"
-        class="font-semibold text-sky-600 underline hover:text-sky-700"
-    >
-        7088873331
-    </a>
-    to talk about your plans.
-</p><br>
+        <p>Planning your trip has never been easier than with Duracabs. You can book your car directly from our website,<a href="https://www.duracabs.com/"></a>, or you can phone our trip experts at 7088873331 to talk about your plans. We are here to make sure that your trip is smooth, pleasant, and memorable from the minute you pick up your automobile until the time you return it. We don't just rent cars at Duracabs; we make trips that you'll never forget.</p>
+        <br>
         <h2><strong>We have a taxi for you wherever you're going.</strong></h2>
         <p>Planning a weekend trip? You can visit all the must-see locations, sample the best local cuisine, and discover the greatest destinations with the aid of our out-of-town taxi services. Did you simply touch down at the train or airport nearest to your final destination? No issue! For the final mile, you can take advantage of our transit pick-up service and airport taxi. Along the way, we'll show you some of the most breathtaking sights while we get you to your destination. Are you going home for a family reunion? Try our recently launched one-way taxi services; for a one-side fare, you can be dropped off in your hometown regardless of where you live. Have you made the decision to explore your city for the entire day on a personal day? You can visit some of the city's most impressive monuments, the greenest parks, and the oldest temples with the aid of our local taxi packages. An empty itinerary won't ever be a concern for you again. Are you a unique traveler? Do you simply decide to take it from there and hit the road? If you simply want to be dropped off somewhere and don't want to look back, we provide one-way drops on a number of routes.</p>
         <h2><strong>About Duracabs</strong></h2>
@@ -414,7 +426,7 @@
 >
     <div class="dura-container">
 
-        {{-- Section heading --}}
+        
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
             <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
@@ -436,10 +448,10 @@
 
         </div>
 
-        {{-- Services grid --}}
+        
         <div class="grid gap-5 md:grid-cols-2">
 
-            {{-- One Way --}}
+            
             <article class="dura-card group flex flex-col overflow-hidden sm:flex-row">
 
                 <div
@@ -447,7 +459,7 @@
                            p-6 sm:w-2/5"
                 >
                     <img
-                        src="{{ asset('cab_images/one_way.webp') }}"
+                        src="<?php echo e(asset('cab_images/one_way.webp')); ?>"
                         alt="One way taxi service by Duracabs"
                         loading="lazy"
                         decoding="async"
@@ -478,7 +490,7 @@
 
                     <div class="mt-auto pt-5">
                         <a
-                            href="{{ url('/rides?tab=one_way') }}"
+                            href="<?php echo e(url('/rides?tab=one_way')); ?>"
                             class="inline-flex items-center gap-2 text-sm font-bold
                                    text-dura-700 transition hover:text-dura-800"
                         >
@@ -495,7 +507,7 @@
                 </div>
             </article>
 
-            {{-- Round Trip --}}
+            
             <article class="dura-card group flex flex-col overflow-hidden sm:flex-row">
 
                 <div
@@ -503,7 +515,7 @@
                            p-6 sm:w-2/5"
                 >
                     <img
-                        src="{{ asset('cab_images/return.webp') }}"
+                        src="<?php echo e(asset('cab_images/return.webp')); ?>"
                         alt="Round trip taxi service by Duracabs"
                         loading="lazy"
                         decoding="async"
@@ -534,7 +546,7 @@
 
                     <div class="mt-auto pt-5">
                         <a
-                            href="{{ url('/rides?tab=return') }}"
+                            href="<?php echo e(url('/rides?tab=return')); ?>"
                             class="inline-flex items-center gap-2 text-sm font-bold
                                    text-dura-700 transition hover:text-dura-800"
                         >
@@ -551,7 +563,7 @@
                 </div>
             </article>
 
-            {{-- Local Taxi --}}
+            
             <article class="dura-card group flex flex-col overflow-hidden sm:flex-row">
 
                 <div
@@ -559,7 +571,7 @@
                            p-6 sm:w-2/5"
                 >
                     <img
-                        src="{{ asset('cab_images/local.webp') }}"
+                        src="<?php echo e(asset('cab_images/local.webp')); ?>"
                         alt="Local city taxi service by Duracabs"
                         loading="lazy"
                         decoding="async"
@@ -590,7 +602,7 @@
 
                     <div class="mt-auto pt-5">
                         <a
-                            href="{{ url('/rides?tab=local') }}"
+                            href="<?php echo e(url('/rides?tab=local')); ?>"
                             class="inline-flex items-center gap-2 text-sm font-bold
                                    text-dura-700 transition hover:text-dura-800"
                         >
@@ -607,7 +619,7 @@
                 </div>
             </article>
 
-            {{-- Self Drive --}}
+            
             <article class="dura-card group flex flex-col overflow-hidden sm:flex-row">
 
                 <div
@@ -615,7 +627,7 @@
                            p-6 sm:w-2/5"
                 >
                     <img
-                        src="{{ asset('cab_images/self_drive.webp') }}"
+                        src="<?php echo e(asset('cab_images/self_drive.webp')); ?>"
                         alt="Self drive car rental by Duracabs"
                         loading="lazy"
                         decoding="async"
@@ -646,7 +658,7 @@
 
                     <div class="mt-auto pt-5">
                         <a
-                            href="{{ url('/rides?tab=self_drive') }}"
+                            href="<?php echo e(url('/rides?tab=self_drive')); ?>"
                             class="inline-flex items-center gap-2 text-sm font-bold
                                    text-dura-700 transition hover:text-dura-800"
                         >
@@ -665,7 +677,7 @@
 
         </div>
 
-        {{-- Bottom CTA --}}
+        
         <div
             class="mt-8 flex flex-col items-center justify-between gap-4
                    rounded-2xl bg-dura-700 px-5 py-6 text-center
@@ -734,7 +746,7 @@
                            group-hover:bg-sky-600 group-hover:text-white"
                 >
                     <img
-                        src="{{ asset('img/home/24x7.png') }}"
+                        src="<?php echo e(asset('img/home/24x7.png')); ?>"
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -767,7 +779,7 @@
                            group-hover:bg-violet-600 group-hover:text-white"
                 >
                     <img
-                        src="{{ asset('img/home/advance.png') }}"
+                        src="<?php echo e(asset('img/home/advance.png')); ?>"
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -800,7 +812,7 @@
                            group-hover:bg-emerald-600 group-hover:text-white"
                 >
                     <img
-                        src="{{ asset('img/home/low_fixed.webp') }}"
+                        src="<?php echo e(asset('img/home/low_fixed.webp')); ?>"
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -833,7 +845,7 @@
                            group-hover:bg-amber-500 group-hover:text-white"
                 >
                     <img
-                        src="{{ asset('img/home/tracking.png') }}"
+                        src="<?php echo e(asset('img/home/tracking.png')); ?>"
                         alt=""
                         loading="lazy"
                         decoding="async"
@@ -1102,7 +1114,7 @@
                     </p>
 
                     <a
-                        href="{{ url('/vendor-register') }}"
+                        href="<?php echo e(url('/vendor-register')); ?>"
                         class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-dura-700"
                     >
                         Register as a vendor
@@ -1164,7 +1176,7 @@
                     </p>
 
                     <a
-                        href="{{ url('/rides') }}"
+                        href="<?php echo e(url('/rides')); ?>"
                         class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-dura-700"
                     >
                         Book a cab
@@ -1214,7 +1226,7 @@
 >
     <div class="dura-container">
 
-        {{-- Section heading --}}
+        
         <div class="mx-auto mb-8 max-w-2xl text-center sm:mb-10">
 
             <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
@@ -1235,15 +1247,15 @@
 
         </div>
 
-        {{-- Category grid --}}
+        
         <div
             class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4"
             role="list"
             aria-label="Available cab categories"
         >
-            @forelse ($categories as $category)
+            <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $categories; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $category): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
 
-                @php
+                <?php
                     $categoryUrl = url(
                         '/rides?selected_categories[0]=' . $category->id
                     );
@@ -1251,18 +1263,18 @@
                     $categoryImage = filled($category->image)
                         ? url('storage/' . ltrim($category->image, '/'))
                         : asset('img/placeholder/car-category.webp');
-                @endphp
+                ?>
 
                 <a
-                    href="{{ $categoryUrl }}"
-                    wire:key="homepage-category-{{ $category->id }}"
+                    href="<?php echo e($categoryUrl); ?>"
+                    wire:key="homepage-category-<?php echo e($category->id); ?>"
                     role="listitem"
                     class="group dura-card relative flex min-h-[150px] flex-col
                            items-center justify-center overflow-hidden p-4 text-center
                            sm:min-h-[175px] sm:p-5"
-                    aria-label="View {{ $category->name }} cabs"
+                    aria-label="View <?php echo e($category->name); ?> cabs"
                 >
-                    {{-- Background decoration --}}
+                    
                     <span
                         class="pointer-events-none absolute -right-8 -top-8 h-24 w-24
                                rounded-full bg-dura-50 transition-transform duration-300
@@ -1270,14 +1282,14 @@
                         aria-hidden="true"
                     ></span>
 
-                    {{-- Vehicle image --}}
+                    
                     <div
                         class="relative z-10 flex h-20 w-full items-center justify-center
                                sm:h-24"
                     >
                         <img
-                            src="{{ $categoryImage }}"
-                            alt="{{ $category->name }} cab category"
+                            src="<?php echo e($categoryImage); ?>"
+                            alt="<?php echo e($category->name); ?> cab category"
                             loading="lazy"
                             decoding="async"
                             width="180"
@@ -1287,7 +1299,7 @@
                         >
                     </div>
 
-                    {{-- Category name --}}
+                    
                     <div class="relative z-10 mt-3">
 
                         <h3
@@ -1295,7 +1307,8 @@
                                    transition-colors group-hover:text-dura-700
                                    sm:text-base"
                         >
-                            {{ $category->name }}
+                            <?php echo e($category->name); ?>
+
                         </h3>
 
                         <span
@@ -1315,7 +1328,7 @@
                     </div>
                 </a>
 
-            @empty
+            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
 
                 <div
                     class="col-span-full rounded-dura-lg border border-dashed
@@ -1326,14 +1339,14 @@
                     </p>
                 </div>
 
-            @endforelse
+            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
         </div>
 
-        {{-- Main booking CTA --}}
+        
         <div class="mt-8 text-center sm:mt-10">
 
             <a
-                href="{{ url('/rides') }}"
+                href="<?php echo e(url('/rides')); ?>"
                 class="dura-btn-primary min-w-[190px]"
             >
                 <span>Explore All Cabs</span>
@@ -1354,7 +1367,7 @@
 >
     <div class="dura-container">
 
-        {{-- Section heading --}}
+        
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
@@ -1385,7 +1398,7 @@
 
         </div>
 
-        {{-- Reviews carousel --}}
+        
         <div
             x-data="carousel()"
             x-init="init()"
@@ -1397,9 +1410,9 @@
                 role="list"
                 aria-label="Customer reviews"
             >
-                @forelse ($reviews as $review)
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $reviews; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $review): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
 
-                    @php
+                    <?php
                         $reviewImage = filled($review->image)
                             ? url('storage/' . ltrim($review->image, '/'))
                             : asset('img/placeholder/avatar.webp');
@@ -1408,20 +1421,20 @@
                             0,
                             min(5, (int) $review->star)
                         );
-                    @endphp
+                    ?>
 
                     <article
                         role="listitem"
-                        wire:key="homepage-review-{{ $review->id ?? md5($review->name . $review->description) }}"
+                        wire:key="homepage-review-<?php echo e($review->id ?? md5($review->name . $review->description)); ?>"
                         class="dura-card snap-start flex w-[88%] shrink-0 flex-col p-5
                                sm:w-[48%] lg:w-[32%]"
                     >
-                        {{-- Review header --}}
+                        
                         <div class="flex items-start gap-3">
 
                             <img
-                                src="{{ $reviewImage }}"
-                                alt="{{ $review->name }}"
+                                src="<?php echo e($reviewImage); ?>"
+                                alt="<?php echo e($review->name); ?>"
                                 loading="lazy"
                                 decoding="async"
                                 width="52"
@@ -1432,29 +1445,31 @@
                             <div class="min-w-0 flex-1">
 
                                 <h3 class="truncate text-base font-bold text-slate-900">
-                                    {{ $review->name }}
+                                    <?php echo e($review->name); ?>
+
                                 </h3>
 
-                                @if (filled($review->designation))
+                                <!--[if BLOCK]><![endif]--><?php if(filled($review->designation)): ?>
                                     <p class="mt-0.5 truncate text-xs text-slate-500">
-                                        {{ $review->designation }}
+                                        <?php echo e($review->designation); ?>
+
                                     </p>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                                 
                                     <div
     class="mt-2 flex items-center gap-1"
     role="img"
-    aria-label="{{ $reviewStars }} out of 5 stars">
-                                    @for ($star = 1; $star <= 5; $star++)
+    aria-label="<?php echo e($reviewStars); ?> out of 5 stars">
+                                    <!--[if BLOCK]><![endif]--><?php for($star = 1; $star <= 5; $star++): ?>
                                         <i
                                             class="fa-solid fa-star text-sm
-                                                {{ $star <= $reviewStars
+                                                <?php echo e($star <= $reviewStars
                                                     ? 'text-amber-400'
-                                                    : 'text-slate-200' }}"
+                                                    : 'text-slate-200'); ?>"
                                             aria-hidden="true"
                                         ></i>
-                                    @endfor
+                                    <?php endfor; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
 
                             </div>
@@ -1465,11 +1480,12 @@
                             ></i>
                         </div>
 
-                        {{-- Review content --}}
+                        
                         <div class="mt-5 flex-1">
 
                             <p class="line-clamp-5 text-sm leading-6 text-slate-600">
-                                {{ $review->description }}
+                                <?php echo e($review->description); ?>
+
                             </p>
 
                         </div>
@@ -1485,7 +1501,7 @@
                         </div>
                     </article>
 
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
 
                     <div
                         class="w-full rounded-dura-lg border border-dashed border-slate-300
@@ -1496,10 +1512,10 @@
                         </p>
                     </div>
 
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
 
-            {{-- Navigation --}}
+            
             <div class="mt-4 flex items-center justify-between">
 
                 <div class="flex items-center gap-3">
@@ -1535,12 +1551,12 @@
                 <div class="text-right">
 
                     <div class="flex justify-end gap-1" aria-label="4.6 out of 5 stars">
-                        @for ($star = 1; $star <= 5; $star++)
+                        <!--[if BLOCK]><![endif]--><?php for($star = 1; $star <= 5; $star++): ?>
                             <i
                                 class="fa-solid fa-star text-sm text-amber-400"
                                 aria-hidden="true"
                             ></i>
-                        @endfor
+                        <?php endfor; ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <p class="mt-1 text-sm text-slate-600">
@@ -1552,10 +1568,10 @@
             </div>
         </div>
 
-        {{-- Existing review modal remains below --}}
-        @if ($showReview)
-            {{-- Yahan aapka existing review modal code same rahega --}}
-        @endif
+        
+        <!--[if BLOCK]><![endif]--><?php if($showReview): ?>
+            
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
     </div>
 </section>
@@ -1625,29 +1641,29 @@
                 role="list"
                 aria-label="Popular self drive cars"
             >
-                @forelse ($products as $vehicle)
-                    @php
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $vehicle): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <?php
                         $vehicleName = $vehicle->display_name;
                         $vehicleUrl = url('/rides?tab=self_drive&vehicle_id=' . $vehicle->id);
                         $vehicleImage = $vehicle->front_image_url
                             ?: asset('img/placeholder/car-route.webp');
                         $dailyPrice = (float) $vehicle->daily_price;
-                    @endphp
+                    ?>
 
                     <article
-                        wire:key="homepage-self-drive-vehicle-{{ $vehicle->id }}"
+                        wire:key="homepage-self-drive-vehicle-<?php echo e($vehicle->id); ?>"
                         role="listitem"
                         class="dura-card snap-start flex w-[84%] shrink-0 flex-col
                                overflow-hidden sm:w-[46%] lg:w-[31%] xl:w-[24%]"
                     >
                         <a
-                            href="{{ $vehicleUrl }}"
+                            href="<?php echo e($vehicleUrl); ?>"
                             class="group relative block aspect-[16/10] overflow-hidden bg-slate-100"
-                            aria-label="View self drive car {{ $vehicleName }}"
+                            aria-label="View self drive car <?php echo e($vehicleName); ?>"
                         >
                             <img
-                                src="{{ $vehicleImage }}"
-                                alt="{{ $vehicleName }} self drive car"
+                                src="<?php echo e($vehicleImage); ?>"
+                                alt="<?php echo e($vehicleName); ?> self drive car"
                                 loading="lazy"
                                 decoding="async"
                                 width="480"
@@ -1666,34 +1682,37 @@
                         <div class="flex flex-1 flex-col p-4 sm:p-5">
                             <h3 class="min-h-[3rem] text-base font-bold leading-6 text-slate-900">
                                 <a
-                                    href="{{ $vehicleUrl }}"
+                                    href="<?php echo e($vehicleUrl); ?>"
                                     class="line-clamp-2 transition hover:text-dura-700"
                                 >
-                                    {{ $vehicleName }}
+                                    <?php echo e($vehicleName); ?>
+
                                 </a>
                             </h3>
 
                             <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-500">
-                                @if (filled($vehicle->transmission))
+                                <!--[if BLOCK]><![endif]--><?php if(filled($vehicle->transmission)): ?>
                                     <span>
                                         <i class="fa-solid fa-gears mr-1 text-dura-600" aria-hidden="true"></i>
-                                        {{ ucfirst($vehicle->transmission) }}
-                                    </span>
-                                @endif
+                                        <?php echo e(ucfirst($vehicle->transmission)); ?>
 
-                                @if (filled($vehicle->fuel_type))
+                                    </span>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                                <!--[if BLOCK]><![endif]--><?php if(filled($vehicle->fuel_type)): ?>
                                     <span>
                                         <i class="fa-solid fa-gas-pump mr-1 text-dura-600" aria-hidden="true"></i>
-                                        {{ ucfirst($vehicle->fuel_type) }}
-                                    </span>
-                                @endif
+                                        <?php echo e(ucfirst($vehicle->fuel_type)); ?>
 
-                                @if ((int) $vehicle->seats > 0)
+                                    </span>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                                <!--[if BLOCK]><![endif]--><?php if((int) $vehicle->seats > 0): ?>
                                     <span>
                                         <i class="fa-solid fa-user-group mr-1 text-dura-600" aria-hidden="true"></i>
-                                        {{ (int) $vehicle->seats }} Seats
+                                        <?php echo e((int) $vehicle->seats); ?> Seats
                                     </span>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
 
                             <div class="mt-auto pt-5">
@@ -1703,15 +1722,16 @@
                                     </span>
 
                                     <span class="mt-1 block text-xl font-extrabold text-slate-900">
-                                        ₹{{ number_format($dailyPrice) }}
+                                        ₹<?php echo e(number_format($dailyPrice)); ?>
+
                                         <small class="text-sm font-semibold text-slate-500">/ day</small>
                                     </span>
                                 </div>
 
                                 <a
-                                    href="{{ $vehicleUrl }}"
+                                    href="<?php echo e($vehicleUrl); ?>"
                                     class="dura-btn-primary w-full"
-                                    aria-label="View self drive car {{ $vehicleName }}"
+                                    aria-label="View self drive car <?php echo e($vehicleName); ?>"
                                 >
                                     <span>View Self Drive Car</span>
                                     <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
@@ -1719,13 +1739,13 @@
                             </div>
                         </div>
                     </article>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <div class="w-full rounded-dura-lg border border-dashed border-slate-300 bg-white p-8 text-center">
                         <p class="font-semibold text-slate-700">
                             Self drive cars are currently unavailable.
                         </p>
                     </div>
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
 
             <div class="mt-3 flex justify-center gap-3 md:hidden">
@@ -1764,7 +1784,7 @@
 >
     <div class="dura-container">
 
-        {{-- Section heading --}}
+        
         <div class="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
@@ -1785,7 +1805,7 @@
             </div>
 
             <a
-                href="{{ url('/tours') }}"
+                href="<?php echo e(url('/tours')); ?>"
                 class="hidden items-center gap-2 text-sm font-bold text-dura-700
                        transition hover:text-dura-800 sm:inline-flex"
             >
@@ -1799,7 +1819,7 @@
 
         </div>
 
-        {{-- Tours carousel --}}
+        
         <div
             x-data="carousel()"
             x-init="init()"
@@ -1812,9 +1832,9 @@
                 role="list"
                 aria-label="Popular tour destinations"
             >
-                @forelse ($tours as $tour)
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $tours; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $tour): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
 
-                    @php
+                    <?php
                         $tourImage = filled($tour->image)
                             ? url('storage/' . ltrim($tour->image, '/'))
                             : asset('img/placeholder/tour.webp');
@@ -1822,27 +1842,27 @@
                         $tourUrl = filled($tour->url)
                             ? $tour->url
                             : url('/tours');
-                    @endphp
+                    ?>
 
                     <article
-                        wire:key="homepage-tour-{{ $tour->id ?? md5($tour->name . $tourUrl) }}"
+                        wire:key="homepage-tour-<?php echo e($tour->id ?? md5($tour->name . $tourUrl)); ?>"
                         role="listitem"
                         class="dura-card group snap-start w-[84%] shrink-0 overflow-hidden
                                sm:w-[47%] lg:w-[31%] xl:w-[24%]"
                     >
                         <a
-                            href="{{ $tourUrl }}"
+                            href="<?php echo e($tourUrl); ?>"
                             target="_blank"
                             rel="noopener noreferrer"
                             class="block"
-                            aria-label="Explore {{ $tour->name }}"
+                            aria-label="Explore <?php echo e($tour->name); ?>"
                         >
-                            {{-- Tour image --}}
+                            
                             <div class="relative aspect-[16/11] overflow-hidden bg-slate-100">
 
                                 <img
-                                    src="{{ $tourImage }}"
-                                    alt="{{ $tour->name }} tour by Duracabs"
+                                    src="<?php echo e($tourImage); ?>"
+                                    alt="<?php echo e($tour->name); ?> tour by Duracabs"
                                     loading="lazy"
                                     decoding="async"
                                     width="480"
@@ -1870,13 +1890,14 @@
                                     Popular Tour
                                 </span>
 
-                                {{-- Text overlay --}}
+                                
                                 <div class="absolute inset-x-0 bottom-0 p-4 sm:p-5">
 
                                     <h3
                                         class="line-clamp-2 text-lg font-bold leading-6 text-white"
                                     >
-                                        {{ $tour->name }}
+                                        <?php echo e($tour->name); ?>
+
                                     </h3>
 
                                     <span
@@ -1898,7 +1919,7 @@
                         </a>
                     </article>
 
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
 
                     <div
                         class="w-full rounded-dura-lg border border-dashed
@@ -1909,10 +1930,10 @@
                         </p>
                     </div>
 
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </div>
 
-            {{-- Navigation controls --}}
+            
             <div class="mt-4 flex items-center justify-between">
 
                 <div class="flex gap-3">
@@ -1956,7 +1977,7 @@
                 </div>
 
                 <a
-                    href="{{ url('/tours') }}"
+                    href="<?php echo e(url('/tours')); ?>"
                     class="inline-flex items-center gap-2 text-sm font-bold
                            text-dura-700 sm:hidden"
                 >
@@ -1972,4 +1993,4 @@
         </div>
 
     </div>
-</section>
+</section><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/livewire/homepage.blade.php ENDPATH**/ ?>

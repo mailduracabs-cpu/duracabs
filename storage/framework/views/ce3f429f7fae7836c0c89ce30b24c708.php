@@ -1,4 +1,4 @@
-@php
+<?php
     $query_search = $query_search ?? '';
     $query2_search = $query2_search ?? '';
     $cities_from = $cities_from ?? [];
@@ -8,17 +8,17 @@
     $queryTo_search = $queryTo_search ?? '';
     $dataFrom = $dataFrom ?? [];
     $dataTo = $dataTo ?? [];
-@endphp
+?>
 
-<div class="service-search-panel relative" style="z-index: 999999;" x-data="{ activeTab: @js($selected_tab), submitting: false }">
+<div class="service-search-panel relative" style="z-index: 999999;" x-data="{ activeTab: <?php echo \Illuminate\Support\Js::from($selected_tab)->toHtml() ?>, submitting: false }">
     <div
         class="mx-auto mt-6 w-full max-w-6xl overflow-visible rounded-3xl bg-white shadow-2xl shadow-slate-900/15">
 
-        {{-- SERVICE TABS --}}
+        
         <div
             class="grid grid-cols-2 overflow-hidden rounded-t-3xl border-b border-slate-200 bg-slate-50 md:grid-cols-4">
 
-            {{-- ONE WAY --}}
+            
             <button
                 type="button"
                 x-on:click="activeTab = 'one_way'; $wire.set('selected_tab', 'one_way', false)"
@@ -55,7 +55,7 @@
                 </span>
             </button>
 
-            {{-- ROUND TRIP --}}
+            
             <button
                 type="button"
                 x-on:click="activeTab = 'return'; $wire.set('selected_tab', 'return', false)"
@@ -92,7 +92,7 @@
                 </span>
             </button>
 
-            {{-- LOCAL TAXI --}}
+            
             <button
                 type="button"
                 x-on:click="activeTab = 'local'; $wire.set('selected_tab', 'local', false)"
@@ -129,7 +129,7 @@
                 </span>
             </button>
 
-            {{-- SELF DRIVE --}}
+            
             <button
                 type="button"
                 x-on:click="activeTab = 'self_drive'; $wire.set('selected_tab', 'self_drive', false)"
@@ -167,9 +167,7 @@
             </button>
         </div>
 
-        {{-- =====================================================
-            ONE WAY FORM
-        ====================================================== --}}
+        
         <form
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
@@ -180,7 +178,7 @@
             <div
                 class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.35fr_42px_1.35fr_1fr_1fr_150px]">
 
-                {{-- FROM CITY --}}
+                
                 <div class="relative">
                     <label
                         for="one-way-from"
@@ -216,28 +214,29 @@
                             wire:model.live.debounce.350ms="query_search"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            <?php echo e($this->hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('query')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('query')); ?>
 
-                    @if (mb_strlen(trim((string) $query_search)) >= 3)
+                        </p>
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                    <!--[if BLOCK]><![endif]--><?php if(mb_strlen(trim((string) $query_search)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($cities_from))
-                                @foreach ($cities_from as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('one_way_from', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('one_way_from', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
                                         <span
@@ -261,16 +260,17 @@
                                         </span>
 
                                         <span class="leading-5">
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- WORKING SWAP BUTTON --}}
+                
                 <div class="hidden pt-[26px] lg:flex lg:justify-center">
                     <button
                         type="button"
@@ -316,7 +316,7 @@
                     </button>
                 </div>
 
-                {{-- TO CITY --}}
+                
                 <div class="relative">
                     <label
                         for="one-way-to"
@@ -352,28 +352,29 @@
                             wire:model.live.debounce.350ms="query2_search"
                             placeholder="Enter destination city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query2')
+                            <?php echo e($this->hasError('query2')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('query2'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('query2')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query2') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('query2')); ?>
 
-                    @if (mb_strlen(trim((string) $query2_search)) >= 3)
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if(mb_strlen(trim((string) $query2_search)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($cities_to))
-                                @foreach ($cities_to as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($cities_to)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_to; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('one_way_to', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('one_way_to', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
                                     >
                                         <span
@@ -397,16 +398,17 @@
                                         </span>
 
                                         <span class="leading-5">
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- PICKUP DATE --}}
+                
                 <div>
                     <label
                         for="one-way-date"
@@ -419,22 +421,23 @@
                         type="date"
                         id="one-way-date"
                         wire:model="date"
-                        min="{{ \Carbon\Carbon::now()->format('Y-m-d') }}"
+                        min="<?php echo e(\Carbon\Carbon::now()->format('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
+                        <?php echo e($this->hasError('date')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('date'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('date')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
+                            <?php echo e($this->getError('date')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- PICKUP TIME --}}
+                
                 <div>
                     <label
                         for="one-way-time"
@@ -449,19 +452,20 @@
                         wire:model="time"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('time')
+                        <?php echo e($this->hasError('time')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('time'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('time')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('time') }}
+                            <?php echo e($this->getError('time')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- SEARCH BUTTON --}}
+                
                 <div class="pt-0 lg:pt-[26px]">
                     <button
                         type="submit"
@@ -474,18 +478,17 @@
                 </div>
             </div>
 
-            @if (!empty($oneWayMsg))
+            <!--[if BLOCK]><![endif]--><?php if(!empty($oneWayMsg)): ?>
                 <div
                     class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
                 >
-                    {{ $oneWayMsg }}
+                    <?php echo e($oneWayMsg); ?>
+
                 </div>
-            @endif
+            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
         </form>
 
-        {{-- =====================================================
-            ROUND TRIP FORM
-        ====================================================== --}}
+        
         <form
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
@@ -496,7 +499,7 @@
             <div
                 class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.25fr_1.25fr_1fr_1fr_1fr_150px]">
 
-                {{-- ROUND FROM --}}
+                
                 <div class="relative">
                     <label
                         for="round-from"
@@ -531,28 +534,29 @@
                             wire:model.live.debounce.350ms="queryFrom_search"
                             placeholder="Pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('queryFrom')
+                            <?php echo e($this->hasError('queryFrom')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('queryFrom'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('queryFrom')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('queryFrom') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('queryFrom')); ?>
 
-                    @if (mb_strlen(trim((string) $queryFrom_search)) >= 3)
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if(mb_strlen(trim((string) $queryFrom_search)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($dataFrom))
-                                @foreach ($dataFrom as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($dataFrom)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $dataFrom; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('round_from', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('round_from', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
                                         <span
@@ -575,16 +579,17 @@
                                         </span>
 
                                         <span>
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- ROUND TO --}}
+                
                 <div class="relative">
                     <label
                         for="round-to"
@@ -619,28 +624,29 @@
                             wire:model.live.debounce.350ms="queryTo_search"
                             placeholder="Destination city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('queryTo')
+                            <?php echo e($this->hasError('queryTo')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('queryTo'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('queryTo')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('queryTo') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('queryTo')); ?>
 
-                    @if (mb_strlen(trim((string) $queryTo_search)) >= 3)
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if(mb_strlen(trim((string) $queryTo_search)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($dataTo))
-                                @foreach ($dataTo as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($dataTo)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $dataTo; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('round_to', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('round_to', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
                                     >
                                         <span
@@ -663,16 +669,17 @@
                                         </span>
 
                                         <span>
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- START DATE --}}
+                
                 <div>
                     <label
                         for="round-start-date"
@@ -685,22 +692,23 @@
                         type="date"
                         id="round-start-date"
                         wire:model="date"
-                        min="{{ date('Y-m-d') }}"
+                        min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
+                        <?php echo e($this->hasError('date')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('date'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('date')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
+                            <?php echo e($this->getError('date')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- END DATE --}}
+                
                 <div>
                     <label
                         for="round-end-date"
@@ -713,13 +721,13 @@
                         type="date"
                         id="round-end-date"
                         wire:model="dateto"
-                        min="{{ date('Y-m-d') }}"
+                        min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
                     >
                 </div>
 
-                {{-- TIME --}}
+                
                 <div>
                     <label
                         for="round-time"
@@ -737,7 +745,7 @@
                     >
                 </div>
 
-                {{-- SEARCH --}}
+                
                 <div class="pt-0 lg:pt-[26px]">
                     <button
                         type="submit"
@@ -751,9 +759,7 @@
             </div>
         </form>
 
-        {{-- =====================================================
-            LOCAL TAXI FORM
-        ====================================================== --}}
+        
         <form
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
@@ -764,7 +770,7 @@
             <div
                 class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.3fr_1.15fr_1fr_1fr_.8fr_150px]">
 
-                {{-- LOCAL CITY --}}
+                
                 <div class="relative">
                     <label
                         for="local-city"
@@ -799,28 +805,29 @@
                             wire:model.live.debounce.350ms="queryLocal"
                             placeholder="Enter city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            <?php echo e($this->hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('query')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('query')); ?>
 
-                    @if (mb_strlen(trim((string) $queryLocal)) >= 3)
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if(mb_strlen(trim((string) $queryLocal)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($cities_from))
-                                @foreach ($cities_from as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('local', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('local', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
                                         <span
@@ -843,16 +850,17 @@
                                         </span>
 
                                         <span>
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- PLAN --}}
+                
                 <div>
                     <label
                         for="local-plan"
@@ -865,9 +873,9 @@
                         id="local-plan"
                         wire:model="plan"
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('plan')
+                        <?php echo e($this->hasError('plan')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
                         <option value="4 Hour / 40 Km">
                             4 Hour / 40 Km
@@ -882,14 +890,15 @@
                         </option>
                     </select>
 
-                    @if ($this->hasError('plan'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('plan')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('plan') }}
+                            <?php echo e($this->getError('plan')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- LOCAL DATE --}}
+                
                 <div>
                     <label
                         for="local-date"
@@ -902,22 +911,23 @@
                         type="date"
                         id="local-date"
                         wire:model="date"
-                        min="{{ date('Y-m-d') }}"
+                        min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
+                        <?php echo e($this->hasError('date')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('date'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('date')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
+                            <?php echo e($this->getError('date')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- LOCAL TIME --}}
+                
                 <div>
                     <label
                         for="local-time"
@@ -932,19 +942,20 @@
                         wire:model="time"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('time')
+                        <?php echo e($this->hasError('time')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('time'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('time')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('time') }}
+                            <?php echo e($this->getError('time')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- NUMBER OF CARS --}}
+                
                 <div>
                     <label
                         for="local-cars"
@@ -961,19 +972,20 @@
                         placeholder="1"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4
-                        {{ $this->hasError('car')
+                        <?php echo e($this->hasError('car')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('car'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('car')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('car') }}
+                            <?php echo e($this->getError('car')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- SEARCH --}}
+                
                 <div class="pt-0 lg:pt-[26px]">
                     <button
                         type="submit"
@@ -987,9 +999,7 @@
             </div>
         </form>
 
-        {{-- =====================================================
-            SELF DRIVE FORM
-        ====================================================== --}}
+        
         <form
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
@@ -1000,7 +1010,7 @@
             <div
                 class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.3fr_1fr_1fr_1fr_1fr_150px]">
 
-                {{-- SELF DRIVE CITY --}}
+                
                 <div class="relative">
                     <label
                         for="self-drive-city"
@@ -1035,28 +1045,29 @@
                             wire:model.live.debounce.350ms="querySelfDrive"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            <?php echo e($this->hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                                : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('query')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
-                        </p>
-                    @endif
+                            <?php echo e($this->getError('query')); ?>
 
-                    @if (mb_strlen(trim((string) $querySelfDrive)) >= 3)
+                        </p>
+                    <?php endif; ?>
+
+                    <?php if(mb_strlen(trim((string) $querySelfDrive)) >= 3): ?>
                         <div
                             data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
-                            @if (!empty($cities_from))
-                                @foreach ($cities_from as $city)
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
+                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
                                         x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
-                                        wire:click="selectGooglePlace('self_drive', '{{ $city['place_id'] }}')"
+                                        wire:click="selectGooglePlace('self_drive', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
                                         <span
@@ -1079,16 +1090,17 @@
                                         </span>
 
                                         <span>
-                                            {{ $city['description'] }}
+                                            <?php echo e($city['description']); ?>
+
                                         </span>
                                     </button>
-                                @endforeach
-                            @endif
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- START DATE --}}
+                
                 <div>
                     <label
                         for="self-start-date"
@@ -1102,13 +1114,13 @@
                         id="self-start-date"
                         name="book"
                         wire:model="date"
-                        min="{{ date('Y-m-d') }}"
+                        min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
                     >
                 </div>
 
-                {{-- START TIME --}}
+                
                 <div>
                     <label
                         for="self-start-time"
@@ -1126,7 +1138,7 @@
                     >
                 </div>
 
-                {{-- END DATE --}}
+                
                 <div>
                     <label
                         for="self-end-date"
@@ -1139,13 +1151,13 @@
                         type="date"
                         id="self-end-date"
                         wire:model="dateto"
-                        min="{{ date('Y-m-d') }}"
+                        min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
                     >
                 </div>
 
-                {{-- END TIME --}}
+                
                 <div>
                     <label
                         for="self-end-time"
@@ -1160,19 +1172,20 @@
                         wire:model="endTime"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('endTime')
+                        <?php echo e($this->hasError('endTime')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100'); ?>"
                     >
 
-                    @if ($this->hasError('endTime'))
+                    <!--[if BLOCK]><![endif]--><?php if($this->hasError('endTime')): ?>
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('endTime') }}
+                            <?php echo e($this->getError('endTime')); ?>
+
                         </p>
-                    @endif
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
 
-                {{-- SEARCH --}}
+                
                 <div class="pt-0 lg:pt-[26px]">
                     <button
                         type="submit"
@@ -1187,12 +1200,10 @@
         </form>
     </div>
 
-    {{-- =========================================================
-        SEND OTP MODAL
-    ========================================================== --}}
-	@teleport('body')
+    
+	<template x-teleport="<?php echo e('body'); ?>">
     <div
-        class="fixed inset-0 z-[999999] {{ $sendOtp ? 'flex' : 'hidden' }} items-center justify-center overflow-y-auto bg-slate-950/75 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
+        class="fixed inset-0 z-[999999] <?php echo e($sendOtp ? 'flex' : 'hidden'); ?> items-center justify-center overflow-y-auto bg-slate-950/75 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-login-title"
@@ -1200,7 +1211,7 @@
         <div
             class="relative my-auto grid w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/30 lg:grid-cols-[1.05fr_.95fr]"
         >
-            {{-- DESKTOP / TABLET BRAND PANEL --}}
+            
             <div
                 class="relative hidden min-h-[560px] overflow-hidden bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-700 p-10 text-white lg:flex lg:flex-col lg:justify-between"
             >
@@ -1253,7 +1264,7 @@
                         class="overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur"
                     >
                         <img
-                            src="{{ asset('./img/loginimg.jpg') }}"
+                            src="<?php echo e(asset('./img/loginimg.jpg')); ?>"
                             alt="Secure mobile login"
                             class="mx-auto h-56 w-full rounded-2xl bg-white object-contain"
                         >
@@ -1323,7 +1334,7 @@
                 </div>
             </div>
 
-            {{-- MOBILE NUMBER FORM PANEL --}}
+            
             <div class="relative flex min-h-[520px] flex-col justify-center bg-white p-5 sm:p-8 lg:p-10">
                 <button
                     type="button"
@@ -1334,13 +1345,13 @@
                     ×
                 </button>
 
-                {{-- MOBILE IMAGE --}}
+                
                 <div class="mb-5 text-center lg:hidden">
                     <div
                         class="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-sky-50 ring-8 ring-sky-50/60 sm:h-24 sm:w-24"
                     >
                         <img
-                            src="{{ asset('./img/loginimg.jpg') }}"
+                            src="<?php echo e(asset('./img/loginimg.jpg')); ?>"
                             alt="Secure login"
                             class="h-full w-full object-contain"
                         >
@@ -1429,12 +1440,13 @@
     type="submit"
     wire:loading.attr="disabled"
     wire:target="sendOtpToBack"
-    {{ strlen($mobileNumber) == 10 ? '' : 'disabled' }}
+    <?php echo e(strlen($mobileNumber) == 10 ? '' : 'disabled'); ?>
+
     class="mt-5 flex h-14 w-full items-center justify-center rounded-xl px-5 text-sm font-extrabold uppercase tracking-wide text-white transition
     disabled:cursor-not-allowed disabled:opacity-70
-    {{ strlen($mobileNumber) == 10
+    <?php echo e(strlen($mobileNumber) == 10
         ? 'bg-sky-500 hover:bg-sky-600 focus:ring-4 focus:ring-sky-200'
-        : 'bg-slate-400' }}">
+        : 'bg-slate-400'); ?>">
         
     <span wire:loading.remove wire:target="sendOtpToBack">
         Continue
@@ -1465,14 +1477,12 @@
             </div>
         </div>
     </div>
-@endteleport
-    {{-- =========================================================
-        VERIFY OTP MODAL
-    ========================================================== --}}
+</template>
+    
 	
-	@teleport('body')
+	<template x-teleport="<?php echo e('body'); ?>">
     <div
-        class="fixed inset-0 z-[999999] {{ $sendOtpVerify ? 'flex' : 'hidden' }} items-center justify-center overflow-y-auto bg-slate-950/75 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
+        class="fixed inset-0 z-[999999] <?php echo e($sendOtpVerify ? 'flex' : 'hidden'); ?> items-center justify-center overflow-y-auto bg-slate-950/75 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="verify-otp-title"
@@ -1481,7 +1491,7 @@
         <div
             class="relative my-auto grid w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/30 lg:grid-cols-[1.05fr_.95fr]"
         >
-            {{-- DESKTOP / TABLET BRAND PANEL --}}
+            
             <div
                 class="relative hidden min-h-[560px] overflow-hidden bg-gradient-to-br from-indigo-700 via-sky-600 to-sky-500 p-10 text-white lg:flex lg:flex-col lg:justify-between"
             >
@@ -1534,7 +1544,7 @@
                         class="overflow-hidden rounded-3xl border border-white/15 bg-white/10 p-5 backdrop-blur"
                     >
                         <img
-                            src="{{ asset('./img/passwordimg.jpg') }}"
+                            src="<?php echo e(asset('./img/passwordimg.jpg')); ?>"
                             alt="OTP verification"
                             loading="lazy"
                             decoding="async"
@@ -1573,7 +1583,7 @@
                 </div>
             </div>
 
-            {{-- OTP FORM PANEL --}}
+            
             <div class="relative flex min-h-[520px] flex-col justify-center bg-white p-5 sm:p-8 lg:p-10">
                 <button
                     type="button"
@@ -1584,13 +1594,13 @@
                     ×
                 </button>
 
-                {{-- MOBILE IMAGE --}}
+                
                 <div class="mb-5 text-center lg:hidden">
                     <div
                         class="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-sky-50 ring-8 ring-sky-50/60 sm:h-24 sm:w-24"
                     >
                         <img
-                            src="{{ asset('./img/passwordimg.jpg') }}"
+                            src="<?php echo e(asset('./img/passwordimg.jpg')); ?>"
                             alt="OTP verification"
                             loading="lazy"
                             decoding="async"
@@ -1625,7 +1635,8 @@
                         <p class="mt-2 text-sm font-medium leading-6 text-slate-500">
                             Enter the four-digit OTP sent to
                             <span class="font-extrabold text-slate-800">
-                                +91 {{ $mobileNumber }}
+                                +91 <?php echo e($mobileNumber); ?>
+
                             </span>
                         </p>
                     </div>
@@ -1749,15 +1760,15 @@
                                     try {
                                         await $wire.set('verifyOtp', otp);
 
-                                        @if ($selected_tab === 'one_way')
+                                        <?php if($selected_tab === 'one_way'): ?>
                                             await $wire.call('verifySubmitOtp');
-                                        @elseif ($selected_tab === 'return')
+                                        <?php elseif($selected_tab === 'return'): ?>
                                             await $wire.call('verifySubmitOtpReturn');
-                                        @elseif ($selected_tab === 'local')
+                                        <?php elseif($selected_tab === 'local'): ?>
                                             await $wire.call('verifySubmitLocal');
-                                        @elseif ($selected_tab === 'self_drive')
+                                        <?php elseif($selected_tab === 'self_drive'): ?>
                                             await $wire.call('verifySubmitOtpSelfDrive');
-                                        @endif
+                                        <?php endif; ?>
                                     } catch (error) {
                                         console.error('OTP verification failed:', error);
                                         this.error = 'OTP verification could not be completed. Please try again.';
@@ -1831,11 +1842,12 @@
                                 class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600"
                             ></p>
 
-                            @if (!empty($oneWayMsg))
+                            <!--[if BLOCK]><![endif]--><?php if(!empty($oneWayMsg)): ?>
                                 <p class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
-                                    {{ $oneWayMsg }}
+                                    <?php echo e($oneWayMsg); ?>
+
                                 </p>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                             <div class="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
                                 <svg
@@ -1905,11 +1917,14 @@
 				
             </div>
         </div>
-    </div>@endteleport
+    </div></template>
 </div>
 
 
-@script
+    <?php
+        $__scriptKey = '43671500-0';
+        ob_start();
+    ?>
 <script>
     (() => {
         if (window.__duraServiceSearchLocationRequested) {
@@ -1941,4 +1956,8 @@
         );
     })();
 </script>
-@endscript
+    <?php
+        $__output = ob_get_clean();
+
+        \Livewire\store($this)->push('scripts', $__output, $__scriptKey)
+    ?><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/livewire/service-search-panel.blade.php ENDPATH**/ ?>
