@@ -349,7 +349,14 @@
                                 <article wire:key="return-category-{{ $category->id }}" class="ride-package-card">
                                     <div class="ride-package-media">
                                         <span class="ride-package-badge ride-package-badge--green">Best price</span>
-                                        <img src="{{ url('storage') }}/{{ $category->image }}" alt="{{ $category->name }}" loading="lazy">
+                                        <img
+    src="{{ url('storage') }}/{{ $category->image }}"
+    alt="{{ $category->name }}"
+    loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+    fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
+    decoding="async"
+    width="420"
+    height="240">
                                     </div>
                                     <div class="ride-package-content">
                                         <div class="ride-package-title-row">
@@ -480,7 +487,11 @@
                                                 <img src="{{ $vehicleImage }}"
                                                     alt="{{ $vehicle->display_name }}"
                                                     title="{{ $vehicle->display_name }}"
-                                                    loading="lazy"
+                                                    loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
+decoding="async"
+width="420"
+height="240"
                                                     onerror="this.onerror=null;this.src='{{ asset('cab_images/default-car.png') }}';">
                                                 <div class="sd-premium-badges">
                                                     <span class="sd-premium-badge sd-premium-badge-blue"><i class="fa-solid fa-car-side"></i> Self Drive</span>

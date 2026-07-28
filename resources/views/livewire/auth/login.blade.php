@@ -72,15 +72,11 @@
             .dura-auth-right { min-height: auto; padding: 22px 16px !important; }
         }
     </style>
-    @once
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer">
-    @endonce
+   
     @section('title', 'Login & Register - Dura Cabs Services')
     @section('description', 'Customer and vendor login or registration with secure OTP verification at Dura Cabs Services.')
 
-    @push('styles')
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" referrerpolicy="no-referrer">
-    @endpush
+   
 
     <div class="dura-auth-shell">
         <main class="w-full flex justify-center">
