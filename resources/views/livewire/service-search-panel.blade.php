@@ -174,7 +174,7 @@
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
             x-show="activeTab === 'one_way'"
-            x-cloak
+            
             class="p-4 sm:p-5"
         >
             <div
