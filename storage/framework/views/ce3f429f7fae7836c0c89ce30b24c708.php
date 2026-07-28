@@ -473,7 +473,7 @@
                         class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase tracking-wide text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-70"
                     >
                         <span x-show="!submitting">Search</span>
-                        <span x-show="submitting" x-cloak>Searching...</span>
+                        <span x-show="submitting" >Searching...</span>
                     </button>
                 </div>
             </div>
@@ -493,7 +493,7 @@
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
             x-show="activeTab === 'return'"
-            x-cloak
+            
             class="p-4 sm:p-5"
         >
             <div
@@ -753,7 +753,7 @@
                         class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:opacity-70"
                     >
                         <span x-show="!submitting">Search</span>
-                        <span x-show="submitting" x-cloak>Searching...</span>
+                        <span x-show="submitting" >Searching...</span>
                     </button>
                 </div>
             </div>
@@ -764,7 +764,7 @@
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
             x-show="activeTab === 'local'"
-            x-cloak
+            
             class="p-4 sm:p-5"
         >
             <div
@@ -993,7 +993,7 @@
                         class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:opacity-70"
                     >
                         <span x-show="!submitting">Search</span>
-                        <span x-show="submitting" x-cloak>Searching...</span>
+                        <span x-show="submitting" >Searching...</span>
                     </button>
                 </div>
             </div>
@@ -1004,7 +1004,7 @@
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
             x-show="activeTab === 'self_drive'"
-            x-cloak
+          
             class="p-4 sm:p-5"
         >
             <div
@@ -1193,7 +1193,7 @@
                         class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:opacity-70"
                     >
                         <span x-show="!submitting">Search</span>
-                        <span x-show="submitting" x-cloak>Searching...</span>
+                        <span x-show="submitting" >Searching...</span>
                     </button>
                 </div>
             </div>
@@ -1839,7 +1839,7 @@
                             <p
                                 x-show="error"
                                 x-text="error"
-                                x-cloak
+                               
                                 class="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600"
                             ></p>
 
