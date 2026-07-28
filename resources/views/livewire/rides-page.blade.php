@@ -90,10 +90,18 @@
 
                     <div class="ride-summary-actions">
                         <button type="button" wire:click="showEditQueryModal" class="ride-summary-edit">
-                            <i class="fa-solid fa-pen-to-square"></i><span>Edit Trip</span>
+                            <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Edit Trip</span>
                         </button>
                         @unless ($fareUnlocked)
-                            <button type="button" wire:click="openFareGate" class="ride-summary-unlock">Unlock fare</button>
+                            <button
+                                type="button"
+                                wire:click="openFareGate"
+                                class="ride-fare-icon-button"
+                                aria-label="Unlock exact cab fare details"
+                                title="Unlock exact cab fare details">
+                                <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                <span class="sr-only">Unlock exact cab fare details</span>
+                            </button>
                         @endunless
                     </div>
                 </section>
@@ -381,10 +389,14 @@
                                     <div class="ride-package-price">
                                         <p class="ride-package-price-label">Estimated trip fare</p>
                                         <strong>{{ Number::currency($returnFare, 'INR') }}</strong>
-                                        <button type="button"
+                                        <button
+                                            type="button"
                                             onclick="showFareSummary({{ $category->id }}, '{{ addslashes($category->name) }}', {{ $returnFare }}, {{ $category->km_charge }}, {{ $category->driver_charge }}, {{ $category->range }}, {{ $returnKm }}, {{ $days === 0 ? 1 : $days }})"
-                                            class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
+                                            class="ride-fare-icon-button"
+                                            aria-label="View fare details for {{ $category->name }}"
+                                            title="View fare details for {{ $category->name }}">
                                             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                            <span class="sr-only">View fare details for {{ $category->name }}</span>
                                         </button>
                                         <a href="#"
                                             wire:click.prevent='addToCartReturn([{{ $category->id }},"{{ $nameTo }}", "{{ $cityFrom }}", "{{ $returnFare }}","{{ $date }}","{{ $dateto }}","{{ $time }}","{{ $tab }}","{{ $returnKm }}","{{ $category->new_vehicle }}","{{ $category->pet_friendly }}","{{ $category->roof_career }}"])'
@@ -423,8 +435,12 @@
                                 <span><small>Price Range</small><strong>{{ Number::currency($price_range, 'INR') }}</strong></span>
                                 <input type="range" wire:model.live="price_range" min="1000" max="50000" step="500">
                             </label>
-                            <button type="button" class="rides-reset-filter" wire:click="$set('price_range', 50000)">
-                                <i class="fa-solid fa-rotate-right"></i><span>Reset Filters</span>
+                            <button
+                                type="button"
+                                class="rides-reset-filter"
+                                wire:click="$set('price_range', 50000)"
+                                aria-label="Reset price filters">
+                                <i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>Reset Filters</span>
                             </button>
                             <strong class="rides-result-count">{{ $rides->total() }} Packages Found</strong>
                         </div>
@@ -584,7 +600,14 @@ height="240"
                                         <div class="ride-package-media">
                                             <span class="ride-package-badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
                                             <a href="/route/{{ $ride->slug }}" aria-label="View {{ $ride->name }} route details">
-                                                <img src="{{ url('storage') }}/{{ $price->category->image }}" alt="{{ $price->category->name }}" loading="lazy">
+                                                <img
+                                                    src="{{ url('storage') }}/{{ $price->category->image }}"
+                                                    alt="{{ $price->category->name }}"
+                                                    loading="{{ $loop->parent->first && $loop->first ? 'eager' : 'lazy' }}"
+                                                    fetchpriority="{{ $loop->parent->first && $loop->first ? 'high' : 'auto' }}"
+                                                    decoding="async"
+                                                    width="420"
+                                                    height="240">
                                             </a>
                                         </div>
                                         <div class="ride-package-content">
@@ -609,19 +632,27 @@ height="240"
                                             @endif
                                             <strong>{{ Number::currency($displayPrice, 'INR') }}</strong>
                                             @if ($tab === 'local')
-                                                <button type="button"
+                                                <button
+                                                    type="button"
                                                     onclick="showFareSummaryLocal('{{ addslashes($ride->name) }}', '{{ addslashes($price->category->name) }}', {{ $displayPrice }}, {{ $displayMaxPrice }}, {{ max(1, (int) $cars) }}, '{{ addslashes((string) $plan) }}', {{ $ride->extra_km_charge ?? 0 }}, {{ $ride->extra_hr_charge ?? 0 }}, {{ $ride->driver_allowances ?? 0 }})"
-                                                    class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
-                                                    <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
+                                                    class="ride-fare-icon-button"
+                                                    aria-label="View fare details for {{ $price->category->name }}"
+                                                    title="View fare details for {{ $price->category->name }}">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                    <span>Fare details</span>
                                                 </button>
                                                 <a href="#" wire:click.prevent='addToCartLocal([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $plan }}","{{ $cars }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}"])' class="ride-select-button">
                                                     <span>Select Vehicle</span><i class="fa-solid fa-arrow-right"></i>
                                                 </a>
                                             @else
-                                                <button type="button"
+                                                <button
+                                                    type="button"
                                                     onclick="showFareSummaryOneWay('{{ addslashes($ride->name) }}', '{{ addslashes($price->category->name) }}', {{ $displayPrice }}, {{ $displayMaxPrice }}, {{ $ride->toll_tax ?? 0 }}, {{ $ride->km_limit ?? 0 }}, {{ $ride->hr_limit ?? 0 }}, {{ $ride->extra_km_charge ?? 0 }}, {{ $ride->extra_hr_charge ?? 0 }})"
-                                                    class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
-                                                    <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
+                                                    class="ride-fare-icon-button"
+                                                    aria-label="View fare details for {{ $price->category->name }}"
+                                                    title="View fare details for {{ $price->category->name }}">
+                                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                                    <span>Fare details</span>
                                                 </button>
                                                 <a href="#" wire:click.prevent='addToCartOneWay([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}"])' class="ride-select-button">
                                                     <span>Select Vehicle</span><i class="fa-solid fa-arrow-right"></i>
@@ -796,7 +827,11 @@ height="240"
 
     <!-- Enhanced Fare details Popup -->
     <div id="fareSummaryModal"
-        class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="fareSummaryTitle"
+        aria-hidden="true">
         <div
             class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-300 scale-95">
             <!-- Header -->
@@ -804,11 +839,16 @@ height="240"
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         <i class="fa-solid fa-calculator" aria-hidden="true"></i>
-                        <h3 class="text-xl font-bold">Fare Breakdown</h3>
+                        <h3 id="fareSummaryTitle" class="text-xl font-bold">Fare Breakdown</h3>
                     </div>
-                    <button onclick="closeFareSummary()"
-                        class="text-white hover:text-gray-200 transition duration-200">
+                    <button
+                        type="button"
+                        onclick="closeFareSummary()"
+                        class="text-white hover:text-gray-200 transition duration-200"
+                        aria-label="Close fare breakdown"
+                        title="Close fare breakdown">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                        <span class="sr-only">Close fare breakdown</span>
                     </button>
                 </div>
             </div>
@@ -887,7 +927,9 @@ height="240"
             <!-- Action Buttons -->
             <div class="px-6 pb-6">
                 <div class="flex space-x-3">
-                    <button onclick="closeFareSummary()"
+                    <button
+                        type="button"
+                        onclick="closeFareSummary()"
                         class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold transition duration-200 flex items-center justify-center">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                         Close
