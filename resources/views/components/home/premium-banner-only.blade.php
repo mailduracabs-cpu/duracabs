@@ -77,7 +77,7 @@
         <div
             class="pointer-events-none absolute -right-24 -top-28
                    h-72 w-72 rounded-full
-                   bg-[color-mix(in_srgb,var(--dura-primary,#2563eb)_10%,transparent)]
+                   bg-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_10%,transparent)]
                    blur-3xl"
             aria-hidden="true"
         ></div>
@@ -85,7 +85,7 @@
         <div
             class="pointer-events-none absolute -bottom-28 -left-24
                    h-64 w-64 rounded-full
-                   bg-[color-mix(in_srgb,var(--dura-primary,#2563eb)_7%,transparent)]
+                   bg-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_7%,transparent)]
                    blur-3xl"
             aria-hidden="true"
         ></div>
@@ -96,7 +96,7 @@
                 <div class="min-w-0">
                     <div
                         class="mb-2 inline-flex items-center gap-2 rounded-full
-                               bg-[var(--dura-primary,#2563eb)]
+                               bg-[var(--dura-primary,#1d4ed8)]
                                px-3 py-1.5 text-[10px] font-extrabold
                                uppercase tracking-[0.12em] text-white
                                shadow-[0_6px_16px_rgba(37,99,235,0.20)]"
@@ -118,7 +118,7 @@
                     >
                         Popular
 
-                        <span class="text-[var(--dura-primary,#2563eb)]">
+                        <span class="text-[var(--dura-primary,#1d4ed8)]">
                             Outstation Routes
                         </span>
                     </h2>
@@ -140,14 +140,14 @@
                                    border
                                    border-[var(--dura-panel-border,#dbeafe)]
                                    bg-white
-                                   text-[var(--dura-primary,#2563eb)]
+                                   text-[var(--dura-primary,#1d4ed8)]
                                    shadow-sm transition duration-300
                                    hover:-translate-y-0.5
-                                   hover:border-[var(--dura-primary,#2563eb)]
+                                   hover:border-[var(--dura-primary,#1d4ed8)]
                                    hover:shadow-md
                                    focus-visible:outline-none
                                    focus-visible:ring-2
-                                   focus-visible:ring-[var(--dura-primary,#2563eb)]
+                                   focus-visible:ring-[var(--dura-primary,#1d4ed8)]
                                    focus-visible:ring-offset-2"
                             aria-label="Previous routes"
                         >
@@ -164,14 +164,14 @@
                                    border
                                    border-[var(--dura-panel-border,#dbeafe)]
                                    bg-white
-                                   text-[var(--dura-primary,#2563eb)]
+                                   text-[var(--dura-primary,#1d4ed8)]
                                    shadow-sm transition duration-300
                                    hover:-translate-y-0.5
-                                   hover:border-[var(--dura-primary,#2563eb)]
+                                   hover:border-[var(--dura-primary,#1d4ed8)]
                                    hover:shadow-md
                                    focus-visible:outline-none
                                    focus-visible:ring-2
-                                   focus-visible:ring-[var(--dura-primary,#2563eb)]
+                                   focus-visible:ring-[var(--dura-primary,#1d4ed8)]
                                    focus-visible:ring-offset-2"
                             aria-label="Next routes"
                         >
@@ -303,9 +303,9 @@
                                        h-[260px] w-[190px]
                                        rotate-[10deg] rounded-[46%]
                                        bg-gradient-to-br
-                                       from-[var(--dura-primary,#2563eb)]
-                                       via-[color-mix(in_srgb,var(--dura-primary,#2563eb)_92%,white)]
-                                       to-[color-mix(in_srgb,var(--dura-primary,#2563eb)_82%,black)]
+                                       from-[var(--dura-primary,#1d4ed8)]
+                                       via-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_92%,white)]
+                                       to-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_82%,black)]
                                        transition duration-500
                                        group-hover:scale-105"
                                 aria-hidden="true"
@@ -315,7 +315,7 @@
                                 class="pointer-events-none absolute right-0
                                        top-0 h-full w-[42%]
                                        bg-gradient-to-l
-                                       from-[color-mix(in_srgb,var(--dura-primary,#2563eb)_10%,transparent)]
+                                       from-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_10%,transparent)]
                                        to-transparent"
                                 aria-hidden="true"
                             ></div>
@@ -328,13 +328,13 @@
                                        focus-visible:outline-none
                                        focus-visible:ring-2
                                        focus-visible:ring-inset
-                                       focus-visible:ring-[var(--dura-primary,#2563eb)]"
+                                       focus-visible:ring-[var(--dura-primary,#1d4ed8)]"
                             >
                                 <div class="flex items-start justify-between">
                                     <span
                                         class="inline-flex items-center gap-1.5
                                                rounded-full
-                                               bg-[var(--dura-primary,#2563eb)]
+                                               bg-[var(--dura-primary,#1d4ed8)]
                                                px-3 py-1.5 text-[10px]
                                                font-extrabold uppercase
                                                tracking-[0.08em] text-white
@@ -361,7 +361,7 @@
 
                                         <span
                                             class="mx-1
-                                                   text-[var(--dura-primary,#2563eb)]"
+                                                   text-[var(--dura-primary,#1d4ed8)]"
                                         >
                                             <i
                                                 class="fa-solid
@@ -389,7 +389,7 @@
                                     >
                                         <i
                                             class="fa-solid fa-location-dot
-                                                   text-[var(--dura-primary,#2563eb)]"
+                                                   text-[var(--dura-primary,#1d4ed8)]"
                                             aria-hidden="true"
                                         ></i>
 
@@ -417,7 +417,7 @@
                                             class="mt-1 block text-[22px]
                                                    font-black leading-none
                                                    tracking-tight
-                                                   text-[var(--dura-primary,#2563eb)]"
+                                                   text-[var(--dura-primary,#1d4ed8)]"
                                         >
                                             {{ $displayFare }}
                                         </strong>
@@ -428,10 +428,10 @@
                                             class="mt-2 inline-flex
                                                    max-w-full items-center
                                                    rounded-full
-                                                   bg-[color-mix(in_srgb,var(--dura-primary,#2563eb)_8%,white)]
+                                                   bg-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_8%,white)]
                                                    px-2.5 py-1 text-[10px]
                                                    font-bold
-                                                   text-[var(--dura-primary,#2563eb)]"
+                                                   text-[var(--dura-primary,#1d4ed8)]"
                                         >
                                             <span class="truncate">
                                                 {{ $vehicleName }}
@@ -518,14 +518,14 @@
                                             <i
                                                 class="fa-solid fa-car-side
                                                        hidden text-4xl
-                                                       text-[var(--dura-primary,#2563eb)]"
+                                                       text-[var(--dura-primary,#1d4ed8)]"
                                                 aria-hidden="true"
                                             ></i>
                                         @else
                                             <i
                                                 class="fa-solid fa-car-side
                                                        text-4xl
-                                                       text-[var(--dura-primary,#2563eb)]"
+                                                       text-[var(--dura-primary,#1d4ed8)]"
                                                 aria-hidden="true"
                                             ></i>
                                         @endif
@@ -538,7 +538,7 @@
                                     <span
                                         class="inline-flex h-9 items-center
                                                justify-center rounded-xl
-                                               bg-[var(--dura-primary,#2563eb)]
+                                               bg-[var(--dura-primary,#1d4ed8)]
                                                px-3.5 text-xs font-extrabold
                                                text-white
                                                shadow-[0_8px_18px_rgba(37,99,235,0.26)]
@@ -553,10 +553,10 @@
                                                rounded-full border
                                                border-[var(--dura-panel-border,#dbeafe)]
                                                bg-white
-                                               text-[var(--dura-primary,#2563eb)]
+                                               text-[var(--dura-primary,#1d4ed8)]
                                                transition duration-300
                                                group-hover:translate-x-1
-                                               group-hover:border-[var(--dura-primary,#2563eb)]"
+                                               group-hover:border-[var(--dura-primary,#1d4ed8)]"
                                     >
                                         <i
                                             class="fa-solid fa-arrow-right
@@ -581,7 +581,7 @@
                                 >
                                     <i
                                         class="fa-solid fa-tags
-                                               text-[var(--dura-primary,#2563eb)]"
+                                               text-[var(--dura-primary,#1d4ed8)]"
                                         aria-hidden="true"
                                     ></i>
 
@@ -594,7 +594,7 @@
                                 >
                                     <i
                                         class="fa-solid fa-shield-halved
-                                               text-[var(--dura-primary,#2563eb)]"
+                                               text-[var(--dura-primary,#1d4ed8)]"
                                         aria-hidden="true"
                                     ></i>
 
@@ -607,7 +607,7 @@
                                 >
                                     <i
                                         class="fa-solid fa-headset
-                                               text-[var(--dura-primary,#2563eb)]"
+                                               text-[var(--dura-primary,#1d4ed8)]"
                                         aria-hidden="true"
                                     ></i>
 
@@ -672,7 +672,7 @@
                                            focus-visible:outline-none
                                            focus-visible:ring-2
                                            focus-visible:ring-inset
-                                           focus-visible:ring-[var(--dura-primary,#2563eb)]"
+                                           focus-visible:ring-[var(--dura-primary,#1d4ed8)]"
                                 >
                                     @if(filled($fallbackImageUrl))
                                         <div class="relative aspect-[16/9] overflow-hidden bg-slate-100">
@@ -688,7 +688,7 @@
 
                                             <span
                                                 class="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full
-                                                       bg-[var(--dura-primary,#2563eb)] px-3 py-1.5
+                                                       bg-[var(--dura-primary,#1d4ed8)] px-3 py-1.5
                                                        text-[10px] font-extrabold uppercase tracking-[0.08em] text-white shadow-sm"
                                             >
                                                 <span class="h-1.5 w-1.5 rounded-full bg-white"></span>
@@ -708,7 +708,7 @@
                                                 <span class="text-xs font-semibold text-slate-500">Safe • Reliable • Best Price</span>
                                                 <span
                                                     class="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl
-                                                           bg-[var(--dura-primary,#2563eb)] px-4 text-xs font-extrabold text-white
+                                                           bg-[var(--dura-primary,#1d4ed8)] px-4 text-xs font-extrabold text-white
                                                            shadow-[0_8px_18px_rgba(37,99,235,0.22)] transition
                                                            group-hover:translate-x-0.5"
                                                 >
@@ -723,13 +723,13 @@
                                                    flex-col justify-center
                                                    bg-gradient-to-br
                                                    from-white
-                                                   to-[color-mix(in_srgb,var(--dura-primary,#2563eb)_12%,white)]
+                                                   to-[color-mix(in_srgb,var(--dura-primary,#1d4ed8)_12%,white)]
                                                    p-4 sm:min-h-[275px]"
                                         >
                                             <i
                                                 class="fa-solid fa-car-side
                                                        text-5xl
-                                                       text-[var(--dura-primary,#2563eb)]"
+                                                       text-[var(--dura-primary,#1d4ed8)]"
                                                 aria-hidden="true"
                                             ></i>
 
@@ -749,7 +749,7 @@
                                                 class="mt-5 inline-flex h-9
                                                        w-max items-center
                                                        rounded-xl
-                                                       bg-[var(--dura-primary,#2563eb)]
+                                                       bg-[var(--dura-primary,#1d4ed8)]
                                                        px-3.5 text-xs
                                                        font-extrabold
                                                        text-white"
@@ -779,7 +779,7 @@
                                 >
                                     <i
                                         class="fa-solid fa-car-side text-5xl
-                                               text-[var(--dura-primary,#2563eb)]"
+                                               text-[var(--dura-primary,#1d4ed8)]"
                                         aria-hidden="true"
                                     ></i>
 
@@ -810,7 +810,7 @@
                             data-dura-banner-prev
                             class="grid h-11 w-11 place-items-center
                                    rounded-full border bg-white
-                                   text-[var(--dura-primary,#2563eb)]"
+                                   text-[var(--dura-primary,#1d4ed8)]"
                             aria-label="Previous banners"
                         >
                             <i
@@ -829,7 +829,7 @@
                             data-dura-banner-next
                             class="grid h-11 w-11 place-items-center
                                    rounded-full border bg-white
-                                   text-[var(--dura-primary,#2563eb)]"
+                                   text-[var(--dura-primary,#1d4ed8)]"
                             aria-label="Next banners"
                         >
                             <i
@@ -974,7 +974,7 @@
 
                                 indicator.className = active
                                     ? 'h-2 w-5 rounded-full '
-                                        + 'bg-[var(--dura-primary,#2563eb)] '
+                                        + 'bg-[var(--dura-primary,#1d4ed8)] '
                                         + 'transition-all'
                                     : 'h-2 w-2 rounded-full '
                                         + 'bg-slate-200 transition-all';
@@ -1030,7 +1030,7 @@
                                     + 'justify-center rounded-full '
                                     + 'focus-visible:outline-none '
                                     + 'focus-visible:ring-2 '
-                                    + 'focus-visible:ring-[var(--dura-primary,#2563eb)] '
+                                    + 'focus-visible:ring-[var(--dura-primary,#1d4ed8)] '
                                     + 'focus-visible:ring-offset-2';
 
                                 dot.setAttribute(

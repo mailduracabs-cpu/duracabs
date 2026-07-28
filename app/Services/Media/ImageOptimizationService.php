@@ -168,6 +168,170 @@ final class ImageOptimizationService
     }
 
     /**
+     * Convert an existing legacy image into one optimized WebP file.
+     *
+     * This method does not create an AppMedia record and does not
+     * delete the source image. It is intended for one-time migration
+     * of existing JPG, JPEG, PNG, WebP or GIF files.
+     *
+     * The destination path must be relative to the selected Laravel
+     * filesystem disk and must use the .webp extension.
+     *
+     * @param array<string, mixed> $options
+     * @return array<string, int|string>
+     */
+    public function convertExistingImage(
+        string $sourcePath,
+        string $destinationPath,
+        MediaType $mediaType = MediaType::Other,
+        array $options = [],
+    ): array {
+        $sourcePath = trim($sourcePath);
+
+        $destinationPath = trim(
+            str_replace('\\', '/', $destinationPath),
+            '/',
+        );
+
+        if ($sourcePath === '') {
+            throw new RuntimeException(
+                'The source image path is required.'
+            );
+        }
+
+        if ($destinationPath === '') {
+            throw new RuntimeException(
+                'The destination WebP path is required.'
+            );
+        }
+
+        if (!is_file($sourcePath)) {
+            throw new RuntimeException(
+                "Source image does not exist: {$sourcePath}"
+            );
+        }
+
+        if (!is_readable($sourcePath)) {
+            throw new RuntimeException(
+                "Source image is not readable: {$sourcePath}"
+            );
+        }
+
+        if (
+            strtolower(
+                pathinfo(
+                    $destinationPath,
+                    PATHINFO_EXTENSION,
+                )
+            ) !== 'webp'
+        ) {
+            throw new RuntimeException(
+                'The destination file must use the .webp extension.'
+            );
+        }
+
+        $disk = trim(
+            (string) (
+                $options['disk']
+                ?? 'public'
+            )
+        );
+
+        if ($disk === '') {
+            $disk = 'public';
+        }
+
+        $quality = $this->resolveQuality(
+            mediaType: $mediaType,
+            options: $options,
+        );
+
+        try {
+            $image = ImageFacade::decode(
+                $sourcePath
+            );
+
+            $sourceWidth = max(
+                1,
+                (int) $image->width()
+            );
+
+            $sourceHeight = max(
+                1,
+                (int) $image->height()
+            );
+
+            $this->resizeImage(
+                image: $image,
+                mediaType: $mediaType,
+            );
+
+            $finalWidth = max(
+                1,
+                (int) $image->width()
+            );
+
+            $finalHeight = max(
+                1,
+                (int) $image->height()
+            );
+
+            $encoded = $image->encode(
+                new WebpEncoder(
+                    quality: $quality,
+                    strip: true,
+                )
+            );
+
+            $webpBytes = (string) $encoded;
+
+            if ($webpBytes === '') {
+                throw new RuntimeException(
+                    'The converted WebP image is empty.'
+                );
+            }
+
+            $isPublic = (bool) (
+                $options['is_public']
+                ?? true
+            );
+
+            $stored = Storage::disk($disk)->put(
+                $destinationPath,
+                $webpBytes,
+                [
+                    'visibility' => $isPublic
+                        ? 'public'
+                        : 'private',
+                ]
+            );
+
+            if ($stored === false) {
+                throw new RuntimeException(
+                    "Unable to store converted WebP: {$destinationPath}"
+                );
+            }
+
+            return [
+                'source_path' => $sourcePath,
+                'destination_path' => $destinationPath,
+                'source_width' => $sourceWidth,
+                'source_height' => $sourceHeight,
+                'final_width' => $finalWidth,
+                'final_height' => $finalHeight,
+                'quality' => $quality,
+                'optimized_size' => strlen($webpBytes),
+            ];
+        } catch (Throwable $exception) {
+            throw new RuntimeException(
+                'Existing image conversion failed: '
+                . $exception->getMessage(),
+                previous: $exception,
+            );
+        }
+    }
+
+    /**
      * Convert an uploaded image into one optimized WebP.
      *
      * @param array<string, mixed> $options

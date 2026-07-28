@@ -152,7 +152,7 @@
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                     Discover India
                 </p>
 
@@ -417,7 +417,7 @@
         {{-- Section heading --}}
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                 Our cab services
             </p>
 
@@ -706,7 +706,7 @@
 
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                 Travel with confidence
             </p>
 
@@ -922,7 +922,7 @@
 
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                 Need help?
             </p>
 
@@ -1217,7 +1217,7 @@
         {{-- Section heading --}}
         <div class="mx-auto mb-8 max-w-2xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                 Choose your ride
             </p>
 
@@ -1300,7 +1300,7 @@
 
                         <span
                             class="mt-2 inline-flex items-center gap-1 text-xs
-                                   font-semibold text-dura-600 sm:text-sm"
+                                   font-semibold text-dura-700 sm:text-sm"
                         >
                             View cabs
 
@@ -1358,7 +1358,7 @@
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                     Trusted by travellers
                 </p>
 
@@ -1534,14 +1534,18 @@
 
                 <div class="text-right">
 
-                    <div class="flex justify-end gap-1" aria-label="4.6 out of 5 stars">
-                        @for ($star = 1; $star <= 5; $star++)
-                            <i
-                                class="fa-solid fa-star text-sm text-amber-400"
-                                aria-hidden="true"
-                            ></i>
-                        @endfor
-                    </div>
+                    <div
+    class="flex justify-end gap-1"
+    role="img"
+    aria-label="4.6 out of 5 stars"
+>
+    @for ($star = 1; $star <= 5; $star++)
+        <i
+            class="fa-solid fa-star text-sm text-amber-400"
+            aria-hidden="true"
+        ></i>
+    @endfor
+</div>
 
                     <p class="mt-1 text-sm text-slate-600">
                         <strong class="text-slate-900">4.6/5</strong>
@@ -1570,7 +1574,7 @@
 
         <div class="mb-7 flex items-end justify-between gap-4">
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                     Drive yourself
                 </p>
 
@@ -1676,21 +1680,21 @@
                             <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-500">
                                 @if (filled($vehicle->transmission))
                                     <span>
-                                        <i class="fa-solid fa-gears mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-gears mr-1 text-dura-700" aria-hidden="true"></i>
                                         {{ ucfirst($vehicle->transmission) }}
                                     </span>
                                 @endif
 
                                 @if (filled($vehicle->fuel_type))
                                     <span>
-                                        <i class="fa-solid fa-gas-pump mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-gas-pump mr-1 text-dura-700" aria-hidden="true"></i>
                                         {{ ucfirst($vehicle->fuel_type) }}
                                     </span>
                                 @endif
 
                                 @if ((int) $vehicle->seats > 0)
                                     <span>
-                                        <i class="fa-solid fa-user-group mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-user-group mr-1 text-dura-700" aria-hidden="true"></i>
                                         {{ (int) $vehicle->seats }} Seats
                                     </span>
                                 @endif
@@ -1768,7 +1772,7 @@
         <div class="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-700">
                     Explore India
                 </p>
 
