@@ -355,7 +355,8 @@
     width="1440"
     height="500"
     fetchpriority="high"
-    decoding="async"title="Book One Way, Round Trip, and Local Taxis Online with Duracabs" />
+    decoding="async"
+	title="Book One Way, Round Trip, and Local Taxis Online with Duracabs" />
 <div class="premium-about-card premium-reveal mx-auto mt-12 w-[calc(100%-1.5rem)] max-w-6xl bg-white p-5 sm:p-8 lg:mt-16">
   <section id="about-duracabs" class="seo-content">
     <h2><strong>Duracabs – India's Trusted Self Drive Car Rental Services</strong></h2>
