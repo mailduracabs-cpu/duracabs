@@ -10,9 +10,11 @@ use App\Forms\Components\DuraSeo;
 use App\Forms\Components\DuraSeoAiWriter;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Vehicle;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Group;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -29,6 +31,7 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 class ProductResource extends Resource
@@ -72,7 +75,14 @@ class ProductResource extends Resource
                                             ])
                                             ->default('one_way')
                                             ->required()
-                                            ->live(),
+                                            ->live()
+                                            ->afterStateUpdated(
+                                                function (?string $state, Set $set): void {
+                                                    if ($state !== 'self_drive') {
+                                                        $set('vehicle_id', null);
+                                                    }
+                                                },
+                                            ),
 
                                         TextInput::make('name')
                                             ->label('Page Name')
@@ -86,28 +96,27 @@ class ProductResource extends Resource
                                                     ?string $state,
                                                     Set $set,
                                                 ): void {
-                                                    // Existing URLs are protected.
-                                                    // Generate the slug only while creating a new record.
                                                     if ($operation !== 'create') {
                                                         return;
                                                     }
 
                                                     $set(
                                                         'slug',
-                                                        Str::slug(
-                                                            (string) $state,
-                                                        ),
+                                                        Str::slug((string) $state),
                                                     );
                                                 },
                                             ),
 
                                         TextInput::make('slug')
                                             ->label('Slug')
-                                            ->helperText('Existing slug is locked to protect old URLs and SEO.')
+                                            ->helperText(
+                                                'Existing slug is locked to protect old URLs and SEO.',
+                                            )
                                             ->required()
                                             ->maxLength(255)
                                             ->disabled(
-                                                fn (string $operation): bool => $operation === 'edit',
+                                                fn (string $operation): bool =>
+                                                    $operation === 'edit',
                                             )
                                             ->dehydrated()
                                             ->unique(
@@ -143,14 +152,12 @@ class ProductResource extends Resource
                                             ->searchable()
                                             ->preload()
                                             ->visible(
-                                                fn (Get $get): bool => $get(
-                                                    'ride_type',
-                                                ) === 'one_way',
+                                                fn (Get $get): bool =>
+                                                    $get('ride_type') === 'one_way',
                                             )
                                             ->required(
-                                                fn (Get $get): bool => $get(
-                                                    'ride_type',
-                                                ) === 'one_way',
+                                                fn (Get $get): bool =>
+                                                    $get('ride_type') === 'one_way',
                                             ),
 
                                         Select::make('plan')
@@ -162,14 +169,109 @@ class ProductResource extends Resource
                                                 '12 Hours / 120 KM' => '12 Hours / 120 KM',
                                             ])
                                             ->visible(
-                                                fn (Get $get): bool => $get(
-                                                    'ride_type',
-                                                ) === 'local',
+                                                fn (Get $get): bool =>
+                                                    $get('ride_type') === 'local',
                                             )
                                             ->required(
-                                                fn (Get $get): bool => $get(
-                                                    'ride_type',
-                                                ) === 'local',
+                                                fn (Get $get): bool =>
+                                                    $get('ride_type') === 'local',
+                                            ),
+                                    ]),
+                            ]),
+
+                        Section::make('Self Drive Vehicle')
+                            ->description(
+                                'Select the exact approved Self Drive vehicle. Search by brand, model, registration number, owner or transporter.',
+                            )
+                            ->compact()
+                            ->visible(
+                                fn (Get $get): bool =>
+                                    $get('ride_type') === 'self_drive',
+                            )
+                            ->schema([
+                                Select::make('vehicle_id')
+                                    ->label('Self Drive Vehicle')
+                                    ->placeholder(
+                                        'Type vehicle name, model or registration number',
+                                    )
+                                    ->searchable()
+                                    ->native(false)
+                                    ->required(
+                                        fn (Get $get): bool =>
+                                            $get('ride_type') === 'self_drive',
+                                    )
+                                    ->getSearchResultsUsing(
+                                        fn (string $search): array =>
+                                            static::searchSelfDriveVehicles($search),
+                                    )
+                                    ->getOptionLabelUsing(
+                                        fn (mixed $value): ?string =>
+                                            static::getVehicleOptionLabel($value),
+                                    )
+                                    ->live()
+                                    ->afterStateUpdated(
+                                        function (mixed $state, Set $set): void {
+                                            static::fillProductFromVehicle(
+                                                $state,
+                                                $set,
+                                            );
+                                        },
+                                    )
+                                    ->helperText(
+                                        'Only approved, active, live and verified Self Drive vehicles are shown.',
+                                    ),
+
+                                Grid::make([
+                                    'default' => 1,
+                                    'md' => 2,
+                                ])
+                                    ->schema([
+                                        Placeholder::make('selected_vehicle_price')
+                                            ->label('Hourly Price')
+                                            ->content(
+                                                function (Get $get): string {
+                                                    $vehicle = static::findVehicle(
+                                                        $get('vehicle_id'),
+                                                    );
+
+                                                    return $vehicle
+                                                        ? '₹' . number_format(
+                                                            (float) $vehicle->hourly_price,
+                                                            2,
+                                                        ) . ' / hour'
+                                                        : 'Select a vehicle';
+                                                },
+                                            ),
+
+                                        Placeholder::make('selected_vehicle_details')
+                                            ->label('Selected Vehicle')
+                                            ->content(
+                                                function (Get $get): string {
+                                                    $vehicle = static::findVehicle(
+                                                        $get('vehicle_id'),
+                                                    );
+
+                                                    if (! $vehicle) {
+                                                        return 'No vehicle selected';
+                                                    }
+
+                                                    $parts = array_filter([
+                                                        static::vehicleName($vehicle),
+                                                        $vehicle->vehicle_number,
+                                                        $vehicle->fuel_type
+                                                            ? Str::headline(
+                                                                (string) $vehicle->fuel_type,
+                                                            )
+                                                            : null,
+                                                        $vehicle->transmission
+                                                            ? Str::headline(
+                                                                (string) $vehicle->transmission,
+                                                            )
+                                                            : null,
+                                                    ]);
+
+                                                    return implode(' | ', $parts);
+                                                },
                                             ),
                                     ]),
                             ]),
@@ -250,7 +352,7 @@ class ProductResource extends Resource
 
                         Section::make('Legacy Fallback')
                             ->description(
-                                'Only used by old frontend code until dynamic fare/vehicle loading is connected.',
+                                'Old frontend compatibility. For Self Drive, selecting a vehicle automatically fills the nearest matching category and hourly fallback price.',
                             )
                             ->collapsed()
                             ->compact()
@@ -258,8 +360,10 @@ class ProductResource extends Resource
                                 Select::make('category_id')
                                     ->label('Fallback Cab Category')
                                     ->options(
-                                        fn () => Category::query()
-                                            ->pluck('name', 'id'),
+                                        fn (): array => Category::query()
+                                            ->orderBy('name')
+                                            ->pluck('name', 'id')
+                                            ->all(),
                                     )
                                     ->searchable()
                                     ->preload()
@@ -268,7 +372,12 @@ class ProductResource extends Resource
                                 Grid::make(2)
                                     ->schema([
                                         TextInput::make('price')
-                                            ->label('Fallback Price')
+                                            ->label(
+                                                fn (Get $get): string =>
+                                                    $get('ride_type') === 'self_drive'
+                                                        ? 'Fallback Hourly Price'
+                                                        : 'Fallback Price',
+                                            )
                                             ->numeric()
                                             ->prefix('₹')
                                             ->default(1)
@@ -313,6 +422,222 @@ class ProductResource extends Resource
                 'default' => 1,
                 'lg' => 3,
             ]);
+    }
+
+    protected static function searchSelfDriveVehicles(string $search): array
+    {
+        $search = trim($search);
+
+        return Vehicle::query()
+            ->with([
+                'user:id,name',
+                'transporter',
+            ])
+            ->where('service_type', Vehicle::SERVICE_SELF_DRIVE)
+            ->where('verification_status', Vehicle::STATUS_APPROVED)
+            ->where('is_active', true)
+            ->where('is_live', true)
+            ->where('is_verified', true)
+            ->when(
+                filled($search),
+                function (Builder $query) use ($search): void {
+                    $normalisedVehicleNumber = strtoupper(
+                        preg_replace('/[^A-Za-z0-9]/', '', $search),
+                    );
+
+                    $query->where(
+                        function (Builder $vehicleQuery) use (
+                            $search,
+                            $normalisedVehicleNumber,
+                        ): void {
+                            $vehicleQuery
+                                ->where(
+                                    'car_company_name',
+                                    'like',
+                                    "%{$search}%",
+                                )
+                                ->orWhere(
+                                    'model_name',
+                                    'like',
+                                    "%{$search}%",
+                                )
+                                ->orWhere(
+                                    'vehicle_number',
+                                    'like',
+                                    "%{$search}%",
+                                )
+                                ->orWhere(
+                                    'owner_name',
+                                    'like',
+                                    "%{$search}%",
+                                )
+                                ->orWhereHas(
+                                    'user',
+                                    fn (Builder $userQuery): Builder =>
+                                        $userQuery->where(
+                                            'name',
+                                            'like',
+                                            "%{$search}%",
+                                        ),
+                                )
+                                ->orWhereHas(
+                                    'transporter',
+                                    function (Builder $transporterQuery) use (
+                                        $search,
+                                    ): void {
+                                        $transporterQuery->where(
+                                            function (Builder $detailQuery) use (
+                                                $search,
+                                            ): void {
+                                                $detailQuery
+                                                    ->where(
+                                                        'company_name',
+                                                        'like',
+                                                        "%{$search}%",
+                                                    )
+                                                    ->orWhere(
+                                                        'pickup_address',
+                                                        'like',
+                                                        "%{$search}%",
+                                                    );
+                                            },
+                                        );
+                                    });
+
+                            if (filled($normalisedVehicleNumber)) {
+                                $vehicleQuery->orWhere(
+                                    'vehicle_number',
+                                    'like',
+                                    "%{$normalisedVehicleNumber}%",
+                                );
+                            }
+                        },
+                    );
+                },
+            )
+            ->orderBy('car_company_name')
+            ->orderBy('model_name')
+            ->limit(50)
+            ->get()
+            ->mapWithKeys(
+                fn (Vehicle $vehicle): array => [
+                    $vehicle->id => static::formatVehicleOption($vehicle),
+                ],
+            )
+            ->all();
+    }
+
+    protected static function getVehicleOptionLabel(mixed $value): ?string
+    {
+        $vehicle = static::findVehicle($value);
+
+        return $vehicle
+            ? static::formatVehicleOption($vehicle)
+            : null;
+    }
+
+    protected static function findVehicle(mixed $value): ?Vehicle
+    {
+        if (blank($value) || ! is_numeric($value)) {
+            return null;
+        }
+
+        return Vehicle::query()
+            ->with([
+                'user:id,name',
+                'transporter',
+            ])
+            ->find((int) $value);
+    }
+
+    protected static function formatVehicleOption(Vehicle $vehicle): string
+    {
+        $vehicleName = static::vehicleName($vehicle);
+
+        $registration = filled($vehicle->vehicle_number)
+            ? $vehicle->vehicle_number
+            : 'No registration';
+
+        $transporter = $vehicle->transporter?->company_name
+            ?: $vehicle->user?->name
+            ?: $vehicle->owner_name
+            ?: 'Unknown partner';
+
+        $location = $vehicle->transporter?->pickup_address;
+
+        $price = '₹' . number_format(
+            max(0, (float) $vehicle->hourly_price),
+            2,
+        ) . '/hour';
+
+        return implode(
+            ' | ',
+            array_filter([
+                $vehicleName,
+                $registration,
+                $transporter,
+                $location,
+                $price,
+            ]),
+        );
+    }
+
+    protected static function vehicleName(Vehicle $vehicle): string
+    {
+        $name = trim(
+            (string) $vehicle->car_company_name
+            . ' '
+            . (string) $vehicle->model_name,
+        );
+
+        return filled($name)
+            ? $name
+            : 'Vehicle #' . $vehicle->id;
+    }
+
+    protected static function fillProductFromVehicle(
+        mixed $vehicleId,
+        Set $set,
+    ): void {
+        $vehicle = static::findVehicle($vehicleId);
+
+        if (! $vehicle) {
+            return;
+        }
+
+        $hourlyPrice = max(0, (float) $vehicle->hourly_price);
+
+        $set('price', $hourlyPrice > 0 ? $hourlyPrice : 1);
+        $set('max_price', $hourlyPrice > 0 ? $hourlyPrice : 1);
+
+        $categoryId = static::findMatchingCategoryId(
+            $vehicle->car_classification,
+        );
+
+        if ($categoryId !== null) {
+            $set('category_id', $categoryId);
+        }
+    }
+
+    protected static function findMatchingCategoryId(
+        ?string $classification,
+    ): ?int {
+        if (blank($classification)) {
+            return null;
+        }
+
+        $classification = Str::headline($classification);
+
+        $categoryId = Category::query()
+            ->whereRaw(
+                'LOWER(name) = ?',
+                [Str::lower($classification)],
+            )
+            ->value('id');
+
+        return $categoryId !== null
+            ? (int) $categoryId
+            : null;
     }
 
     public static function table(Table $table): Table
@@ -363,6 +688,14 @@ class ProductResource extends Resource
                     )
                     ->sortable(),
 
+                TextColumn::make('vehicle.display_name')
+                    ->label('Self Drive Vehicle')
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->visible(
+                        fn (): bool => true,
+                    ),
+
                 TextColumn::make('brand.name')
                     ->label('City / From')
                     ->searchable()
@@ -392,6 +725,31 @@ class ProductResource extends Resource
                         'bike_rental' => 'Bike Rental',
                         'self_drive' => 'Self Drive',
                     ]),
+
+                SelectFilter::make('vehicle_id')
+                    ->label('Self Drive Vehicle')
+                    ->options(
+                        fn (): array => Vehicle::query()
+                            ->where(
+                                'service_type',
+                                Vehicle::SERVICE_SELF_DRIVE,
+                            )
+                            ->orderBy('car_company_name')
+                            ->orderBy('model_name')
+                            ->limit(500)
+                            ->get()
+                            ->mapWithKeys(
+                                fn (Vehicle $vehicle): array => [
+                                    $vehicle->id =>
+                                        static::vehicleName($vehicle)
+                                        . ' | '
+                                        . ($vehicle->vehicle_number ?: 'N/A'),
+                                ],
+                            )
+                            ->all(),
+                    )
+                    ->searchable()
+                    ->preload(),
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([

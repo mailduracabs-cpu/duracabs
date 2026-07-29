@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Product extends Model
@@ -28,6 +29,9 @@ class Product extends Model
     public const URL_TYPE_ROUTE = 'route';
     public const URL_TYPE_PAGE = 'page';
     public const URL_TYPE_ROOT = 'root';
+	
+	
+	
 
     protected $fillable = [
         'category_id',
@@ -141,6 +145,11 @@ class Product extends Model
     {
         return $this->primary_image;
     }
+	
+	public function vehicle(): BelongsTo
+{
+    return $this->belongsTo(Vehicle::class);
+}
 
     /**
      * Returns only the public URL path.
