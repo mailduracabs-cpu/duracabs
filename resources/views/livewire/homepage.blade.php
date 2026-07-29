@@ -1635,7 +1635,7 @@
                         $vehicleUrl = url('/rides?tab=self_drive&vehicle_id=' . $vehicle->id);
                         $vehicleImage = $vehicle->front_image_url
                             ?: asset('img/placeholder/car-route.webp');
-                        $dailyPrice = (float) $vehicle->daily_price;
+                        $hourlyPrice = (float) $vehicle->hourly_price;
                     @endphp
 
                     <article
@@ -1700,17 +1700,16 @@
                                 @endif
                             </div>
 
-                            <div class="mt-auto pt-5">
-                                <div class="mb-3">
-                                    <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Daily rental
-                                    </span>
+                            <div class="mb-3">
+    <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Hourly Rental
+    </span>
 
-                                    <span class="mt-1 block text-xl font-extrabold text-slate-900">
-                                        ₹{{ number_format($dailyPrice) }}
-                                        <small class="text-sm font-semibold text-slate-500">/ day</small>
-                                    </span>
-                                </div>
+    <span class="mt-1 block text-xl font-extrabold text-slate-900">
+        ₹{{ number_format($hourlyPrice) }}
+        <small class="text-sm font-semibold text-slate-500">/ hour</small>
+    </span>
+</div>
 
                                 <a
                                     href="{{ $vehicleUrl }}"
