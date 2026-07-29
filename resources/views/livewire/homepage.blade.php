@@ -1709,7 +1709,7 @@
         ₹{{ number_format($hourlyPrice) }}
         <small class="text-sm font-semibold text-slate-500">/ hour</small>
     </span>
-</div>
+
 
                                 <a
                                     href="{{ $vehicleUrl }}"
