@@ -466,7 +466,7 @@ class RidesPage extends Component
     private function selfDriveBookingOverlapQuery(int $vehicleId, Carbon $pickupAt, Carbon $dropAt): Builder
     {
         return SelfDriveBooking::query()
-            ->where('self_drive_vehicle_id', $vehicleId)
+           ->where('vehicle_id', $vehicleId)
             ->whereIn('status', ['pending', 'confirmed', 'running'])
             ->where('start_datetime', '<', $dropAt->toDateTimeString())
             ->where('end_datetime', '>', $pickupAt->toDateTimeString());
@@ -475,7 +475,7 @@ class RidesPage extends Component
     private function applySelfDriveAvailabilityFilter(Builder $query, Carbon $pickupAt, Carbon $dropAt): void
     {
         $query->whereNotIn('id', SelfDriveBooking::query()
-            ->select('self_drive_vehicle_id')
+            ->select('vehicle_id')
             ->whereIn('status', ['pending', 'confirmed', 'running'])
             ->where('start_datetime', '<', $dropAt->toDateTimeString())
             ->where('end_datetime', '>', $pickupAt->toDateTimeString()));
