@@ -119,6 +119,28 @@ Route::post('/booking', [
 
 /*
 |--------------------------------------------------------------------------
+| Meta WhatsApp Cloud API Webhook
+|--------------------------------------------------------------------------
+|
+| Meta verification aur incoming webhook dono public rahenge.
+|
+| GET  /api/whatsapp/webhook  -> Meta verification
+| POST /api/whatsapp/webhook  -> Incoming messages/status updates
+|
+*/
+
+Route::get('/whatsapp/webhook', [
+    WhatsAppController::class,
+    'verifyWebhook',
+])->name('whatsapp.webhook.verify');
+
+Route::post('/whatsapp/webhook', [
+    WhatsAppController::class,
+    'webhook',
+])->name('whatsapp.webhook.receive');
+
+/*
+|--------------------------------------------------------------------------
 | Dura Cabs App APIs V1
 |--------------------------------------------------------------------------
 */
@@ -907,48 +929,107 @@ Route::prefix('bike-rental')->group(function (): void {
         'send',
     ]);
 
-    /*
+	
+	    /*
     |--------------------------------------------------------------------------
-    | WhatsApp
+    | WhatsApp Cloud API
     |--------------------------------------------------------------------------
+    |
+    | Internal sending endpoints.
+    | In production, sending and testing routes should be protected by
+    | authentication or admin middleware.
+    |
     */
 
-    Route::post('/whatsapp/send-message', [
-        WhatsAppController::class,
-        'sendMessage',
-    ]);
+    Route::prefix('whatsapp')->group(function (): void {
 
-    Route::post('/whatsapp/booking-confirmation', [
-        WhatsAppController::class,
-        'bookingConfirmation',
-    ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Normal text message
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post('/whatsapp/driver-details', [
-        WhatsAppController::class,
-        'driverDetails',
-    ]);
+        Route::post('/send-message', [
+            WhatsAppController::class,
+            'sendMessage',
+        ])->name('api.v1.whatsapp.send-message');
 
-    Route::post('/whatsapp/payment-reminder', [
-        WhatsAppController::class,
-        'paymentReminder',
-    ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Booking messages
+        |--------------------------------------------------------------------------
+        */
 
-    Route::post('/whatsapp/offer-message', [
-        WhatsAppController::class,
-        'offerMessage',
-    ]);
+        Route::post('/booking-confirmation', [
+            WhatsAppController::class,
+            'bookingConfirmation',
+        ])->name('api.v1.whatsapp.booking-confirmation');
 
-    Route::post('/whatsapp/template-message', [
-        WhatsAppController::class,
-        'templateMessage',
-    ]);
+        Route::post('/booking-cancellation', [
+            WhatsAppController::class,
+            'bookingCancellation',
+        ])->name('api.v1.whatsapp.booking-cancellation');
 
-    Route::match(
-        ['get', 'post'],
-        '/whatsapp/webhook',
-        [WhatsAppController::class, 'webhook']
-    );
+        /*
+        |--------------------------------------------------------------------------
+        | Driver and vehicle details
+        |--------------------------------------------------------------------------
+        */
 
+        Route::post('/driver-details', [
+            WhatsAppController::class,
+            'driverDetails',
+        ])->name('api.v1.whatsapp.driver-details');
+
+        Route::post('/car-details', [
+            WhatsAppController::class,
+            'carDetails',
+        ])->name('api.v1.whatsapp.car-details');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment messages
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/payment-reminder', [
+            WhatsAppController::class,
+            'paymentReminder',
+        ])->name('api.v1.whatsapp.payment-reminder');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Offer and marketing messages
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/offer-message', [
+            WhatsAppController::class,
+            'offerMessage',
+        ])->name('api.v1.whatsapp.offer-message');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Approved Meta template message
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post('/template-message', [
+            WhatsAppController::class,
+            'templateMessage',
+        ])->name('api.v1.whatsapp.template-message');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Meta connection test
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get('/test-connection', [
+            WhatsAppController::class,
+            'testConnection',
+        ])->name('api.v1.whatsapp.test-connection');
+    });
     /*
     |--------------------------------------------------------------------------
     | Email

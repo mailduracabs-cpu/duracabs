@@ -91,6 +91,12 @@ class RidesPage extends Component
     #[Url(history: true)]
     public $endTime ;
 
+    /**
+     * Homepage/banner se select ki gayi specific Self Drive vehicle ID.
+     */
+    #[Url(history: true)]
+    public ?int $vehicle_id = null;
+
     #[Url(history: true)]
     public $timeValue ;
 
@@ -1023,6 +1029,10 @@ class RidesPage extends Component
                 $params['dateto'] = $this->edit_dateto;
                 $params['endTime'] = $this->edit_endTime;
                 $params['days'] = $this->edit_days;
+
+                if ($this->vehicle_id) {
+                    $params['vehicle_id'] = $this->vehicle_id;
+                }
                 break;
         }
 
@@ -1105,6 +1115,11 @@ class RidesPage extends Component
                 ->with('transporter')
                 ->availableForRental()
                 ->selfDrive();
+
+            // Homepage/banner se specific vehicle select hui ho to sirf wahi show karein.
+            if ($this->vehicle_id) {
+                $ridesQuery->whereKey($this->vehicle_id);
+            }
 
             if ($this->price_range) {
                 $ridesQuery->whereBetween('hourly_price', [0, $this->price_range]);

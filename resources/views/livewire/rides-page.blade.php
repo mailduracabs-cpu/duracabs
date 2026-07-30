@@ -444,9 +444,43 @@
                                         <h2 class="truncate text-sm font-extrabold text-slate-900 sm:text-base">Available Self Drive Cars</h2>
                                         <p class="text-xs text-slate-500">{{ $rides->total() }} vehicle(s) found</p>
                                     </div>
-
                                 </div>
 
+                                @if ($selfDrivePeriodInvalid ?? false)
+                                    <div class="mb-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-800 shadow-sm">
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-xl text-red-600">
+                                                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <h3 class="text-lg font-extrabold">Invalid rental period</h3>
+                                                <p class="mt-1 text-sm leading-6">Drop date and time must be later than pickup date and time.</p>
+                                                <button type="button" wire:click="showEditQueryModal"
+                                                    class="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700">
+                                                    <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                                                    Change Date &amp; Time
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @elseif ($selectedVehicleBooked ?? false)
+                                    <div class="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900 shadow-sm">
+                                        <div class="flex items-start gap-3">
+                                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">
+                                                <i class="fa-solid fa-calendar-xmark" aria-hidden="true"></i>
+                                            </div>
+                                            <div class="min-w-0">
+                                                <h3 class="text-lg font-extrabold">This car is already booked for the selected date &amp; time.</h3>
+                                                <p class="mt-1 text-sm leading-6">Please change your pickup or drop date and time to check this vehicle again.</p>
+                                                <button type="button" wire:click="showEditQueryModal"
+                                                    class="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
+                                                    <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                                                    Change Date &amp; Time
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @else
                                 <div class="sd-list">
                                     @forelse ($rides as $vehicle)
                                         @php
@@ -579,6 +613,7 @@ height="240"
                                         </div>
                                     @endforelse
                                 </div>
+                                @endif
                             @else
                             @foreach ($rides as $ride)
                                 @foreach ($ride->prices as $price)

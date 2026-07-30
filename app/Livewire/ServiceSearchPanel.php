@@ -6,7 +6,6 @@ namespace App\Livewire;
 
 use Illuminate\Contracts\View\View;
 
-
 class ServiceSearchPanel extends Homepage
 {
     private const DEFAULT_TAB = 'one_way';
@@ -29,16 +28,31 @@ class ServiceSearchPanel extends Homepage
 
     public ?string $defaultToCity = null;
 
+    /**
+     * Configure the reusable booking/search panel.
+     *
+     * When a vehicle ID is supplied, the panel automatically opens on the
+     * Self Drive tab and keeps that vehicle selected through the existing
+     * Homepage booking and OTP flow.
+     */
     public function mount(
         string $defaultTab = self::DEFAULT_TAB,
         ?string $defaultFromCity = null,
         ?string $defaultToCity = null,
+        ?int $vehicleId = null,
     ): void {
         $this->defaultTab = $this->normaliseTab($defaultTab);
         $this->defaultFromCity = $this->normaliseCity($defaultFromCity);
         $this->defaultToCity = $this->normaliseCity($defaultToCity);
 
+        $this->selectedSelfDriveVehicleId = $vehicleId;
+
+        if ($vehicleId !== null) {
+            $this->defaultTab = 'self_drive';
+        }
+
         $this->selected_tab = $this->defaultTab;
+        $this->bannerTab = $this->defaultTab;
 
         $this->applyDefaultFromCity($this->defaultFromCity);
         $this->applyDefaultToCity($this->defaultToCity);
@@ -61,6 +75,10 @@ class ServiceSearchPanel extends Homepage
         }
 
         parent::changeTab($tab);
+
+        if ($tab !== 'self_drive') {
+            $this->selectedSelfDriveVehicleId = null;
+        }
 
         $this->clearAutocompleteResults();
         $this->resetValidation();
@@ -98,9 +116,9 @@ class ServiceSearchPanel extends Homepage
         }
 
         /*
-         * Existing Homepage properties are intentionally populated here
-         * so every current booking type continues to work without changing
-         * the tested Blade bindings.
+         * Existing Homepage properties are intentionally populated here so
+         * every current booking type continues to work without changing the
+         * tested Blade bindings.
          */
         $this->query = $city;
         $this->query_search = $city;

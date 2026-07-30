@@ -411,6 +411,11 @@ class Homepage extends Component
     public $selected_tab = "one_way";
 	public $bannerTab = 'one_way';
 
+    /**
+     * Specific self-drive vehicle selected from a homepage card or banner.
+     */
+    public ?int $selectedSelfDriveVehicleId = null;
+
     public function verifySubmitOtp()
     {
         $result = $this->otp == $this->verifyOtp;
@@ -481,7 +486,21 @@ class Homepage extends Component
                 'rental_hours' => $hours,
             ]);
 
-            redirect(route('rides') . '?cityFrom=' . $this->query_id . '&date=' . $this->date . '&dateto=' . $this->dateto . '&nameTo=' . $this->query . '&tab=' . $this->selected_tab . '&time=' . $this->time . '&endTime=' . $this->endTime . '&days=' . $hours . '&place_id=' . urlencode((string) $this->selfDrivePlaceId) . '&lat=' . urlencode((string) $this->selfDriveLatitude) . '&lng=' . urlencode((string) $this->selfDriveLongitude) . '&address=' . urlencode((string) $this->querySelfDrive));
+            return redirect()->to(route('rides') . '?' . http_build_query([
+                'cityFrom' => $this->query_id,
+                'date' => $this->date,
+                'dateto' => $this->dateto,
+                'nameTo' => $this->query,
+                'tab' => 'self_drive',
+                'time' => $this->time,
+                'endTime' => $this->endTime,
+                'days' => $hours,
+                'vehicle_id' => $this->selectedSelfDriveVehicleId,
+                'place_id' => $this->selfDrivePlaceId,
+                'lat' => $this->selfDriveLatitude,
+                'lng' => $this->selfDriveLongitude,
+                'address' => $this->querySelfDrive,
+            ]));
         }
     }
 
@@ -1401,6 +1420,46 @@ class Homepage extends Component
     public function changeBanner($value): void
     {
         $this->bannerTab = $value;
+    }
+
+    /**
+     * Select a specific self-drive vehicle from the homepage and open the
+     * existing shared self-drive search flow.
+     */
+    public function selectHomepageSelfDriveVehicle(int $vehicleId): void
+    {
+        $vehicleExists = Vehicle::query()
+            ->whereKey($vehicleId)
+            ->availableForRental()
+            ->selfDrive()
+            ->exists();
+
+        if (! $vehicleExists) {
+            $this->selectedSelfDriveVehicleId = null;
+
+            $this->dispatch(
+                'homepage-self-drive-error',
+                message: 'This self drive car is currently unavailable.'
+            );
+
+            return;
+        }
+
+        $this->selectedSelfDriveVehicleId = $vehicleId;
+        $this->selected_tab = 'self_drive';
+        $this->bannerTab = 'self_drive';
+        $this->oneWayMsg = null;
+        $this->validationErrors = [];
+        $this->showValidation = false;
+        $this->cities_from = null;
+        $this->cities_to = null;
+        $this->dataFrom = null;
+        $this->dataTo = null;
+
+        $this->dispatch(
+            'open-homepage-self-drive-search',
+            vehicleId: $vehicleId
+        );
     }
 
     /**
