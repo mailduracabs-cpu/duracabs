@@ -6,6 +6,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\SmartHomeBlock;
+use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -131,7 +132,14 @@ class SmartBannerService
             $block->to_city_id
         );
 
-        $fareData = $this->resolveFareData($routeProduct);
+        $selfDriveVehicle = $serviceType === Vehicle::SERVICE_SELF_DRIVE
+            ? $this->findSelfDriveVehicle($fromCity)
+            : null;
+
+        $fareData = $selfDriveVehicle
+            ? $this->resolveSelfDriveVehicleData($selfDriveVehicle)
+            : $this->resolveFareData($routeProduct);
+
         $theme = $this->themeFor($serviceType);
 
         return [
@@ -153,6 +161,7 @@ class SmartBannerService
 
             'route' => [
                 'product_id' => $routeProduct?->getKey(),
+                'vehicle_id' => $selfDriveVehicle?->getKey(),
                 'slug' => $routeProduct?->slug,
                 'from_city_id' => $block->from_city_id
                     ? (int) $block->from_city_id
@@ -175,12 +184,78 @@ class SmartBannerService
             'priority' => (int) $block->priority,
             'is_dynamic' => (bool) $block->is_dynamic,
 
-            'action' => $this->actionFor(
-                $routeProduct,
-                $serviceType,
-                $block->from_city_id,
-                $block->to_city_id
-            ),
+            'action' => $selfDriveVehicle
+                ? $this->actionForSelfDriveVehicle(
+                    $selfDriveVehicle,
+                    $block->from_city_id
+                )
+                : $this->actionFor(
+                    $routeProduct,
+                    $serviceType,
+                    $block->from_city_id,
+                    $block->to_city_id
+                ),
+        ];
+    }
+
+    /**
+     * Find the newest bookable self-drive car for the selected city.
+     *
+     * Smart Home blocks store a brand/city ID, while vehicles inherit their
+     * city from the linked transporter profile. The resolved city name is
+     * therefore matched against fleet_transporter_profiles.city.
+     */
+    private function findSelfDriveVehicle(?string $city): ?Vehicle
+    {
+        $baseQuery = Vehicle::query()
+            ->with(['frontMedia', 'transporter'])
+            ->availableForRental()
+            ->selfDrive()
+            ->cars()
+            ->where('daily_price', '>', 0);
+
+        if (filled($city)) {
+            $normalizedCity = strtolower(trim((string) $city));
+
+            $cityVehicle = (clone $baseQuery)
+                ->whereHas('transporter', function (Builder $query) use ($normalizedCity): void {
+                    $query->whereRaw(
+                        'LOWER(TRIM(city)) = ?',
+                        [$normalizedCity]
+                    );
+                })
+                ->latest('id')
+                ->first();
+
+            if ($cityVehicle) {
+                return $cityVehicle;
+            }
+        }
+
+        return $baseQuery
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * Convert an actual rental vehicle into the same normalized payload used
+     * by route-product banners.
+     */
+    private function resolveSelfDriveVehicleData(Vehicle $vehicle): array
+    {
+        $fare = round($vehicle->getDailyRate(), 2);
+
+        if ($fare <= 0) {
+            return $this->emptyFareData();
+        }
+
+        return [
+            'fare' => $fare,
+            'formatted_fare' => 'Starting from ₹'
+                . $this->formatAmount($fare)
+                . ' / 24 Hours',
+            'vehicle' => $vehicle->display_name,
+            'vehicle_image' => $vehicle->front_image_url,
         ];
     }
 
@@ -558,6 +633,30 @@ class SmartBannerService
                 'text' => '#212121',
             ],
         };
+    }
+
+    /**
+     * Open the self-drive search with the exact vehicle already selected.
+     */
+    private function actionForSelfDriveVehicle(
+        Vehicle $vehicle,
+        mixed $fromCityId
+    ): array {
+        $parameters = array_filter([
+            'tab' => 'self_drive',
+            'service_type' => 'self_drive',
+            'vehicle_id' => (int) $vehicle->getKey(),
+            'cityFrom' => $fromCityId ? (int) $fromCityId : null,
+        ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        return [
+            'type' => 'open_vehicle',
+            'service_type' => 'self_drive',
+            'vehicle_id' => (int) $vehicle->getKey(),
+            'url' => route('rides') . '?' . http_build_query($parameters),
+            'route_name' => 'rides',
+            'parameters' => $parameters,
+        ];
     }
 
     /**

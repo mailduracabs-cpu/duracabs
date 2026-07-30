@@ -463,157 +463,288 @@
                                             </div>
                                         </div>
                                     </div>
-                                @elseif ($selectedVehicleBooked ?? false)
-                                    <div class="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900 shadow-sm">
-                                        <div class="flex items-start gap-3">
-                                            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">
-                                                <i class="fa-solid fa-calendar-xmark" aria-hidden="true"></i>
-                                            </div>
-                                            <div class="min-w-0">
-                                                <h3 class="text-lg font-extrabold">This car is already booked for the selected date &amp; time.</h3>
-                                                <p class="mt-1 text-sm leading-6">Please change your pickup or drop date and time to check this vehicle again.</p>
-                                                <button type="button" wire:click="showEditQueryModal"
-                                                    class="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
-                                                    <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
-                                                    Change Date &amp; Time
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                @else
-                                <div class="sd-list">
-                                    @forelse ($rides as $vehicle)
-                                        @php
-                                            $hourlyPrice = max(
-                                                0,
-                                                (float) ($vehicle->hourly_price ?? 0)
-                                            );
+                                
 
-                                            $minimumBookingHours = max(
-                                                1,
-                                                (int) ($vehicle->minimum_booking_hours ?? 1)
-                                            );
+@elseif ($selectedVehicleBooked ?? false)
+    <div class="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-900 shadow-sm">
+        <div class="flex items-start gap-3">
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">
+                <i class="fa-solid fa-calendar-xmark" aria-hidden="true"></i>
+            </div>
 
-                                            $billableHours = max(
-                                                $selfDriveHours,
-                                                $minimumBookingHours
-                                            );
+            <div class="min-w-0">
+                <h3 class="text-lg font-extrabold">
+                    This car is already booked for the selected date &amp; time.
+                </h3>
 
-                                            $securityDeposit = max(
-                                                0,
-                                                (float) ($vehicle->security_deposit ?? 0)
-                                            );
+                <p class="mt-1 text-sm leading-6">
+                    Please change your pickup or drop date and time to check this vehicle again.
+                </p>
 
-                                            $rentalTotal = $hourlyPrice * $billableHours;
-                                            $hasValidPrice = $hourlyPrice > 0;
+                <div class="mt-4 flex flex-wrap gap-3">
+                    <button type="button"
+                        wire:click="showEditQueryModal"
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
+                        <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                        Change Date &amp; Time
+                    </button>
 
-                                            $vehicleImage = $vehicle->front_image_url
-                                                ?: asset('cab_images/default-car.png');
+                    <button type="button"
+                        wire:click="viewOtherSelfDriveCars"
+                        class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-400 bg-white px-5 py-2.5 text-sm font-bold text-amber-800 transition hover:bg-amber-100">
+                        <i class="fa-solid fa-car-side" aria-hidden="true"></i>
+                        View Other Cars
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+@else
+    <div class="sd-list">
+        @forelse ($rides as $vehicle)
+            @php
+                $hourlyPrice = max(
+                    0,
+                    (float) ($vehicle->hourly_price ?? 0)
+                );
 
-                                            $vendorName = data_get($vehicle, 'transporter.business_name')
-                                                ?: data_get($vehicle, 'transporter.company_name')
-                                                ?: data_get($vehicle, 'transporter.name')
-                                                ?: 'DuraCabs Partner';
+                $minimumBookingHours = max(
+                    1,
+                    (int) ($vehicle->minimum_booking_hours ?? 1)
+                );
 
-                                            $vendorDistance = data_get($vehicle, 'vendor_distance')
-                                                ?? data_get($vehicle, 'distance_km')
-                                                ?? data_get($vehicle, 'distance');
+                $billableHours = max(
+                    $selfDriveHours,
+                    $minimumBookingHours
+                );
 
-                                            $distanceLabel = is_numeric($vendorDistance)
-                                                ? number_format((float) $vendorDistance, 1) . ' km from pickup'
-                                                : 'Pickup from vendor location';
-                                        @endphp
+                $securityDeposit = max(
+                    0,
+                    (float) ($vehicle->security_deposit ?? 0)
+                );
 
-                                        <article wire:key="self-drive-vehicle-{{ $vehicle->id }}" class="sd-premium-card">
-                                            <div class="sd-premium-media">
-                                                <img src="{{ $vehicleImage }}"
-                                                    alt="{{ $vehicle->display_name }}"
-                                                    title="{{ $vehicle->display_name }}"
-                                                    loading="{{ $loop->first ? 'eager' : 'lazy' }}"
-fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
-decoding="async"
-width="420"
-height="240"
-                                                    onerror="this.onerror=null;this.src='{{ asset('cab_images/default-car.png') }}';">
-                                                <div class="sd-premium-badges">
-                                                    <span class="sd-premium-badge sd-premium-badge-blue"><i class="fa-solid fa-car-side"></i> Self Drive</span>
-                                                    @if ($vehicle->is_verified ?? false)
-                                                        <span class="sd-premium-badge sd-premium-badge-green"><i class="fa-solid fa-circle-check"></i> Verified</span>
-                                                    @endif
-                                                </div>
-                                                <span class="sd-premium-year">{{ (int) ($vehicle->manufacture_year ?? 0) > 0 ? $vehicle->manufacture_year : 'Premium' }}</span>
-                                            </div>
+                $rentalTotal = $hourlyPrice * $billableHours;
+                $hasValidPrice = $hourlyPrice > 0;
 
-                                            <div class="sd-premium-body">
-                                                <div class="sd-premium-heading">
-                                                    <div>
-                                                        <p class="sd-premium-eyebrow">{{ $vendorName }}</p>
-                                                        <h3>{{ $vehicle->display_name }}</h3>
-                                                    </div>
-                                                    <div class="sd-premium-rating"><i class="fa-solid fa-star"></i><strong>4.8</strong><span>Top rated</span></div>
-                                                </div>
+                $vehicleImage = $vehicle->front_image_url
+                    ?: asset('cab_images/default-car.png');
 
-                                                <p class="sd-premium-location"><i class="fa-solid fa-location-dot"></i>{{ $distanceLabel }}</p>
+                $vendorName = data_get($vehicle, 'transporter.business_name')
+                    ?: data_get($vehicle, 'transporter.company_name')
+                    ?: data_get($vehicle, 'transporter.name')
+                    ?: 'DuraCabs Partner';
 
-                                                <div class="sd-premium-specs">
-                                                    <span><i class="fa-solid fa-gas-pump"></i><small>Fuel</small><strong>{{ filled($vehicle->fuel_type) ? ucfirst($vehicle->fuel_type) : 'N/A' }}</strong></span>
-                                                    <span><i class="fa-solid fa-gears"></i><small>Transmission</small><strong>{{ filled($vehicle->transmission) ? ucfirst($vehicle->transmission) : 'N/A' }}</strong></span>
-                                                    <span><i class="fa-solid fa-users"></i><small>Seats</small><strong>{{ $vehicle->seats ?: 'N/A' }}</strong></span>
-                                                    <span><i class="fa-regular fa-clock"></i><small>Duration</small><strong>{{ $selfDriveHours }} hrs</strong></span>
-                                                </div>
+                $vendorDistance = data_get($vehicle, 'vendor_distance')
+                    ?? data_get($vehicle, 'distance_km')
+                    ?? data_get($vehicle, 'distance');
 
-                                                <div class="sd-premium-policy">
-                                                    <span><i class="fa-solid fa-shield-halved"></i> Security {{ Number::currency($securityDeposit, 'INR') }}</span>
-                                                    <span><i class="fa-solid fa-bolt"></i> Instant confirmation</span>
-                                                    <span><i class="fa-solid fa-headset"></i> 24×7 support</span>
-                                                </div>
-                                            </div>
+                $distanceLabel = is_numeric($vendorDistance)
+                    ? number_format((float) $vendorDistance, 1) . ' km from pickup'
+                    : 'Pickup from vendor location';
+            @endphp
 
-                                            <div class="sd-premium-booking">
-                                                <p class="sd-premium-price-label">Payable rental</p>
-                                                @if ($hasValidPrice)
-                                                    <div class="sd-premium-price">{{ Number::currency($rentalTotal, 'INR') }}</div>
-                                                    <p class="sd-premium-rate">{{ Number::currency($hourlyPrice, 'INR') }} / hour</p>
-                                                    <div class="sd-premium-billing">
-                                                        <span>Selected <strong>{{ $selfDriveHours }} hrs</strong></span>
-                                                        <span>Billable <strong>{{ $billableHours }} hrs</strong></span>
-                                                    </div>
-                                                    @if ($selfDriveHours < $minimumBookingHours)
-                                                        <p class="sd-premium-minimum"><i class="fa-solid fa-circle-info"></i> Minimum {{ $minimumBookingHours }} hour billing applies</p>
-                                                    @endif
-                                                @else
-                                                    <div class="sd-premium-unavailable">Price unavailable</div>
-                                                    <p class="sd-premium-rate">Vendor price required</p>
-                                                @endif
+            <article wire:key="self-drive-vehicle-{{ $vehicle->id }}"
+                class="sd-premium-card">
 
-                                                <button type="button"
-                                                    wire:click="addToCartSelfDrive({{ $vehicle->id }})"
-                                                    wire:loading.attr="disabled"
-                                                    wire:target="addToCartSelfDrive({{ $vehicle->id }})"
-                                                    @disabled(!$hasValidPrice)
-                                                    class="sd-premium-cta">
-                                                    <span wire:loading.remove wire:target="addToCartSelfDrive({{ $vehicle->id }})">
-                                                        {{ $hasValidPrice ? 'Select This Car' : 'Unavailable' }}
-                                                        @if ($hasValidPrice)<i class="fa-solid fa-arrow-right"></i>@endif
-                                                    </span>
-                                                    <span wire:loading wire:target="addToCartSelfDrive({{ $vehicle->id }})"><i class="fa-solid fa-spinner fa-spin"></i> Please wait</span>
-                                                </button>
-                                                <p class="sd-premium-safe"><i class="fa-solid fa-lock"></i> Secure booking</p>
-                                            </div>
-                                        </article>
-                                    @empty
-                                        <div class="w-full rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-                                            <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl">🚗</div>
-                                            <h3 class="mt-4 text-xl font-extrabold text-slate-900">No self-drive vehicle found</h3>
-                                            <p class="mt-2 text-sm text-slate-600">Change the location, date, time or price filter and search again.</p>
-                                            <button type="button" wire:click="showEditQueryModal"
-                                                class="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
-                                                Edit trip
-                                            </button>
-                                        </div>
-                                    @endforelse
-                                </div>
-                                @endif
+                <div class="sd-premium-media">
+                    <img src="{{ $vehicleImage }}"
+                        alt="{{ $vehicle->display_name }}"
+                        title="{{ $vehicle->display_name }}"
+                        loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+                        fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
+                        decoding="async"
+                        width="420"
+                        height="240"
+                        onerror="this.onerror=null;this.src='{{ asset('cab_images/default-car.png') }}';">
+
+                    <div class="sd-premium-badges">
+                        <span class="sd-premium-badge sd-premium-badge-blue">
+                            <i class="fa-solid fa-car-side"></i>
+                            Self Drive
+                        </span>
+
+                        @if ($vehicle->is_verified ?? false)
+                            <span class="sd-premium-badge sd-premium-badge-green">
+                                <i class="fa-solid fa-circle-check"></i>
+                                Verified
+                            </span>
+                        @endif
+                    </div>
+
+                    <span class="sd-premium-year">
+                        {{ (int) ($vehicle->manufacture_year ?? 0) > 0
+                            ? $vehicle->manufacture_year
+                            : 'Premium' }}
+                    </span>
+                </div>
+
+                <div class="sd-premium-body">
+                    <div class="sd-premium-heading">
+                        <div>
+                            <p class="sd-premium-eyebrow">{{ $vendorName }}</p>
+                            <h3>{{ $vehicle->display_name }}</h3>
+                        </div>
+
+                        <div class="sd-premium-rating">
+                            <i class="fa-solid fa-star"></i>
+                            <strong>4.8</strong>
+                            <span>Top rated</span>
+                        </div>
+                    </div>
+
+                    <p class="sd-premium-location">
+                        <i class="fa-solid fa-location-dot"></i>
+                        {{ $distanceLabel }}
+                    </p>
+
+                    <div class="sd-premium-specs">
+                        <span>
+                            <i class="fa-solid fa-gas-pump"></i>
+                            <small>Fuel</small>
+                            <strong>
+                                {{ filled($vehicle->fuel_type)
+                                    ? ucfirst($vehicle->fuel_type)
+                                    : 'N/A' }}
+                            </strong>
+                        </span>
+
+                        <span>
+                            <i class="fa-solid fa-gears"></i>
+                            <small>Transmission</small>
+                            <strong>
+                                {{ filled($vehicle->transmission)
+                                    ? ucfirst($vehicle->transmission)
+                                    : 'N/A' }}
+                            </strong>
+                        </span>
+
+                        <span>
+                            <i class="fa-solid fa-users"></i>
+                            <small>Seats</small>
+                            <strong>{{ $vehicle->seats ?: 'N/A' }}</strong>
+                        </span>
+
+                        <span>
+                            <i class="fa-regular fa-clock"></i>
+                            <small>Duration</small>
+                            <strong>{{ $selfDriveHours }} hrs</strong>
+                        </span>
+                    </div>
+
+                    <div class="sd-premium-policy">
+                        <span>
+                            <i class="fa-solid fa-shield-halved"></i>
+                            Security {{ Number::currency($securityDeposit, 'INR') }}
+                        </span>
+
+                        <span>
+                            <i class="fa-solid fa-bolt"></i>
+                            Instant confirmation
+                        </span>
+
+                        <span>
+                            <i class="fa-solid fa-headset"></i>
+                            24×7 support
+                        </span>
+                    </div>
+                </div>
+
+                <div class="sd-premium-booking">
+                    <p class="sd-premium-price-label">Payable rental</p>
+
+                    @if ($hasValidPrice)
+                        <div class="sd-premium-price">
+                            {{ Number::currency($rentalTotal, 'INR') }}
+                        </div>
+
+                        <p class="sd-premium-rate">
+                            {{ Number::currency($hourlyPrice, 'INR') }} / hour
+                        </p>
+
+                        <div class="sd-premium-billing">
+                            <span>
+                                Selected
+                                <strong>{{ $selfDriveHours }} hrs</strong>
+                            </span>
+
+                            <span>
+                                Billable
+                                <strong>{{ $billableHours }} hrs</strong>
+                            </span>
+                        </div>
+
+                        @if ($selfDriveHours < $minimumBookingHours)
+                            <p class="sd-premium-minimum">
+                                <i class="fa-solid fa-circle-info"></i>
+                                Minimum {{ $minimumBookingHours }} hour billing applies
+                            </p>
+                        @endif
+                    @else
+                        <div class="sd-premium-unavailable">
+                            Price unavailable
+                        </div>
+
+                        <p class="sd-premium-rate">
+                            Vendor price required
+                        </p>
+                    @endif
+
+                    <button type="button"
+                        wire:click="addToCartSelfDrive({{ $vehicle->id }})"
+                        wire:loading.attr="disabled"
+                        wire:target="addToCartSelfDrive({{ $vehicle->id }})"
+                        @disabled(!$hasValidPrice)
+                        class="sd-premium-cta">
+
+                        <span wire:loading.remove
+                            wire:target="addToCartSelfDrive({{ $vehicle->id }})">
+
+                            {{ $hasValidPrice ? 'Select This Car' : 'Unavailable' }}
+
+                            @if ($hasValidPrice)
+                                <i class="fa-solid fa-arrow-right"></i>
+                            @endif
+                        </span>
+
+                        <span wire:loading
+                            wire:target="addToCartSelfDrive({{ $vehicle->id }})">
+
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            Please wait
+                        </span>
+                    </button>
+
+                    <p class="sd-premium-safe">
+                        <i class="fa-solid fa-lock"></i>
+                        Secure booking
+                    </p>
+                </div>
+            </article>
+        @empty
+            <div class="w-full rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-2xl">
+                    🚗
+                </div>
+
+                <h3 class="mt-4 text-xl font-extrabold text-slate-900">
+                    No self-drive vehicle found
+                </h3>
+
+                <p class="mt-2 text-sm text-slate-600">
+                    Change the location, date, time or price filter and search again.
+                </p>
+
+                <button type="button"
+                    wire:click="showEditQueryModal"
+                    class="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
+                    Edit trip
+                </button>
+            </div>
+        @endforelse
+    </div>
+@endif
+
+								
                             @else
                             @foreach ($rides as $ride)
                                 @foreach ($ride->prices as $price)

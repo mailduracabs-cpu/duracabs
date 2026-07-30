@@ -19,6 +19,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\Vehicle;
+use App\Models\SelfDriveBooking;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 
 
@@ -97,6 +101,16 @@ class RidesPage extends Component
     #[Url(history: true)]
     public ?int $vehicle_id = null;
 
+    /**
+     * Homepage/banner request can ask the page to check the selected car immediately.
+     */
+    #[Url(history: true)]
+    public bool $check_availability = false;
+
+    public bool $selectedVehicleBooked = false;
+    public bool $selfDrivePeriodInvalid = false;
+    public ?string $selfDriveAvailabilityMessage = null;
+
     #[Url(history: true)]
     public $timeValue ;
 
@@ -152,6 +166,10 @@ class RidesPage extends Component
         $this->apiKey = (string) config('services.google_maps.key', env('GOOGLE_MAPS_API_KEY', ''));
         $this->fareUnlocked = (bool) session('rides_fare_unlocked', false) || Auth::check();
         $this->mobileNumber = (string) session('rides_verified_mobile', '');
+
+        if ($this->tab === 'self_drive') {
+            $this->refreshSelfDriveAvailabilityState();
+        }
     }
 
     
@@ -197,14 +215,38 @@ class RidesPage extends Component
             $quantity = max(1, (int) ($this->cars ?: 1));
 
             if ($bookingType === 'self_drive') {
-                $vehicle = Vehicle::query()
-                    ->with('transporter')
-                    ->whereKey($selectionId)
-                    ->firstOrFail();
+                $vehicleId = is_numeric($selectionId) ? (int) $selectionId : 0;
 
-                $unitPrice = (float) ($vehicle->hourly_price ?? 0);
+                if ($vehicleId <= 0) {
+                    throw new \InvalidArgumentException('A valid self-drive vehicle is required.');
+                }
+
+                [$pickupAt, $dropAt] = $this->validatedSelfDrivePeriod();
+
+                $vehicle = DB::transaction(function () use ($vehicleId, $pickupAt, $dropAt) {
+                    $lockedVehicle = Vehicle::query()
+                        ->with('transporter')
+                        ->availableForRental()
+                        ->selfDrive()
+                        ->lockForUpdate()
+                        ->findOrFail($vehicleId);
+
+                    if ($this->selfDriveBookingOverlapQuery($vehicleId, $pickupAt, $dropAt)->exists()) {
+                        throw new \RuntimeException('SELF_DRIVE_VEHICLE_ALREADY_BOOKED');
+                    }
+
+                    return $lockedVehicle;
+                }, 3);
+
+                $unitPrice = max(0, (float) ($vehicle->hourly_price ?? 0));
                 $hours = $this->calculateSelfDriveHours();
-                $subtotal = $unitPrice * $hours * $quantity;
+                $minimumBookingHours = max(1, (int) ($vehicle->minimum_booking_hours ?? 1));
+                $billableHours = max($hours, $minimumBookingHours);
+                $subtotal = $unitPrice * $billableHours * $quantity;
+
+                if ($unitPrice <= 0) {
+                    throw new \RuntimeException('SELF_DRIVE_PRICE_UNAVAILABLE');
+                }
 
                 session()->put('booking_draft', [
                     'version' => 1,
@@ -230,11 +272,15 @@ class RidesPage extends Component
                         'days' => $this->days,
                         'plan' => null,
                         'quantity' => $quantity,
+                        'pickup_at' => $pickupAt->toDateTimeString(),
+                        'drop_at' => $dropAt->toDateTimeString(),
                     ],
                     'fare' => [
                         'unit_price' => $unitPrice,
                         'price_unit' => 'hour',
                         'hours' => $hours,
+                        'billable_hours' => $billableHours,
+                        'minimum_booking_hours' => $minimumBookingHours,
                         'quantity' => $quantity,
                         'subtotal' => $subtotal,
                         'total' => $subtotal,
@@ -310,6 +356,28 @@ class RidesPage extends Component
 
             return redirect()->route('checkout');
         } catch (\Throwable $exception) {
+            if ($exception->getMessage() === 'SELF_DRIVE_VEHICLE_ALREADY_BOOKED') {
+                $this->selectedVehicleBooked = true;
+                $this->selfDriveAvailabilityMessage = 'This car is already booked for the selected date and time.';
+                $this->alert('warning', $this->selfDriveAvailabilityMessage, [
+                    'position' => 'center-end',
+                    'timer' => 5000,
+                    'toast' => true,
+                ]);
+
+                return null;
+            }
+
+            if ($exception->getMessage() === 'SELF_DRIVE_PRICE_UNAVAILABLE') {
+                $this->alert('error', 'This vehicle price is currently unavailable.', [
+                    'position' => 'center-end',
+                    'timer' => 4000,
+                    'toast' => true,
+                ]);
+
+                return null;
+            }
+
             Log::error('Rides booking draft creation failed.', [
                 'booking_type' => $bookingType,
                 'selection_id' => $selectionId,
@@ -324,6 +392,93 @@ class RidesPage extends Component
 
             return null;
         }
+    }
+
+    public function viewOtherSelfDriveCars(): void
+    {
+        $this->vehicle_id = null;
+        $this->selectedVehicleBooked = false;
+        $this->selfDriveAvailabilityMessage = null;
+        $this->resetPage();
+    }
+
+    private function refreshSelfDriveAvailabilityState(): void
+    {
+        $this->selfDrivePeriodInvalid = false;
+        $this->selectedVehicleBooked = false;
+        $this->selfDriveAvailabilityMessage = null;
+
+        if ($this->tab !== 'self_drive') {
+            return;
+        }
+
+        try {
+            [$pickupAt, $dropAt] = $this->validatedSelfDrivePeriod();
+        } catch (\Throwable $exception) {
+            $this->selfDrivePeriodInvalid = true;
+            $this->selfDriveAvailabilityMessage = $exception->getMessage();
+
+            return;
+        }
+
+        if ($this->vehicle_id) {
+            $this->selectedVehicleBooked = $this->selfDriveBookingOverlapQuery(
+                (int) $this->vehicle_id,
+                $pickupAt,
+                $dropAt
+            )->exists();
+
+            if ($this->selectedVehicleBooked) {
+                $this->selfDriveAvailabilityMessage = 'This car is already booked for the selected date and time.';
+            }
+        }
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function validatedSelfDrivePeriod(): array
+    {
+        if (blank($this->date) || blank($this->time) || blank($this->dateto) || blank($this->endTime)) {
+            throw new \InvalidArgumentException('Please select pickup and drop date and time.');
+        }
+
+        try {
+            $pickupAt = Carbon::createFromFormat(
+                '!Y-m-d H:i',
+                trim((string) $this->date . ' ' . (string) $this->time)
+            );
+            $dropAt = Carbon::createFromFormat(
+                '!Y-m-d H:i',
+                trim((string) $this->dateto . ' ' . (string) $this->endTime)
+            );
+        } catch (\Throwable $exception) {
+            throw new \InvalidArgumentException('Please select a valid pickup and drop date and time.');
+        }
+
+        if (! $dropAt->greaterThan($pickupAt)) {
+            throw new \InvalidArgumentException('Drop date and time must be later than pickup date and time.');
+        }
+
+        return [$pickupAt, $dropAt];
+    }
+
+    private function selfDriveBookingOverlapQuery(int $vehicleId, Carbon $pickupAt, Carbon $dropAt): Builder
+    {
+        return SelfDriveBooking::query()
+            ->where('self_drive_vehicle_id', $vehicleId)
+            ->whereIn('status', ['pending', 'confirmed', 'running'])
+            ->where('start_datetime', '<', $dropAt->toDateTimeString())
+            ->where('end_datetime', '>', $pickupAt->toDateTimeString());
+    }
+
+    private function applySelfDriveAvailabilityFilter(Builder $query, Carbon $pickupAt, Carbon $dropAt): void
+    {
+        $query->whereNotIn('id', SelfDriveBooking::query()
+            ->select('self_drive_vehicle_id')
+            ->whereIn('status', ['pending', 'confirmed', 'running'])
+            ->where('start_datetime', '<', $dropAt->toDateTimeString())
+            ->where('end_datetime', '>', $pickupAt->toDateTimeString()));
     }
 
     private function calculateSelfDriveHours(): int
@@ -508,8 +663,7 @@ class RidesPage extends Component
 
        return [];
     }
-
-    // Edit Query Popup Methods
+ // Edit Query Popup Methods
     public function showEditQueryModal() {
         $this->showEditModal = true;
         $this->edit_ride_type = $this->tab ?: 'one_way';
@@ -1032,6 +1186,7 @@ class RidesPage extends Component
 
                 if ($this->vehicle_id) {
                     $params['vehicle_id'] = $this->vehicle_id;
+                    $params['check_availability'] = 1;
                 }
                 break;
         }
@@ -1111,6 +1266,8 @@ class RidesPage extends Component
         $isSelfDrive = $this->tab === 'self_drive';
 
         if ($isSelfDrive) {
+            $this->refreshSelfDriveAvailabilityState();
+
             $ridesQuery = Vehicle::query()
                 ->with('transporter')
                 ->availableForRental()
@@ -1119,6 +1276,13 @@ class RidesPage extends Component
             // Homepage/banner se specific vehicle select hui ho to sirf wahi show karein.
             if ($this->vehicle_id) {
                 $ridesQuery->whereKey($this->vehicle_id);
+            } elseif (! $this->selfDrivePeriodInvalid) {
+                try {
+                    [$pickupAt, $dropAt] = $this->validatedSelfDrivePeriod();
+                    $this->applySelfDriveAvailabilityFilter($ridesQuery, $pickupAt, $dropAt);
+                } catch (\Throwable $exception) {
+                    // The invalid period state is already exposed to the Blade view.
+                }
             }
 
             if ($this->price_range) {
@@ -1197,6 +1361,9 @@ class RidesPage extends Component
         return view('livewire.rides-page', [
             'rides' => $ridesQuery->paginate(perPage: 9),
             'isSelfDriveListing' => $isSelfDrive,
+            'selectedVehicleBooked' => $this->selectedVehicleBooked,
+            'selfDrivePeriodInvalid' => $this->selfDrivePeriodInvalid,
+            'selfDriveAvailabilityMessage' => $this->selfDriveAvailabilityMessage,
             'brands' => $brandFilter,
             'categories' => $categories,
             'categories2' => $returnCategories,
