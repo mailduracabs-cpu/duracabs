@@ -310,6 +310,108 @@ unset($__defined_vars); ?>
                                     $actionParameters
                                 );
                             }
+
+
+                            /*
+                             * Self-drive smart banners reuse the homepage booking
+                             * popup. Keep payload lookup flexible because smart
+                             * banner data may come from either top-level fields or
+                             * action parameters.
+                             */
+                            $normalizedCardService = $normalizeServiceType(
+                                $serviceType
+                            );
+
+                            $isSelfDriveBanner =
+                                $normalizedCardService === 'self_drive';
+
+                            $bannerVehicleId = (int) data_get(
+                                $banner,
+                                'vehicle_id',
+                                data_get(
+                                    $banner,
+                                    'action.vehicle_id',
+                                    data_get(
+                                        $banner,
+                                        'action.parameters.vehicle_id',
+                                        0
+                                    )
+                                )
+                            );
+
+                            $bannerHourlyPrice = (float) data_get(
+                                $banner,
+                                'hourly_price',
+                                data_get(
+                                    $banner,
+                                    'vehicle_hourly_price',
+                                    data_get(
+                                        $banner,
+                                        'price_per_hour',
+                                        0
+                                    )
+                                )
+                            );
+
+                            /*
+                             * Some smart banners expose only a 24-hour fare such
+                             * as ₹3500 / 24 Hours. Derive its hourly preview when
+                             * an explicit hourly price is not present.
+                             */
+                            if ($bannerHourlyPrice <= 0 && filled($displayFare)) {
+                                $numericFare = (float) preg_replace(
+                                    '/[^0-9.]/',
+                                    '',
+                                    (string) $displayFare
+                                );
+
+                                if (
+                                    $numericFare > 0
+                                    && str_contains(
+                                        strtolower((string) $displayFare),
+                                        '24'
+                                    )
+                                ) {
+                                    $bannerHourlyPrice = round(
+                                        $numericFare / 24,
+                                        2
+                                    );
+                                }
+                            }
+
+                            $bannerMinimumHours = max(
+                                1,
+                                (int) data_get(
+                                    $banner,
+                                    'minimum_booking_hours',
+                                    data_get(
+                                        $banner,
+                                        'minimum_hours',
+                                        data_get(
+                                            $banner,
+                                            'action.parameters.minimum_hours',
+                                            1
+                                        )
+                                    )
+                                )
+                            );
+
+                            $bannerSecurityDeposit = max(
+                                0,
+                                (float) data_get(
+                                    $banner,
+                                    'security_deposit',
+                                    data_get(
+                                        $banner,
+                                        'vehicle_security_deposit',
+                                        data_get(
+                                            $banner,
+                                            'action.parameters.security_deposit',
+                                            0
+                                        )
+                                    )
+                                )
+                            );
                         ?>
 
                         <article
@@ -352,7 +454,19 @@ unset($__defined_vars); ?>
                                 aria-hidden="true"
                             ></div>
 
-                            <a href="<?php echo e($actionUrl); ?>"
+                            <a
+                                href="<?php echo e($isSelfDriveBanner ? '#' : $actionUrl); ?>"
+                                <?php if($isSelfDriveBanner): ?>
+                                    x-on:click.prevent="window.dispatchEvent(new CustomEvent('open-self-drive-popup', { detail: {
+                                        vehicleId: <?php echo e($bannerVehicleId); ?>,
+                                        vehicleName: <?php echo \Illuminate\Support\Js::from($vehicleName ?: data_get($banner, 'title', 'Self Drive Car'))->toHtml() ?>,
+                                        vehicleImage: <?php echo \Illuminate\Support\Js::from($imageUrl ?: '')->toHtml() ?>,
+                                        hourlyPrice: <?php echo e($bannerHourlyPrice); ?>,
+                                        minimumHours: <?php echo e($bannerMinimumHours); ?>,
+                                        securityDeposit: <?php echo e($bannerSecurityDeposit); ?>
+
+                                    } }))"
+                                <?php endif; ?>
                                 class="relative z-10 flex min-h-[260px]
                                        flex-col p-4 text-inherit no-underline
                                        sm:min-h-[275px]
@@ -360,16 +474,10 @@ unset($__defined_vars); ?>
                                        focus-visible:ring-2
                                        focus-visible:ring-inset
                                        focus-visible:ring-[var(--dura-primary,#2563eb)]"
-                            
-							href="javascript:void(0)"
-    <?php if($bannerTab === 'self_drive'): ?>
-        x-on:click.prevent="$dispatch('open-self-drive-popup', {
-            vehicleId: <?php echo e($banner->vehicle_id ?? 0); ?>
-
-        })"
-    <?php else: ?>
-        href="<?php echo e($actionUrl); ?>"
-    <?php endif; ?>>
+                                aria-label="<?php echo e($isSelfDriveBanner
+                                    ? 'Select date and time for ' . ($vehicleName ?: data_get($banner, 'title', 'self drive car'))
+                                    : 'Book ' . data_get($banner, 'title', 'your ride')); ?>"
+                            >
                                 <div class="flex items-start justify-between">
                                     <span
                                         class="inline-flex items-center gap-1.5
@@ -899,7 +1007,7 @@ unset($__defined_vars); ?>
         </div>
     </section>
 
-    <?php if (! $__env->hasRenderedOnce('76ae3b6f-fe4b-4918-ae3a-d730d72977c2')): $__env->markAsRenderedOnce('76ae3b6f-fe4b-4918-ae3a-d730d72977c2'); ?>
+    <?php if (! $__env->hasRenderedOnce('e7861982-4dad-48e8-b158-4048ce5dfbba')): $__env->markAsRenderedOnce('e7861982-4dad-48e8-b158-4048ce5dfbba'); ?>
         <script>
             (() => {
                 'use strict';

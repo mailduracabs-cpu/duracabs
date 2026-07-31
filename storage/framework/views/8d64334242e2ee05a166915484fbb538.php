@@ -1598,7 +1598,7 @@ if (isset($__slots)) unset($__slots);
                 </h2>
 
                 <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-                    Choose approved and verified self drive cars for daily, weekly and monthly rental.
+                    Choose approved and verified self drive cars with transparent hourly rental pricing.
                 </p>
             </div>
 
@@ -1644,10 +1644,18 @@ if (isset($__slots)) unset($__slots);
                 <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $products; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $vehicle): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <?php
                         $vehicleName = $vehicle->display_name;
-                        $vehicleUrl = url('/rides?tab=self_drive&vehicle_id=' . $vehicle->id);
                         $vehicleImage = $vehicle->front_image_url
                             ?: asset('img/placeholder/car-route.webp');
-                        $dailyPrice = (float) $vehicle->daily_price;
+                        $hourlyPrice = (float) (
+                            $vehicle->hourly_price
+                            ?? $vehicle->price_per_hour
+                            ?? $vehicle->per_hour_price
+                            ?? $vehicle->rental_price_per_hour
+                            ?? $vehicle->daily_price
+                            ?? 0
+                        );
+                        $minimumBookingHours = max(1, (int) ($vehicle->minimum_booking_hours ?? 1));
+                        $securityDeposit = max(0, (float) ($vehicle->security_deposit ?? 0));
                     ?>
 
                     <article
@@ -1656,10 +1664,11 @@ if (isset($__slots)) unset($__slots);
                         class="dura-card snap-start flex w-[84%] shrink-0 flex-col
                                overflow-hidden sm:w-[46%] lg:w-[31%] xl:w-[24%]"
                     >
-                        <a
-                            href="<?php echo e($vehicleUrl); ?>"
-                            class="group relative block aspect-[16/10] overflow-hidden bg-slate-100"
-                            aria-label="View self drive car <?php echo e($vehicleName); ?>"
+                        <button
+                            type="button"
+                            x-on:click="window.dispatchEvent(new CustomEvent('open-self-drive-popup', { detail: { vehicleId: <?php echo e($vehicle->id); ?>, vehicleName: <?php echo \Illuminate\Support\Js::from($vehicleName)->toHtml() ?>, vehicleImage: <?php echo \Illuminate\Support\Js::from($vehicleImage)->toHtml() ?>, hourlyPrice: <?php echo e($hourlyPrice); ?>, minimumHours: <?php echo e($minimumBookingHours); ?>, securityDeposit: <?php echo e($securityDeposit); ?> } }))"
+                            class="group relative block aspect-[16/10] w-full overflow-hidden bg-slate-100 text-left"
+                            aria-label="Choose date and time for <?php echo e($vehicleName); ?>"
                         >
                             <img
                                 src="<?php echo e($vehicleImage); ?>"
@@ -1677,17 +1686,18 @@ if (isset($__slots)) unset($__slots);
                             >
                                 Self Drive
                             </span>
-                        </a>
+                        </button>
 
                         <div class="flex flex-1 flex-col p-4 sm:p-5">
                             <h3 class="min-h-[3rem] text-base font-bold leading-6 text-slate-900">
-                                <a
-                                    href="<?php echo e($vehicleUrl); ?>"
-                                    class="line-clamp-2 transition hover:text-dura-700"
+                                <button
+                                    type="button"
+                                    x-on:click="window.dispatchEvent(new CustomEvent('open-self-drive-popup', { detail: { vehicleId: <?php echo e($vehicle->id); ?>, vehicleName: <?php echo \Illuminate\Support\Js::from($vehicleName)->toHtml() ?>, vehicleImage: <?php echo \Illuminate\Support\Js::from($vehicleImage)->toHtml() ?>, hourlyPrice: <?php echo e($hourlyPrice); ?>, minimumHours: <?php echo e($minimumBookingHours); ?>, securityDeposit: <?php echo e($securityDeposit); ?> } }))"
+                                    class="line-clamp-2 text-left transition hover:text-dura-700"
                                 >
                                     <?php echo e($vehicleName); ?>
 
-                                </a>
+                                </button>
                             </h3>
 
                             <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-500">
@@ -1718,24 +1728,25 @@ if (isset($__slots)) unset($__slots);
                             <div class="mt-auto pt-5">
                                 <div class="mb-3">
                                     <span class="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                                        Daily rental
+                                        Hourly rental
                                     </span>
 
                                     <span class="mt-1 block text-xl font-extrabold text-slate-900">
-                                        ₹<?php echo e(number_format($dailyPrice)); ?>
+                                        ₹<?php echo e(number_format($hourlyPrice)); ?>
 
-                                        <small class="text-sm font-semibold text-slate-500">/ day</small>
+                                        <small class="text-sm font-semibold text-slate-500">/ hour</small>
                                     </span>
                                 </div>
 
-                                <a
-                                    href="<?php echo e($vehicleUrl); ?>"
+                                <button
+                                    type="button"
+                                    x-on:click="window.dispatchEvent(new CustomEvent('open-self-drive-popup', { detail: { vehicleId: <?php echo e($vehicle->id); ?>, vehicleName: <?php echo \Illuminate\Support\Js::from($vehicleName)->toHtml() ?>, vehicleImage: <?php echo \Illuminate\Support\Js::from($vehicleImage)->toHtml() ?>, hourlyPrice: <?php echo e($hourlyPrice); ?>, minimumHours: <?php echo e($minimumBookingHours); ?>, securityDeposit: <?php echo e($securityDeposit); ?> } }))"
                                     class="dura-btn-primary w-full"
-                                    aria-label="View self drive car <?php echo e($vehicleName); ?>"
+                                    aria-label="Choose date and time for <?php echo e($vehicleName); ?>"
                                 >
                                     <span>View Self Drive Car</span>
                                     <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
-                                </a>
+                                </button>
                             </div>
                         </div>
                     </article>
@@ -1996,80 +2007,320 @@ if (isset($__slots)) unset($__slots);
 </section>
 <div
     x-data="{
-        open:false,
-        vehicleId:null,
-        init(){
-            window.addEventListener('open-self-drive-popup', (e)=>{
-                this.vehicleId=e.detail.vehicleId;
-                this.open=true;
+        open: false,
+        vehicleId: null,
+        vehicleName: '',
+        vehicleImage: '',
+        hourlyPrice: 0,
+        minimumHours: 1,
+        securityDeposit: 0,
+        pickupDate: '',
+        pickupTime: '',
+        dropDate: '',
+        dropTime: '',
+        error: '',
+
+        init() {
+            window.addEventListener('open-self-drive-popup', (event) => {
+                const detail = event.detail || {};
+
+                this.vehicleId = detail.vehicleId || null;
+                this.vehicleName = detail.vehicleName || 'Self Drive Car';
+                this.vehicleImage = detail.vehicleImage || '';
+                this.hourlyPrice = Number(detail.hourlyPrice || 0);
+                this.minimumHours = Math.max(1, Number(detail.minimumHours || 1));
+                this.securityDeposit = Math.max(0, Number(detail.securityDeposit || 0));
+                this.pickupDate = '';
+                this.pickupTime = '';
+                this.dropDate = '';
+                this.dropTime = '';
+                this.error = '';
+                this.open = true;
+
+                this.$nextTick(() => this.$refs.pickupDateInput?.focus());
             });
-        }
+        },
+
+        get minimumDate() {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            return now.toISOString().slice(0, 10);
+        },
+
+        get pickupDateTimeValue() {
+            return this.pickupDate && this.pickupTime
+                ? `${this.pickupDate}T${this.pickupTime}`
+                : '';
+        },
+
+        get dropDateTimeValue() {
+            return this.dropDate && this.dropTime
+                ? `${this.dropDate}T${this.dropTime}`
+                : '';
+        },
+
+        get selectedHours() {
+            if (!this.pickupDateTimeValue || !this.dropDateTimeValue) return 0;
+
+            const pickupDate = new Date(this.pickupDateTimeValue);
+            const dropDate = new Date(this.dropDateTimeValue);
+            const milliseconds = dropDate.getTime() - pickupDate.getTime();
+
+            if (!Number.isFinite(milliseconds) || milliseconds <= 0) return 0;
+
+            return Math.max(1, Math.ceil(milliseconds / 3600000));
+        },
+
+        get billableHours() {
+            return this.selectedHours > 0
+                ? Math.max(this.selectedHours, this.minimumHours)
+                : 0;
+        },
+
+        get rentalAmount() {
+            return this.billableHours * this.hourlyPrice;
+        },
+
+        get payablePreview() {
+            return this.rentalAmount + this.securityDeposit;
+        },
+
+        money(value) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 0,
+            }).format(Number(value || 0));
+        },
+
+        close() {
+            this.open = false;
+            this.error = '';
+        },
+
+        continueBooking() {
+            this.error = '';
+
+            if (!this.vehicleId) {
+                this.error = 'Vehicle information is missing. Please select the car again.';
+                return;
+            }
+
+            if (!this.pickupDate || !this.pickupTime || !this.dropDate || !this.dropTime) {
+                this.error = 'Please select pickup and drop date and time.';
+                return;
+            }
+
+            if (this.selectedHours < 1) {
+                this.error = 'Drop date and time must be later than pickup date and time.';
+                return;
+            }
+
+            const pickupDate = this.pickupDate;
+            const pickupTime = this.pickupTime;
+            const dropDate = this.dropDate;
+            const dropTime = this.dropTime;
+
+            const params = new URLSearchParams({
+                tab: 'self_drive',
+                vehicle_id: String(this.vehicleId),
+                date: pickupDate,
+                time: pickupTime,
+                dateto: dropDate,
+                endTime: dropTime,
+            });
+
+            window.location.href = `/rides?${params.toString()}`;
+        },
     }"
+    x-on:keydown.escape.window="close()"
 >
+    <template x-teleport="body">
     <div
         x-show="open"
-        x-transition
-        class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60"
-        style="display:none;"
+        x-transition.opacity
+        x-cloak
+        class="fixed inset-0 z-[2147483000] flex items-center justify-center overflow-y-auto bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4"
+        x-on:click.self="close()"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="self-drive-popup-title"
     >
-
-        <div class="w-full max-w-lg rounded-2xl bg-white p-6">
-
-            <h3 class="text-xl font-bold mb-5">
-                Select Pickup & Return
-            </h3>
-
-            <div class="space-y-4">
-
-                <input
-                    type="datetime-local"
-                    id="pickupDate"
-                    class="w-full border rounded-xl p-3"
-                >
-
-                <input
-                    type="datetime-local"
-                    id="dropDate"
-                    class="w-full border rounded-xl p-3"
-                >
-
-            </div>
-
-            <div class="flex justify-end gap-3 mt-6">
-
+        <div
+            x-show="open"
+            x-transition:enter="transition duration-200 ease-out"
+            x-transition:enter-start="translate-y-4 scale-95 opacity-0"
+            x-transition:enter-end="translate-y-0 scale-100 opacity-100"
+            x-transition:leave="transition duration-150 ease-in"
+            x-transition:leave-start="translate-y-0 scale-100 opacity-100"
+            x-transition:leave-end="translate-y-4 scale-95 opacity-0"
+            class="w-full max-w-xl max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)]"
+        >
+            <div class="relative overflow-hidden bg-gradient-to-r from-sky-700 to-blue-600 px-4 py-3 text-white sm:px-5 sm:py-4">
                 <button
-                    class="px-5 py-2 rounded-lg border"
-                    @click="open=false"
+                    type="button"
+                    x-on:click="close()"
+                    class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+                    aria-label="Close date and time popup"
                 >
-                    Cancel
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                 </button>
 
-                <button
-                    class="px-5 py-2 rounded-lg bg-sky-600 text-white"
-                    @click="
-                        let p=document.getElementById('pickupDate').value;
-                        let d=document.getElementById('dropDate').value;
+                <div class="flex items-center gap-4 pr-12">
+                    <div class="h-14 w-20 shrink-0 overflow-hidden rounded-xl bg-white/95 p-1 shadow-lg sm:h-16 sm:w-24">
+                        <img
+                            x-bind:src="vehicleImage"
+                            x-bind:alt="vehicleName"
+                            class="h-full w-full rounded-xl object-cover"
+                        >
+                    </div>
 
-                        if(!p || !d){
-                            alert('Please select date & time');
-                            return;
-                        }
-
-                        window.location=
-                        '/rides?tab=self_drive'
-                        +'&vehicle_id='+vehicleId
-                        +'&date='+p.substring(0,10)
-                        +'&time='+p.substring(11,16)
-                        +'&dateto='+d.substring(0,10)
-                        +'&endTime='+d.substring(11,16);
-                    "
-                >
-                    Check Availability
-                </button>
-
+                    <div class="min-w-0">
+                        <p class="text-xs font-bold uppercase tracking-[.18em] text-blue-100">Self Drive Booking</p>
+                        <h3 id="self-drive-popup-title" class="mt-1 truncate text-xl font-extrabold sm:text-2xl" x-text="vehicleName"></h3>
+                        <p class="mt-1 text-sm font-semibold text-white/90">
+                            <span x-text="money(hourlyPrice)"></span> / hour
+                            <span class="mx-1">•</span>
+                            Minimum <span x-text="minimumHours"></span> hour(s)
+                        </p>
+                    </div>
+                </div>
             </div>
 
+            <div class="p-4 sm:p-5">
+                <p class="mb-3 text-sm leading-5 text-slate-600">
+                    Select your pickup and drop date &amp; time. The ride page will show the fare for this exact rental duration.
+                </p>
+
+                <div class="grid gap-3 sm:grid-cols-2">
+                    <section class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="mb-2 flex items-center gap-2 text-sm font-extrabold text-slate-800">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                                <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                            </span>
+                            Pickup
+                        </div>
+
+                        <div class="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-2">
+                            <label class="min-w-0">
+                                <span class="mb-1 block text-xs font-bold text-slate-500">Date</span>
+                                <span class="flex w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input
+                                        x-ref="pickupDateInput"
+                                        x-model="pickupDate"
+                                        x-bind:min="minimumDate"
+                                        x-on:change="if (dropDate && dropDate < pickupDate) dropDate = pickupDate"
+                                        type="date"
+                                        class="block w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 outline-none focus:ring-0"
+                                    >
+                                </span>
+                            </label>
+
+                            <label class="min-w-0">
+                                <span class="mb-1 block text-xs font-bold text-slate-500">Time</span>
+                                <span class="flex w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input
+                                        x-model="pickupTime"
+                                        type="time"
+                                        step="1800"
+                                        class="block w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 outline-none focus:ring-0"
+                                    >
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+
+                    <section class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                        <div class="mb-2 flex items-center gap-2 text-sm font-extrabold text-slate-800">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-sky-100 text-sky-700">
+                                <i class="fa-solid fa-flag-checkered" aria-hidden="true"></i>
+                            </span>
+                            Drop
+                        </div>
+
+                        <div class="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-2">
+                            <label class="min-w-0">
+                                <span class="mb-1 block text-xs font-bold text-slate-500">Date</span>
+                                <span class="flex w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input
+                                        x-model="dropDate"
+                                        x-bind:min="pickupDate || minimumDate"
+                                        type="date"
+                                        class="block w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 outline-none focus:ring-0"
+                                    >
+                                </span>
+                            </label>
+
+                            <label class="min-w-0">
+                                <span class="mb-1 block text-xs font-bold text-slate-500">Time</span>
+                                <span class="flex w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100">
+                                    <input
+                                        x-model="dropTime"
+                                        type="time"
+                                        step="1800"
+                                        class="block w-full min-w-0 border-0 bg-transparent p-0 text-sm font-semibold text-slate-900 outline-none focus:ring-0"
+                                    >
+                                </span>
+                            </label>
+                        </div>
+                    </section>
+                </div>
+
+                <div
+                    x-show="error"
+                    x-transition
+                    class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+                    role="alert"
+                    x-text="error"
+                ></div>
+
+                <div x-show="selectedHours > 0" x-transition class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Duration</p>
+                            <strong class="mt-1 block text-lg text-slate-900"><span x-text="selectedHours"></span> hrs</strong>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Billable</p>
+                            <strong class="mt-1 block text-lg text-slate-900"><span x-text="billableHours"></span> hrs</strong>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Rental</p>
+                            <strong class="mt-1 block text-lg text-slate-900" x-text="money(rentalAmount)"></strong>
+                        </div>
+                        <div>
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Security</p>
+                            <strong class="mt-1 block text-lg text-slate-900" x-text="money(securityDeposit)"></strong>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                        <span class="text-sm font-bold text-slate-600">Preview payable</span>
+                        <strong class="text-2xl font-extrabold text-blue-700" x-text="money(payablePreview)"></strong>
+                    </div>
+                    <p class="mt-2 text-xs leading-5 text-slate-500">Security deposit is shown separately on the ride page and may be refundable according to the booking policy.</p>
+                </div>
+
+                <div class="sticky bottom-0 -mx-4 -mb-4 mt-4 flex flex-col-reverse gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:flex-row sm:justify-end sm:px-5">
+                    <button
+                        type="button"
+                        x-on:click="close()"
+                        class="inline-flex min-h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-3 font-bold text-slate-700 transition hover:bg-slate-50"
+                    >
+                        Cancel
+                    </button>
+
+                    <button
+                        type="button"
+                        x-on:click="continueBooking()"
+                        class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-extrabold text-white transition hover:bg-blue-700"
+                    >
+                        Continue Booking
+                        <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
         </div>
-
     </div>
+    </template>
 </div><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/livewire/homepage.blade.php ENDPATH**/ ?>
