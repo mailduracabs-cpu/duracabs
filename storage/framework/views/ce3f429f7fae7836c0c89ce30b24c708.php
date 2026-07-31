@@ -172,7 +172,7 @@
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
             autocomplete="off"
             x-show="activeTab === 'one_way'"
-            
+
             class="p-4 sm:p-5"
         >
             <div
@@ -229,13 +229,12 @@
 
                     <!--[if BLOCK]><![endif]--><?php if(mb_strlen(trim((string) $query_search)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('one_way_from', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
@@ -367,13 +366,12 @@
 
                     <?php if(mb_strlen(trim((string) $query2_search)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($cities_to)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_to; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('one_way_to', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
                                     >
@@ -549,13 +547,12 @@
 
                     <?php if(mb_strlen(trim((string) $queryFrom_search)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($dataFrom)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $dataFrom; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('round_from', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
@@ -639,13 +636,12 @@
 
                     <?php if(mb_strlen(trim((string) $queryTo_search)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($dataTo)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $dataTo; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('round_to', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
                                     >
@@ -820,13 +816,12 @@
 
                     <?php if(mb_strlen(trim((string) $queryLocal)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('local', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
@@ -1060,13 +1055,12 @@
 
                     <?php if(mb_strlen(trim((string) $querySelfDrive)) >= 3): ?>
                         <div
-                            data-suggestions style="z-index: 1000000;" class="absolute left-0 top-full mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
+                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
                             <!--[if BLOCK]><![endif]--><?php if(!empty($cities_from)): ?>
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $cities_from; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $city): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                     <button
                                         type="button"
-                                        x-on:click="$el.closest('[data-suggestions]')?.classList.add('hidden')"
                                         wire:click="selectGooglePlace('self_drive', '<?php echo e($city['place_id']); ?>')"
                                         class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
                                     >
@@ -1113,7 +1107,7 @@
                         type="date"
                         id="self-start-date"
                         name="book"
-                        wire:model="date"
+                        wire:model.live="date"
                         min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
@@ -1132,7 +1126,7 @@
                     <input
                         type="time"
                         id="self-start-time"
-                        wire:model="time"
+                        wire:model.live="time"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
                     >
@@ -1150,7 +1144,7 @@
                     <input
                         type="date"
                         id="self-end-date"
-                        wire:model="dateto"
+                        wire:model.live="dateto"
                         min="<?php echo e(date('Y-m-d')); ?>"
                         required
                         class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
@@ -1169,7 +1163,7 @@
                     <input
                         type="time"
                         id="self-end-time"
-                        wire:model="endTime"
+                        wire:model.live="endTime"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
                         <?php echo e($this->hasError('endTime')
@@ -1447,7 +1441,7 @@
     <?php echo e(strlen($mobileNumber) == 10
         ? 'bg-sky-500 hover:bg-sky-600 focus:ring-4 focus:ring-sky-200'
         : 'bg-slate-400'); ?>">
-        
+
     <span wire:loading.remove wire:target="sendOtpToBack">
         Continue
     </span>
@@ -1479,7 +1473,7 @@
     </div>
 </template>
     
-	
+
 	<template x-teleport="<?php echo e('body'); ?>">
     <div
         class="fixed inset-0 z-[999999] <?php echo e($sendOtpVerify ? 'flex' : 'hidden'); ?> items-center justify-center overflow-y-auto bg-slate-950/75 px-3 py-4 backdrop-blur-sm sm:px-6 sm:py-8"
@@ -1487,7 +1481,7 @@
         aria-modal="true"
         aria-labelledby="verify-otp-title"
     >
-	
+
         <div
             class="relative my-auto grid w-full max-w-4xl overflow-hidden rounded-[28px] border border-white/20 bg-white shadow-2xl shadow-slate-950/30 lg:grid-cols-[1.05fr_.95fr]"
         >
@@ -1912,14 +1906,13 @@
                     <p class="mt-6 text-center text-[11px] font-medium leading-5 text-slate-400">
                         By continuing, you agree to receive booking-related OTP and service updates.
                     </p>
-					
+
                 </div>
-				
+
             </div>
         </div>
     </div></template>
 </div>
-
 
     <?php
         $__scriptKey = '43671500-0';

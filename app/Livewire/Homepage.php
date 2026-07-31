@@ -421,7 +421,9 @@ class Homepage extends Component
         $result = $this->otp == $this->verifyOtp;
 
         if ($result) {
-            $this->authenticateOtpCustomer();
+            if (!Auth::check() || blank(CustomerSearchActivity::normalizeMobile(Auth::user()?->mobile))) {
+              $this->authenticateOtpCustomer();
+          }
 
             
             $this->saveCustomerLead();
@@ -434,59 +436,51 @@ class Homepage extends Component
 
     public function verifySubmitOtpSelfDrive()
     {
-        $result = $this->otp == $this->verifyOtp;
+        $loggedInMobile = CustomerSearchActivity::normalizeMobile(
+            Auth::user()?->mobile
+        );
 
+        $alreadyAuthenticated = Auth::check() && filled($loggedInMobile);
 
+        $otpVerified = filled($this->otp)
+            && filled($this->verifyOtp)
+            && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        // function dateDiffInDays($date1, $date2)
-        // {
-        //     $diff = strtotime($date2) - strtotime($date1);
-        //     return abs(round($diff / 86400));
-        // }
+        if (!$alreadyAuthenticated && !$otpVerified) {
+            $this->oneWayMsg = 'Invalid OTP. Please try again.';
+            return null;
+        }
 
+        $startTimestamp = strtotime(trim((string) $this->date . ' ' . (string) $this->time));
+        $endTimestamp = strtotime(trim((string) $this->dateto . ' ' . (string) $this->endTime));
 
+        if (
+            $startTimestamp === false
+            || $endTimestamp === false
+            || $endTimestamp <= $startTimestamp
+        ) {
+            $this->validationErrors['dateto'] =
+                'End date and time must be later than start date and time.';
+            $this->showValidation = true;
+            $this->oneWayMsg = 'Please select a valid rental period.';
+            return null;
+        }
 
+        if (!$alreadyAuthenticated) {
+            $this->authenticateOtpCustomer();
+        }
 
-        $date1 = sprintf("%s %s", $this->date, $this->time);
+        $rentalHours = max(
+            24,
+            (int) ceil(($endTimestamp - $startTimestamp) / 3600)
+        );
 
-        $date2 = sprintf("%s %s", $this->dateto, $this->endTime);
+        $this->saveCustomerLead([
+            'rental_hours' => $rentalHours,
+        ]);
 
-        $diff = abs(strtotime($date2) - strtotime($date1));
-
-        $years = floor($diff / (365 * 60 * 60 * 24));
-        $months = floor(($diff - $years * 365 * 60 * 60 * 24) / (30 * 60 * 60 * 24));
-        $days = floor(($diff - $years * 365 * 60 * 60 * 24 - $months * 30 * 60 * 60 * 24) / (60 * 60 * 24));
-
-        $hours = floor(($diff - $years * 365 * 60 * 60 * 24 - $months * 30 * 60 * 60 * 24 - $days * 60 * 60 * 24) / (60 * 60));
-
-        $minuts = floor(($diff - $years * 365 * 60 * 60 * 24 - $months * 30 * 60 * 60 * 24 - $days * 60 * 60 * 24 - $hours * 60 * 60) / 60);
-
-        $seconds = floor(($diff - $years * 365 * 60 * 60 * 24 - $months * 30 * 60 * 60 * 24 - $days * 60 * 60 * 24 - $hours * 60 * 60 - $minuts * 60));
-
-        //dd($years, $months, $days, $hours, $minuts);
-
-
-
-        $calculatehours = $days * 24 + $hours;
-
-        $hours = 24 < $calculatehours ? $calculatehours : 24;
-
-
-
-        //dd($hours);
-
-
-          $this->authenticateOtpCustomer();
-
-
-         
-
-        if ($result) {
-            $this->saveCustomerLead([
-                'rental_hours' => $hours,
-            ]);
-
-            return redirect()->to(route('rides') . '?' . http_build_query([
+        return redirect()->to(
+            route('rides') . '?' . http_build_query([
                 'cityFrom' => $this->query_id,
                 'date' => $this->date,
                 'dateto' => $this->dateto,
@@ -494,14 +488,14 @@ class Homepage extends Component
                 'tab' => 'self_drive',
                 'time' => $this->time,
                 'endTime' => $this->endTime,
-                'days' => $hours,
+                'days' => $rentalHours,
                 'vehicle_id' => $this->selectedSelfDriveVehicleId,
                 'place_id' => $this->selfDrivePlaceId,
                 'lat' => $this->selfDriveLatitude,
                 'lng' => $this->selfDriveLongitude,
                 'address' => $this->querySelfDrive,
-            ]));
-        }
+            ])
+        );
     }
 
     private function saveCustomerLead(array $extra = []): CustomerSearchActivity
@@ -1827,38 +1821,44 @@ class Homepage extends Component
 
     public function searchPackage()
     {
-        // Validate form first
         if (!$this->validateForm()) {
-            $this->oneWayMsg = "Please fix the errors below and try again.";
-            return;
+            $this->oneWayMsg = 'Please fix the errors below and try again.';
+            return null;
         }
 
-        // Clear validation errors if form is valid
         $this->validationErrors = [];
         $this->showValidation = false;
-        $this->oneWayMsg = "";
-        if (Auth::check()) {
+        $this->oneWayMsg = '';
 
+        $loggedInMobile = CustomerSearchActivity::normalizeMobile(
+            Auth::user()?->mobile
+        );
 
+        if (!Auth::check() || blank($loggedInMobile)) {
+            $this->mobileNumber = null;
+            $this->verifyOtp = null;
+            $this->otp = false;
+            $this->sendOtpVerify = false;
+            $this->sendOtp = true;
 
-            if ($this->selected_tab == 'local') {
-                return $this->verifySubmitLocal();
-            } else if ($this->selected_tab == 'self_drive') {
-                return $this->verifySubmitOtpSelfDrive();
-            } else if ($this->selected_tab == 'return') {
-                $this->getDistance();
-                return $this->verifySubmitOtpReturn();
-            } else if ($this->selected_tab == 'one_way') {
-                return $this->verifySubmitOtp();
-            } else {
-                $this->sendOtp = true;
-            }
-            return;
+            return null;
         }
-        $this->sendOtp = true;
+
+        return match ($this->selected_tab) {
+            'local' => $this->verifySubmitLocal(),
+            'self_drive' => $this->verifySubmitOtpSelfDrive(),
+            'return' => $this->runAuthenticatedReturnSearch(),
+            'one_way' => $this->verifySubmitOtp(),
+            default => null,
+        };
     }
 
+    private function runAuthenticatedReturnSearch()
+    {
+        $this->getDistance();
 
+        return $this->verifySubmitOtpReturn();
+    }
 
     public function searchPackageSelf()
     {
