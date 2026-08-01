@@ -78,6 +78,22 @@ class ServiceSearchPanel extends Homepage
 
         if ($tab !== 'self_drive') {
             $this->selectedSelfDriveVehicleId = null;
+        } elseif (
+            is_numeric($this->selfDriveLatitude)
+            && is_numeric($this->selfDriveLongitude)
+        ) {
+            // The browser may have already resolved the current location while
+            // another tab was active. Forward it now so the separate Homepage
+            // component can replace the single smart-banner fallback with every
+            // eligible self-drive vehicle for that pickup area.
+            $this->loadHomepageSelfDriveVehicles();
+
+            $this->dispatch(
+                'homepage-self-drive-location-selected',
+                pickupLocation: $this->querySelfDrive ?: $this->query,
+                latitude: (float) $this->selfDriveLatitude,
+                longitude: (float) $this->selfDriveLongitude,
+            );
         }
 
         $this->clearAutocompleteResults();

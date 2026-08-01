@@ -2,6 +2,7 @@
     'smartHeroBanners' => [],
     'carousel' => [],
     'bannerTab' => 'one_way',
+    'homepageSelfDriveVehicles' => [],
 ])
 
 @php
@@ -49,6 +50,175 @@
             return $bannerService === $selectedBannerService;
         })
         ->values();
+		
+		
+		
+		/*
+ * Self-drive tab par location, pickup aur return date/time ke
+ * basis par available vehicles ko existing banner cards me show karo.
+ *
+ * Isse alag cards ya alag booking form banane ki zarurat nahi rahegi.
+ */
+if (
+    $selectedBannerService === 'self_drive'
+    && collect($homepageSelfDriveVehicles ?? [])->isNotEmpty()
+) {
+    $smartBanners = collect($homepageSelfDriveVehicles)
+        ->map(function ($vehicle): array {
+            $vehicleId = (int) (
+                data_get($vehicle, 'id')
+                ?? data_get($vehicle, 'vehicle_id')
+                ?? 0
+            );
+
+            $companyName = trim((string) (
+                data_get($vehicle, 'car_company_name')
+                ?? data_get($vehicle, 'company_name')
+                ?? data_get($vehicle, 'brand')
+                ?? ''
+            ));
+
+            $modelName = trim((string) (
+                data_get($vehicle, 'model_name')
+                ?? data_get($vehicle, 'vehicle_name')
+                ?? data_get($vehicle, 'name')
+                ?? 'Self Drive Car'
+            ));
+
+            $vehicleName = trim($companyName . ' ' . $modelName);
+
+            $image = data_get($vehicle, 'image_url')
+                ?? data_get($vehicle, 'front_image_url')
+                ?? data_get($vehicle, 'vehicle_image')
+                ?? data_get($vehicle, 'front_image')
+                ?? data_get($vehicle, 'image');
+
+            if (filled($image)) {
+                $image = (string) $image;
+
+                if (
+                    !str_starts_with($image, 'http://')
+                    && !str_starts_with($image, 'https://')
+                ) {
+                    $image = asset(
+                        'storage/' . ltrim($image, '/')
+                    );
+                }
+            }
+
+            $hourlyPrice = (float) (
+                data_get($vehicle, 'hourly_price')
+                ?? data_get($vehicle, 'price_per_hour')
+                ?? data_get($vehicle, 'pricing.hourly_price')
+                ?? 0
+            );
+
+            $dailyPrice = (float) (
+                data_get($vehicle, 'daily_price')
+                ?? data_get($vehicle, 'price_per_day')
+                ?? data_get($vehicle, 'pricing.daily_price')
+                ?? 0
+            );
+
+            /*
+             * Hourly price missing ho to 24-hour price se hourly
+             * preview calculate karenge.
+             */
+            if ($hourlyPrice <= 0 && $dailyPrice > 0) {
+                $hourlyPrice = round($dailyPrice / 24, 2);
+            }
+
+            $minimumHours = max(
+                1,
+                (int) (
+                    data_get($vehicle, 'minimum_booking_hours')
+                    ?? data_get($vehicle, 'minimum_hours')
+                    ?? data_get($vehicle, 'pricing.minimum_booking_hours')
+                    ?? 1
+                )
+            );
+
+            $securityDeposit = max(
+                0,
+                (float) (
+                    data_get($vehicle, 'security_deposit')
+                    ?? data_get($vehicle, 'pricing.security_deposit')
+                    ?? 0
+                )
+            );
+
+            $distance = data_get($vehicle, 'distance_km')
+                ?? data_get($vehicle, 'distance');
+
+            $pickupAddress = data_get($vehicle, 'pickup_address')
+                ?? data_get($vehicle, 'pickup_office')
+                ?? data_get($vehicle, 'vendor.pickup_address')
+                ?? data_get($vehicle, 'vendor.office_address');
+
+            $routeLabel = filled($distance)
+                ? (
+                    is_numeric($distance)
+                        ? number_format((float) $distance, 1) . ' km from pickup'
+                        : (string) $distance
+                )
+                : $pickupAddress;
+
+            return [
+                'title' => filled($vehicleName)
+                    ? $vehicleName
+                    : 'Self Drive Car',
+
+                'vehicle' => filled($vehicleName)
+                    ? $vehicleName
+                    : 'Self Drive Car',
+
+                'vehicle_name' => filled($vehicleName)
+                    ? $vehicleName
+                    : 'Self Drive Car',
+
+                'vehicle_id' => $vehicleId,
+
+                'vehicle_image' => $image,
+
+                'hourly_price' => $hourlyPrice,
+
+                'minimum_booking_hours' => $minimumHours,
+
+                'security_deposit' => $securityDeposit,
+
+                'formatted_fare' => $dailyPrice > 0
+                    ? '₹' . number_format($dailyPrice) . ' / 24 Hours'
+                    : (
+                        $hourlyPrice > 0
+                            ? '₹' . number_format($hourlyPrice) . ' / Hour'
+                            : null
+                    ),
+
+                'route' => [
+                    'label' => $routeLabel,
+                    'from' => null,
+                    'to' => null,
+                ],
+
+                'service_type' => 'self_drive',
+
+                'action' => [
+                    'service_type' => 'self_drive',
+                    'vehicle_id' => $vehicleId,
+                    'parameters' => [
+                        'vehicle_id' => $vehicleId,
+                        'minimum_hours' => $minimumHours,
+                        'security_deposit' => $securityDeposit,
+                    ],
+                ],
+            ];
+        })
+        ->filter(
+            static fn (array $vehicle): bool =>
+                (int) data_get($vehicle, 'vehicle_id', 0) > 0
+        )
+        ->values();
+}
 
     /*
      * Legacy banners are already filtered in Homepage::render(), but keep

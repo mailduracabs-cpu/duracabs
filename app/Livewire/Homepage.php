@@ -21,7 +21,7 @@ use Livewire\Attributes\Url;
 use Livewire\Component;
 use GuzzleHttp\Client;
 use App\Services\SmartBannerService;
-
+use App\Services\SelfDriveAvailabilityService;
 
 class Homepage extends Component
 {
@@ -67,12 +67,14 @@ class Homepage extends Component
     public $roundToPlaceId;
     public $roundToLatitude;
     public $roundToLongitude;
+	
 
     /**
      * Additional Round Trip destinations. The first destination continues to
      * use queryTo/queryTo_search for backward compatibility.
      */
-    public array $tripCities = [];
+    public array $homepageSelfDriveVehicles = [];
+	public array $tripCities = [];
     public int $maxTripCities = 19;
     public $localPlaceId;
     public $localLatitude;
@@ -1149,6 +1151,7 @@ class Homepage extends Component
                     $this->showValidation = true;
                 } else {
                     $this->clearError('query');
+                    $this->loadHomepageSelfDriveVehicles();
                 }
                 break;
         }
@@ -1789,24 +1792,28 @@ class Homepage extends Component
         $this->clearError('queryTo');
     }
 
-    public function updatedDate()
+    public function updatedDate(): void
     {
         $this->clearError('date');
+        $this->loadHomepageSelfDriveVehicles();
     }
 
-    public function updatedDateto()
+    public function updatedDateto(): void
     {
         $this->clearError('dateto');
+        $this->loadHomepageSelfDriveVehicles();
     }
 
-    public function updatedTime()
+    public function updatedTime(): void
     {
         $this->clearError('time');
+        $this->loadHomepageSelfDriveVehicles();
     }
 
-    public function updatedEndTime()
+    public function updatedEndTime(): void
     {
         $this->clearError('endTime');
+        $this->loadHomepageSelfDriveVehicles();
     }
 
     public function updatedCar()
@@ -1867,6 +1874,46 @@ class Homepage extends Component
     }
 
 
+    public function loadHomepageSelfDriveVehicles(): void
+    {
+        if (
+            ! is_numeric($this->selfDriveLatitude)
+            || ! is_numeric($this->selfDriveLongitude)
+        ) {
+            $this->homepageSelfDriveVehicles = [];
+
+            return;
+        }
+
+        try {
+            $response = app(SelfDriveAvailabilityService::class)
+                ->homepageVehicles([
+                    'pickup_location' =>
+                        $this->querySelfDrive ?: $this->query,
+                    'pickup_lat' => (float) $this->selfDriveLatitude,
+                    'pickup_lng' => (float) $this->selfDriveLongitude,
+                ]);
+
+            $vehicles = data_get($response, 'data.vehicles', []);
+
+            if ($vehicles instanceof \Illuminate\Support\Collection) {
+                $vehicles = $vehicles->values()->all();
+            }
+
+            $this->homepageSelfDriveVehicles = is_array($vehicles)
+                ? array_values($vehicles)
+                : [];
+        } catch (\Throwable $exception) {
+            Log::error('Homepage self-drive vehicles loading failed', [
+                'message' => $exception->getMessage(),
+                'latitude' => $this->selfDriveLatitude,
+                'longitude' => $this->selfDriveLongitude,
+            ]);
+
+            $this->homepageSelfDriveVehicles = [];
+        }
+    }
+
     public function render()
 {
     // SEO is loaded in fallback-only mode.
@@ -1891,6 +1938,7 @@ class Homepage extends Component
 
     // Legacy banner fallback
     $carousel = Banners::where('ride_type', $this->bannerTab)->get();
+	
 
     // CMS-driven Smart Hero banners
     $smartHeroBanners = app(SmartBannerService::class)
@@ -1906,6 +1954,7 @@ class Homepage extends Component
         'reviews' => $reviews,
         'carousel' => $carousel,
         'smartHeroBanners' => $smartHeroBanners,
+		'homepageSelfDriveVehicles' => $this->homepageSelfDriveVehicles,
         'tours' => $tour,
         'products' => $product,
         'seoPage' => $seoPage,

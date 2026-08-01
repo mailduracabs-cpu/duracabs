@@ -145,14 +145,14 @@ if (isset($__slots)) unset($__slots);
             >
                 <?php if (isset($component)) { $__componentOriginal4d68288665eec0c29e0a32fcbf212fb9 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9 = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.home.premium-banner-only','data' => ['smartHeroBanners' => $smartHeroBanners ?? [],'carousel' => $carousel ?? [],'bannerTab' => $bannerTab ?? 'one_way']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.home.premium-banner-only','data' => ['smartHeroBanners' => $smartHeroBanners ?? [],'carousel' => $carousel ?? [],'bannerTab' => $bannerTab ?? 'one_way','homepageSelfDriveVehicles' => $homepageSelfDriveVehicles ?? []]] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('home.premium-banner-only'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['smart-hero-banners' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($smartHeroBanners ?? []),'carousel' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($carousel ?? []),'banner-tab' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($bannerTab ?? 'one_way')]); ?>
+<?php $component->withAttributes(['smart-hero-banners' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($smartHeroBanners ?? []),'carousel' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($carousel ?? []),'banner-tab' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($bannerTab ?? 'one_way'),'homepage-self-drive-vehicles' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute($homepageSelfDriveVehicles ?? [])]); ?>
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal4d68288665eec0c29e0a32fcbf212fb9)): ?>

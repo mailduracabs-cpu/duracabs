@@ -636,13 +636,13 @@ class VehicleResource extends Resource
                                 Forms\Set $set
                             ): void {
                                 $hourlyPrice = max(0, (float) $state);
-                                $dailyPrice = $hourlyPrice * 24;
+                                $dailyPrice = round($hourlyPrice * 24, 2);
 
+                                $set('daily_price', $dailyPrice);
                                 $set(
                                     'weekly_price',
                                     round(($dailyPrice * 7) * 0.80, 2)
                                 );
-
                                 $set(
                                     'monthly_price',
                                     round(($dailyPrice * 30) * 0.70, 2)
@@ -651,6 +651,32 @@ class VehicleResource extends Resource
                         ),
 
                     TextInput::make('daily_price')
+                        ->label('24-Hour Price')
+                        ->numeric()
+                        ->minValue(0)
+                        ->prefix('₹')
+                        ->required()
+                        ->live(debounce: 350)
+                        ->afterStateUpdated(
+                            function (
+                                mixed $state,
+                                Forms\Set $set
+                            ): void {
+                                $dailyPrice = max(0, (float) $state);
+
+                                $set(
+                                    'weekly_price',
+                                    round(($dailyPrice * 7) * 0.80, 2)
+                                );
+                                $set(
+                                    'monthly_price',
+                                    round(($dailyPrice * 30) * 0.70, 2)
+                                );
+                            }
+                        )
+                        ->helperText('Customer price for a complete 24-hour rental.'),
+
+                    TextInput::make('commission_percentage')
                         ->label('Commission')
                         ->numeric()
                         ->minValue(0)
@@ -658,16 +684,7 @@ class VehicleResource extends Resource
                         ->suffix('%')
                         ->default(30)
                         ->required()
-                        ->live(debounce: 300)
-                        ->afterStateHydrated(
-                            function (mixed $state, Forms\Set $set): void {
-                                $commission = (float) $state;
-
-                                if ($commission < 0 || $commission > 100) {
-                                    $set('daily_price', 30);
-                                }
-                            }
-                        ),
+                        ->live(debounce: 300),
 
                     Placeholder::make('vendor_hourly_preview')
                         ->label('Vendor')
@@ -676,7 +693,7 @@ class VehicleResource extends Resource
                                 $customer = max(0, (float) $get('hourly_price'));
                                 $commission = min(
                                     100,
-                                    max(0, (float) ($get('daily_price') ?: 30))
+                                    max(0, (float) ($get('commission_percentage') ?? 30))
                                 );
 
                                 return '₹' . number_format(
@@ -693,7 +710,7 @@ class VehicleResource extends Resource
                                 $customer = max(0, (float) $get('hourly_price'));
                                 $commission = min(
                                     100,
-                                    max(0, (float) ($get('daily_price') ?: 30))
+                                    max(0, (float) ($get('commission_percentage') ?? 30))
                                 );
 
                                 return '₹' . number_format(
@@ -711,11 +728,11 @@ class VehicleResource extends Resource
                                 $hourly = max(0, (float) $get('hourly_price'));
                                 $commission = min(
                                     100,
-                                    max(0, (float) ($get('daily_price') ?: 30))
+                                    max(0, (float) ($get('commission_percentage') ?? 30))
                                 );
                                 $vendorFactor = 1 - ($commission / 100);
 
-                                $daily = $hourly * 24;
+                                $daily = max(0, (float) $get('daily_price'));
                                 $weekly = max(0, (float) $get('weekly_price'));
                                 $monthly = max(0, (float) $get('monthly_price'));
 
@@ -1172,10 +1189,18 @@ class VehicleResource extends Resource
                 Tables\Columns\TextColumn::make(
                     'daily_price'
                 )
+                    ->label('24-Hour Price')
+                    ->money('INR')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make(
+                    'commission_percentage'
+                )
                     ->label('Commission')
                     ->suffix('%')
                     ->placeholder('30%')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\TextColumn::make(
                     'security_deposit'

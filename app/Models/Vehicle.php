@@ -116,6 +116,7 @@ class Vehicle extends Model
         // Rental pricing
         'hourly_price',
         'daily_price',
+        'commission_percentage',
         'weekly_price',
         'monthly_price',
         'security_deposit',
@@ -183,6 +184,7 @@ class Vehicle extends Model
 
         'hourly_price' => 'decimal:2',
         'daily_price' => 'decimal:2',
+        'commission_percentage' => 'decimal:2',
         'weekly_price' => 'decimal:2',
         'monthly_price' => 'decimal:2',
         'security_deposit' => 'decimal:2',

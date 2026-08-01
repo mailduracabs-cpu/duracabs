@@ -291,6 +291,95 @@ class SelfDriveAvailabilityService
         );
     }
 
+    /**
+     * Homepage banner listing.
+     *
+     * This intentionally does not apply booking-conflict or rental-duration
+     * filters. Final availability is checked after the customer selects the
+     * pickup and return date/time from the booking popup.
+     */
+    public function homepageVehicles(array $data): array
+    {
+        $pickupLat = $this->nullableFloat(
+            $data['pickup_lat'] ?? $data['pickup_latitude'] ?? null
+        );
+        $pickupLng = $this->nullableFloat(
+            $data['pickup_lng'] ?? $data['pickup_longitude'] ?? null
+        );
+
+        if ($pickupLat === null || $pickupLng === null) {
+            return $this->failure(
+                'Pickup latitude and longitude are required.',
+                422
+            );
+        }
+
+        $vehicles = $this->customerVisibleVehicleQuery()
+            ->with([
+                'transporter',
+                'frontMedia',
+                'backMedia',
+                'interiorMedia',
+            ])
+            ->whereNotNull('transporter_profile_id')
+            ->whereHas('transporter', function (Builder $query): void {
+                $query
+                    ->whereIn('partner_type', ['host', 'vendor', 'both'])
+                    ->where('status', true)
+                    ->whereNotNull('pickup_latitude')
+                    ->whereNotNull('pickup_longitude');
+            })
+            ->latest('id')
+            ->get()
+            ->map(function (Vehicle $vehicle) use (
+                $pickupLat,
+                $pickupLng,
+                $data
+            ): ?array {
+                $host = $vehicle->transporter;
+
+                if (! $host) {
+                    return null;
+                }
+
+                $hostLat = $this->nullableFloat($host->pickup_latitude);
+                $hostLng = $this->nullableFloat($host->pickup_longitude);
+
+                if ($hostLat === null || $hostLng === null) {
+                    return null;
+                }
+
+                $distance = $this->distanceKm(
+                    $pickupLat,
+                    $pickupLng,
+                    $hostLat,
+                    $hostLng
+                );
+
+                if ($distance > $this->serviceRadius($vehicle)) {
+                    return null;
+                }
+
+                return $this->homepageVehicleData(
+                    vehicle: $vehicle,
+                    distance: $distance,
+                    pickupLocation: (string) ($data['pickup_location'] ?? '')
+                );
+            })
+            ->filter()
+            ->sortBy('distance_km')
+            ->values();
+
+        return $this->success(
+            'Homepage self drive vehicles loaded.',
+            [
+                'vehicles' => $vehicles,
+                'count' => $vehicles->count(),
+                'pickup_location' => $data['pickup_location'] ?? null,
+            ]
+        );
+    }
+
     public function isAvailable(
         int $vehicleId,
         Carbon|string $start,
@@ -521,6 +610,58 @@ class SelfDriveAvailabilityService
             ->max('end_datetime');
 
         return $latestBlockingEnd ? Carbon::parse($latestBlockingEnd) : null;
+    }
+
+    private function homepageVehicleData(
+        Vehicle $vehicle,
+        float $distance,
+        string $pickupLocation
+    ): array {
+        $minimumHours = max(
+            1,
+            (int) ($vehicle->minimum_booking_hours ?? 1)
+        );
+
+        return [
+            'id' => $vehicle->id,
+            'vehicle_id' => $vehicle->id,
+            'vehicle_name' => $vehicle->display_name,
+            'car_company_name' => $vehicle->car_company_name,
+            'model_name' => $vehicle->model_name,
+            'brand' => $vehicle->car_company_name,
+            'model' => $vehicle->model_name,
+            'category' => $vehicle->car_classification,
+            'fuel_type' => $vehicle->fuel_type,
+            'transmission' => $vehicle->transmission,
+            'color' => $vehicle->car_color,
+            'manufacture_year' => $vehicle->manufacture_year,
+            'seats' => (int) ($vehicle->seats ?? 0),
+            'bags' => (int) ($vehicle->bags ?? 0),
+            'hourly_price' => (float) ($vehicle->hourly_price ?? 0),
+            'daily_price' => (float) ($vehicle->daily_price ?? 0),
+            'weekly_price' => (float) ($vehicle->weekly_price ?? 0),
+            'monthly_price' => (float) ($vehicle->monthly_price ?? 0),
+            'security_deposit' => (float) ($vehicle->security_deposit ?? 0),
+            'minimum_booking_hours' => $minimumHours,
+            'maximum_booking_hours' =>
+                (int) ($vehicle->maximum_booking_hours ?? 0) ?: null,
+            'front_image' => $vehicle->front_image_url,
+            'back_image' => $vehicle->back_image_url,
+            'interior_image' => $vehicle->interior_image_url,
+            'distance_km' => round($distance, 2),
+            'service_radius_km' => round($this->serviceRadius($vehicle), 2),
+            'pickup_location' => $pickupLocation,
+            'pickup_address' =>
+                $vehicle->transporter?->pickup_address
+                ?? $vehicle->transporter?->office_address,
+            'partner' => [
+                'id' => $vehicle->transporter?->id,
+                'company_name' => $vehicle->transporter?->company_name,
+                'pickup_address' =>
+                    $vehicle->transporter?->pickup_address
+                    ?? $vehicle->transporter?->office_address,
+            ],
+        ];
     }
 
     private function vehicleData(

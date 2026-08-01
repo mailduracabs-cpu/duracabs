@@ -132,10 +132,11 @@
                 class="mt-6 lg:mt-8"
             >
                 <x-home.premium-banner-only
-                    :smart-hero-banners="$smartHeroBanners ?? []"
-                    :carousel="$carousel ?? []"
-                    :banner-tab="$bannerTab ?? 'one_way'"
-                />
+    :smart-hero-banners="$smartHeroBanners ?? []"
+    :carousel="$carousel ?? []"
+    :banner-tab="$bannerTab ?? 'one_way'"
+    :homepage-self-drive-vehicles="$homepageSelfDriveVehicles ?? []"
+/>
             </div>
         </div>
     </div>

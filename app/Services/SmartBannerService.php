@@ -79,8 +79,8 @@ class SmartBannerService
             $cityNames = $this->loadCityNames($blocks);
 
             $resolvedBlocks = $blocks
-                ->map(
-                    fn (SmartHomeBlock $block): array => $this->resolveBlock(
+                ->flatMap(
+                    fn (SmartHomeBlock $block): array => $this->resolveBlocks(
                         $block,
                         $cityNames
                     )
@@ -102,9 +102,12 @@ class SmartBannerService
     }
 
     /**
-     * Convert a database block into homepage-ready data.
+     * Convert one CMS block into one or more homepage-ready banners.
+     *
+     * A normal taxi block resolves to one banner. A Self Drive block expands
+     * to one banner for every customer-visible vehicle in the selected city.
      */
-    private function resolveBlock(
+    private function resolveBlocks(
         SmartHomeBlock $block,
         Collection $cityNames
     ): array {
@@ -126,42 +129,37 @@ class SmartBannerService
             $cityNames
         );
 
+        if ($serviceType === Vehicle::SERVICE_SELF_DRIVE) {
+            return $this->findSelfDriveVehicles($fromCity)
+                ->map(
+                    fn (Vehicle $vehicle): array => $this->resolveSelfDriveBlock(
+                        block: $block,
+                        blockType: $blockType,
+                        fromCity: $fromCity,
+                        vehicle: $vehicle
+                    )
+                )
+                ->values()
+                ->all();
+        }
+
         $routeProduct = $this->findRouteProduct(
             $serviceType,
             $block->from_city_id,
             $block->to_city_id
         );
 
-        $selfDriveVehicle = $serviceType === Vehicle::SERVICE_SELF_DRIVE
-            ? $this->findSelfDriveVehicle($fromCity)
-            : null;
+        $fareData = $this->resolveFareData($routeProduct);
 
-        $fareData = $selfDriveVehicle
-            ? $this->resolveSelfDriveVehicleData($selfDriveVehicle)
-            : $this->resolveFareData($routeProduct);
-
-        $theme = $this->themeFor($serviceType);
-
-        return [
+        return [[
             'id' => $block->id,
             'block_type' => $blockType,
             'service_type' => $serviceType,
-
-            'title' => $this->resolveTitle(
-                $block,
-                $fromCity,
-                $toCity
-            ),
-
-            'subtitle' => $this->resolveSubtitle(
-                $block,
-                $fromCity,
-                $toCity
-            ),
-
+            'title' => $this->resolveTitle($block, $fromCity, $toCity),
+            'subtitle' => $this->resolveSubtitle($block, $fromCity, $toCity),
             'route' => [
                 'product_id' => $routeProduct?->getKey(),
-                'vehicle_id' => $selfDriveVehicle?->getKey(),
+                'vehicle_id' => null,
                 'slug' => $routeProduct?->slug,
                 'from_city_id' => $block->from_city_id
                     ? (int) $block->from_city_id
@@ -173,68 +171,119 @@ class SmartBannerService
                 'to_city' => $toCity,
                 'label' => $this->routeLabel($fromCity, $toCity),
             ],
-
-            // Starting price is taken from the route product's vehicle prices.
             'fare' => $fareData['fare'],
             'formatted_fare' => $fareData['formatted_fare'],
             'vehicle' => $fareData['vehicle'],
             'vehicle_image' => $fareData['vehicle_image'],
-
-            'theme' => $theme,
+            'theme' => $this->themeFor($serviceType),
             'priority' => (int) $block->priority,
             'is_dynamic' => (bool) $block->is_dynamic,
+            'action' => $this->actionFor(
+                $routeProduct,
+                $serviceType,
+                $block->from_city_id,
+                $block->to_city_id
+            ),
+        ]];
+    }
 
-            'action' => $selfDriveVehicle
-                ? $this->actionForSelfDriveVehicle(
-                    $selfDriveVehicle,
-                    $block->from_city_id
-                )
-                : $this->actionFor(
-                    $routeProduct,
-                    $serviceType,
-                    $block->from_city_id,
-                    $block->to_city_id
-                ),
+    /**
+     * Build one homepage banner for one Self Drive vehicle.
+     */
+    private function resolveSelfDriveBlock(
+        SmartHomeBlock $block,
+        string $blockType,
+        ?string $fromCity,
+        Vehicle $vehicle
+    ): array {
+        $fareData = $this->resolveSelfDriveVehicleData($vehicle);
+        $vehicleName = trim((string) $vehicle->display_name);
+
+        return [
+            // A unique key prevents Livewire/Blade from treating all expanded
+            // banners as the same CMS record.
+            'id' => $block->id . '-vehicle-' . $vehicle->getKey(),
+            'cms_block_id' => (int) $block->id,
+            'block_type' => $blockType,
+            'service_type' => Vehicle::SERVICE_SELF_DRIVE,
+            'title' => $vehicleName !== ''
+                ? $vehicleName
+                : $this->resolveTitle($block, $fromCity, null),
+            'subtitle' => $this->resolveSubtitle($block, $fromCity, null),
+            'vehicle_id' => (int) $vehicle->getKey(),
+            'hourly_price' => (float) ($vehicle->hourly_price ?? 0),
+            'minimum_booking_hours' => max(
+                1,
+                (int) ($vehicle->minimum_booking_hours ?? 1)
+            ),
+            'security_deposit' => max(
+                0,
+                (float) ($vehicle->security_deposit ?? 0)
+            ),
+            'route' => [
+                'product_id' => null,
+                'vehicle_id' => (int) $vehicle->getKey(),
+                'slug' => null,
+                'from_city_id' => $block->from_city_id
+                    ? (int) $block->from_city_id
+                    : null,
+                'from_city' => $fromCity,
+                'to_city_id' => null,
+                'to_city' => null,
+                'label' => $fromCity,
+            ],
+            'fare' => $fareData['fare'],
+            'formatted_fare' => $fareData['formatted_fare'],
+            'vehicle' => $fareData['vehicle'],
+            'vehicle_name' => $fareData['vehicle'],
+            'vehicle_image' => $fareData['vehicle_image'],
+            'theme' => $this->themeFor(Vehicle::SERVICE_SELF_DRIVE),
+            'priority' => (int) $block->priority,
+            'is_dynamic' => (bool) $block->is_dynamic,
+            'action' => $this->actionForSelfDriveVehicle(
+                $vehicle,
+                $block->from_city_id
+            ),
         ];
     }
 
     /**
-     * Find the newest bookable self-drive car for the selected city.
-     *
-     * Smart Home blocks store a brand/city ID, while vehicles inherit their
-     * city from the linked transporter profile. The resolved city name is
-     * therefore matched against fleet_transporter_profiles.city.
+     * Find every bookable Self Drive car for the selected city.
      */
-    private function findSelfDriveVehicle(?string $city): ?Vehicle
+    private function findSelfDriveVehicles(?string $city): Collection
     {
-        $baseQuery = Vehicle::query()
+        $query = Vehicle::query()
             ->with(['frontMedia', 'transporter'])
             ->availableForRental()
             ->selfDrive()
             ->cars()
-            ->where('daily_price', '>', 0);
+            ->where('daily_price', '>', 0)
+            ->whereNotNull('transporter_profile_id');
 
         if (filled($city)) {
             $normalizedCity = strtolower(trim((string) $city));
 
-            $cityVehicle = (clone $baseQuery)
-                ->whereHas('transporter', function (Builder $query) use ($normalizedCity): void {
-                    $query->whereRaw(
-                        'LOWER(TRIM(city)) = ?',
-                        [$normalizedCity]
-                    );
-                })
-                ->latest('id')
-                ->first();
-
-            if ($cityVehicle) {
-                return $cityVehicle;
-            }
+            $query->whereHas(
+                'transporter',
+                function (Builder $query) use ($normalizedCity): void {
+                    $query
+                        ->where('status', true)
+                        ->whereRaw(
+                            'LOWER(TRIM(city)) = ?',
+                            [$normalizedCity]
+                        );
+                }
+            );
+        } else {
+            $query->whereHas(
+                'transporter',
+                fn (Builder $query): Builder => $query->where('status', true)
+            );
         }
 
-        return $baseQuery
+        return $query
             ->latest('id')
-            ->first();
+            ->get();
     }
 
     /**
