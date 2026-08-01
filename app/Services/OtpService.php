@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Services;
 
 use App\Models\User;
@@ -43,7 +45,7 @@ class OtpService
         if (strlen($mobile) !== 10) {
             return [
                 'status' => false,
-                'message' => 'Please enter valid 10 digit mobile number.',
+                'message' => 'Please enter a valid 10-digit mobile number.',
             ];
         }
 
@@ -123,7 +125,7 @@ class OtpService
         return [
             'status' => true,
             'message' =>
-                'OTP sent successfully. Please check SMS, WhatsApp or Email.',
+                'OTP sent successfully. Please check your SMS, WhatsApp, or email.',
             'delivered_on' => $successChannels,
             'failed_channels' => $failedChannels,
             'expires_in' => self::OTP_EXPIRY_MINUTES * 60,
@@ -150,7 +152,7 @@ class OtpService
         if (strlen($mobile) !== 10) {
             return [
                 'status' => false,
-                'message' => 'Invalid mobile number.',
+                'message' => 'Please enter a valid mobile number.',
             ];
         }
 
@@ -159,7 +161,7 @@ class OtpService
         if (!preg_match('/^\d{4}$/', $otp)) {
             return [
                 'status' => false,
-                'message' => 'Please enter valid 4 digit OTP.',
+                'message' => 'Please enter a valid 4-digit OTP.',
             ];
         }
 
@@ -173,7 +175,7 @@ class OtpService
         if (!$user) {
             return [
                 'status' => false,
-                'message' => 'User not found. Please resend OTP.',
+                'message' => 'User account not found. Please request a new OTP.',
             ];
         }
 
@@ -184,7 +186,7 @@ class OtpService
         if (!$savedOtp && !$dbOtp) {
             return [
                 'status' => false,
-                'message' => 'OTP expired. Please resend OTP.',
+                'message' => 'The OTP has expired. Please request a new OTP.',
             ];
         }
 
@@ -197,7 +199,7 @@ class OtpService
             return [
                 'status' => false,
                 'message' =>
-                    'Maximum OTP attempts exceeded. Please request a new OTP.',
+                    'The maximum number of OTP verification attempts has been exceeded. Please request a new OTP.',
             ];
         }
 
@@ -235,7 +237,7 @@ class OtpService
                 'status' => false,
                 'message' => $remainingAttempts > 0
                     ? "Invalid OTP. {$remainingAttempts} attempt(s) remaining."
-                    : 'Invalid OTP. Maximum attempts exceeded.',
+                    : 'Invalid OTP. The maximum number of verification attempts has been exceeded.',
                 'remaining_attempts' => $remainingAttempts,
             ];
         }
@@ -261,7 +263,7 @@ class OtpService
 
         return [
             'status' => true,
-            'message' => 'Login Successful',
+            'message' => 'Login successful.',
             'token' => $token,
             'user' => $user->fresh(),
         ];
@@ -282,7 +284,7 @@ class OtpService
 
         if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
             return $this->fareFailure(
-                'Valid 10 digit mobile number enter karein.'
+                'Please enter a valid 10-digit mobile number.'
             );
         }
 
@@ -292,7 +294,7 @@ class OtpService
 
         if ((int) Cache::get($rateKey, 0) >= 3) {
             return $this->fareFailure(
-                'Bahut zyada OTP requests hui hain. 15 minute baad try karein.'
+                'Too many OTP requests have been made. Please try again after 15 minutes.'
             );
         }
 
@@ -325,7 +327,7 @@ class OtpService
             Cache::forget($this->fareOtpKey($scope, $mobile));
 
             return $this->fareFailure(
-                'OTP send nahi ho saka. Dobara try karein.',
+                'Unable to send the OTP. Please try again.',
                 ['channels' => $results]
             );
         }
@@ -333,7 +335,7 @@ class OtpService
         return [
             'success' => true,
             'status' => true,
-            'message' => 'OTP successfully send ho gaya.',
+            'message' => 'OTP sent successfully.',
             'mobile' => $mobile,
             'delivered_on' => $successChannels,
             'expires_in' => self::OTP_EXPIRY_MINUTES * 60,
@@ -350,11 +352,11 @@ class OtpService
         $scope = $this->cleanPurpose($scope) ?: 'default';
 
         if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
-            return $this->fareFailure('Valid mobile number enter karein.');
+            return $this->fareFailure('Please enter a valid mobile number.');
         }
 
         if (!preg_match('/^\d{4}$/', $otp)) {
-            return $this->fareFailure('Complete 4 digit OTP enter karein.');
+            return $this->fareFailure('Please enter the complete 4-digit OTP.');
         }
 
         $key = $this->fareOtpKey($scope, $mobile);
@@ -362,7 +364,7 @@ class OtpService
 
         if (!is_array($stored) || empty($stored['otp_hash'])) {
             return $this->fareFailure(
-                'OTP expire ho gaya. Naya OTP bhejein.'
+                'The OTP has expired. Please request a new OTP.'
             );
         }
 
@@ -372,7 +374,7 @@ class OtpService
             Cache::forget($key);
 
             return $this->fareFailure(
-                'Maximum attempts complete. Naya OTP bhejein.'
+                'The maximum number of verification attempts has been reached. Please request a new OTP.'
             );
         }
 
@@ -385,7 +387,7 @@ class OtpService
             );
 
             return $this->fareFailure(
-                'OTP galat hai. Dobara try karein.',
+                'The OTP is incorrect. Please try again.',
                 [
                     'remaining_attempts' => max(
                         0,
@@ -422,7 +424,7 @@ class OtpService
 
         if (!preg_match('/^[6-9]\d{9}$/', $mobileNumber)) {
             throw new \InvalidArgumentException(
-                'Valid mobile number is required.'
+                'A valid mobile number is required.'
             );
         }
 
@@ -454,8 +456,8 @@ class OtpService
     | Purpose-Based OTP
     |--------------------------------------------------------------------------
     |
-    | Wallet recharge approval jaise sensitive operations ke liye.
-    | Is flow me user login token create nahi hota.
+    | Used for sensitive operations such as wallet recharge approval.
+    | This flow verifies the OTP without creating a user login token.
     |
     */
 
@@ -470,14 +472,14 @@ class OtpService
         if (strlen($mobile) !== 10) {
             return [
                 'status' => false,
-                'message' => 'Invalid OTP receiver mobile number.',
+                'message' => 'Please enter a valid mobile number for OTP delivery.',
             ];
         }
 
         if ($purpose === '') {
             return [
                 'status' => false,
-                'message' => 'OTP purpose is required.',
+                'message' => 'An OTP purpose is required.',
             ];
         }
 
@@ -585,7 +587,7 @@ class OtpService
 
         return [
             'status' => true,
-            'message' => '4 digit OTP sent successfully.',
+            'message' => 'A 4-digit OTP was sent successfully.',
             'verification_id' => $verificationId,
             'mobile' => $this->maskMobile($mobile),
             'purpose' => $purpose,
@@ -609,21 +611,21 @@ class OtpService
         if (strlen($mobile) !== 10) {
             return [
                 'status' => false,
-                'message' => 'Invalid OTP receiver mobile number.',
+                'message' => 'Please enter a valid mobile number for OTP delivery.',
             ];
         }
 
         if ($purpose === '') {
             return [
                 'status' => false,
-                'message' => 'OTP purpose is required.',
+                'message' => 'An OTP purpose is required.',
             ];
         }
 
         if (!preg_match('/^\d{4}$/', $otp)) {
             return [
                 'status' => false,
-                'message' => 'Please enter valid 4 digit OTP.',
+                'message' => 'Please enter a valid 4-digit OTP.',
             ];
         }
 
@@ -637,7 +639,7 @@ class OtpService
             return [
                 'status' => false,
                 'message' =>
-                    'OTP expired or already used. Please request a new OTP.',
+                    'The OTP has expired or has already been used. Please request a new OTP.',
             ];
         }
 
@@ -651,7 +653,7 @@ class OtpService
         ) {
             return [
                 'status' => false,
-                'message' => 'Invalid OTP verification request.',
+                'message' => 'The OTP verification request is invalid.',
             ];
         }
 
@@ -669,7 +671,7 @@ class OtpService
 
             return [
                 'status' => false,
-                'message' => 'OTP verification request mismatch.',
+                'message' => 'The OTP verification request details do not match.',
             ];
         }
 
@@ -684,7 +686,7 @@ class OtpService
             return [
                 'status' => false,
                 'message' =>
-                    'Maximum OTP attempts exceeded. Please request a new OTP.',
+                    'The maximum number of OTP verification attempts has been exceeded. Please request a new OTP.',
                 'remaining_attempts' => 0,
             ];
         }
@@ -717,7 +719,7 @@ class OtpService
                 'status' => false,
                 'message' => $remainingAttempts > 0
                     ? "Invalid OTP. {$remainingAttempts} attempt(s) remaining."
-                    : 'Maximum OTP attempts exceeded. Please request a new OTP.',
+                    : 'The maximum number of OTP verification attempts has been exceeded. Please request a new OTP.',
                 'remaining_attempts' => $remainingAttempts,
             ];
         }
@@ -863,7 +865,7 @@ class OtpService
         $customerMessage = implode("\n", [
             'Dear User,',
             '',
-            'Your Dura Cabs registration has been completed.',
+            'Your Dura Cabs registration has been completed successfully.',
             '',
             'User ID: ' . ($user->email ?? $mobile),
             'Mobile Number: ' . $mobile,
@@ -889,7 +891,7 @@ class OtpService
         $adminMessage = implode("\n", [
             'Dear Duracabs,',
             '',
-            'A new customer account has been registered.',
+            'A new customer account has been registered successfully.',
             '',
             'Name: ' . ($user->name ?? ''),
             'Mobile Number: ' . $mobile,
@@ -983,7 +985,7 @@ class OtpService
                 return [
                     'status' => false,
                     'channel' => 'sms',
-                    'message' => 'SMS HTTP error',
+                    'message' => 'The SMS gateway returned an HTTP error.',
                     'response' => $body,
                 ];
             }
@@ -1000,7 +1002,7 @@ class OtpService
                     'status' => false,
                     'channel' => 'sms',
                     'message' =>
-                        'SMS gateway rejected request',
+                        'The SMS gateway rejected the request.',
                     'response' => $body,
                 ];
             }
@@ -1008,7 +1010,7 @@ class OtpService
             return [
                 'status' => true,
                 'channel' => 'sms',
-                'message' => 'SMS OTP sent',
+                'message' => 'SMS OTP sent successfully.',
                 'response' => $body,
             ];
         } catch (Throwable $e) {
@@ -1020,7 +1022,7 @@ class OtpService
             return [
                 'status' => false,
                 'channel' => 'sms',
-                'message' => 'SMS service failed',
+                'message' => 'The SMS service failed to send the OTP.',
                 'error' => $e->getMessage(),
             ];
         }
@@ -1036,7 +1038,7 @@ class OtpService
                     'status' => false,
                     'channel' => 'whatsapp',
                     'message' =>
-                        'WhatsApp service not available',
+                        'The WhatsApp service is not available.',
                 ];
             }
 
@@ -1049,8 +1051,8 @@ class OtpService
                 'status' => (bool) $sent,
                 'channel' => 'whatsapp',
                 'message' => $sent
-                    ? 'WhatsApp OTP sent'
-                    : 'WhatsApp OTP failed',
+                    ? 'WhatsApp OTP sent successfully.'
+                    : 'The WhatsApp service failed to send the OTP.',
             ];
         } catch (Throwable $e) {
             Log::error('Dura Cabs WhatsApp OTP Failed', [
@@ -1061,7 +1063,7 @@ class OtpService
             return [
                 'status' => false,
                 'channel' => 'whatsapp',
-                'message' => 'WhatsApp service failed',
+                'message' => 'The WhatsApp service encountered an error.',
                 'error' => $e->getMessage(),
             ];
         }
@@ -1080,7 +1082,7 @@ class OtpService
                     'status' => false,
                     'channel' => 'email',
                     'message' =>
-                        'Valid customer email not available',
+                        'A valid customer email address is not available.',
                 ];
             }
 
@@ -1089,7 +1091,7 @@ class OtpService
                     'status' => false,
                     'channel' => 'email',
                     'message' =>
-                        'Email service not available',
+                        'The email service is not available.',
                 ];
             }
 
@@ -1102,8 +1104,8 @@ class OtpService
                 'status' => (bool) $sent,
                 'channel' => 'email',
                 'message' => $sent
-                    ? 'Email OTP sent'
-                    : 'Email OTP failed',
+                    ? 'Email OTP sent successfully.'
+                    : 'The email service failed to send the OTP.',
             ];
         } catch (Throwable $e) {
             Log::error('Dura Cabs Email OTP Failed', [
@@ -1114,7 +1116,7 @@ class OtpService
             return [
                 'status' => false,
                 'channel' => 'email',
-                'message' => 'Email service failed',
+                'message' => 'The email service encountered an error.',
                 'error' => $e->getMessage(),
             ];
         }
