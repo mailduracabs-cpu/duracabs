@@ -253,6 +253,8 @@ return [
                 'WHATSAPP_TEMPLATE_SELF_DRIVE_DROP'
             ),
 
+
+
             /*
             |--------------------------------------------------------------------------
             | CRM follow-up templates
@@ -276,5 +278,22 @@ return [
             ),
         ],
     ],
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Razorpay
+    |--------------------------------------------------------------------------
+    |
+    | Razorpay credentials are loaded from the environment file.
+    |
+    */
+
+    'razorpay' => [
+        'key' => env('RAZORPAY_KEY_ID'),
+        'secret' => env('RAZORPAY_KEY_SECRET'),
+        'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
+    ],
+
 
 ];

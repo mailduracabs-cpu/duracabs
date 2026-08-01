@@ -34,6 +34,8 @@ class CheckoutPage extends Component
     public $couponName;
     public $couponValue = 0;
     public $payment_method;
+    public string $payment_option = 'token';
+    public float $reservationTokenAmount = 500.00;
 
     public $order_id;
     public $grandTotal = 0;
@@ -49,9 +51,9 @@ class CheckoutPage extends Component
     public ?string $pricingError = null;
 
     public $extraAmountArr = [
-        ['is_checked' => false, 'type' => 'newWehical', 'title' => 'New Vehical', 'price' => 0],
+        ['is_checked' => false, 'type' => 'newWehical', 'title' => 'New Vehicle', 'price' => 0],
         ['is_checked' => false, 'type' => 'petFrindly', 'title' => 'Pet Friendly', 'price' => 0],
-        ['is_checked' => false, 'type' => 'roofCareer', 'title' => 'Roof Career', 'price' => 0],
+        ['is_checked' => false, 'type' => 'roofCareer', 'title' => 'Roof Carrier', 'price' => 0],
     ];
 
     public function mount()
@@ -273,6 +275,36 @@ class CheckoutPage extends Component
         }
     }
 
+    public function updatedPaymentOption(): void
+    {
+        if (! in_array($this->payment_option, ['token', 'full'], true)) {
+            $this->payment_option = 'token';
+        }
+    }
+
+    public function getAmountPayableNowProperty(): float
+    {
+        if (! $this->isSelfDriveBooking()) {
+            return $this->money($this->grandTotal);
+        }
+
+        if ($this->payment_option === 'full') {
+            return $this->money($this->grandTotal);
+        }
+
+        return min(
+            $this->money($this->reservationTokenAmount),
+            $this->money($this->grandTotal)
+        );
+    }
+
+    public function getBalanceAmountProperty(): float
+    {
+        return $this->isSelfDriveBooking()
+            ? $this->money($this->grandTotal - $this->amountPayableNow)
+            : 0.00;
+    }
+
     public function placeOrder()
     {
         if ($this->isSubmitting) {
@@ -282,15 +314,25 @@ class CheckoutPage extends Component
         $this->isSubmitting = true;
 
         try {
-            $this->validate([
+            $rules = [
                 'full_name' => 'required|string|max:150',
                 'phone' => 'required|digits:10',
-                'phone2' => 'nullable|digits:10',
                 'email' => 'required|email|max:150',
-                'pickup_address' => 'required|string|max:500',
-                'drop_address' => 'nullable|string|max:500',
-                'payment_method' => 'required|in:cash,RazorPay',
-            ]);
+            ];
+
+            if ($this->isSelfDriveBooking()) {
+                $rules['payment_option'] = 'required|in:token,full';
+                $rules['payment_method'] = 'required|in:RazorPay';
+            } else {
+                $rules += [
+                    'phone2' => 'nullable|digits:10',
+                    'pickup_address' => 'required|string|max:500',
+                    'drop_address' => 'nullable|string|max:500',
+                    'payment_method' => 'required|in:cash,RazorPay',
+                ];
+            }
+
+            $this->validate($rules);
         } catch (Throwable $exception) {
             $this->isSubmitting = false;
             throw $exception;
@@ -344,7 +386,7 @@ class CheckoutPage extends Component
             if ($this->payment_method === 'RazorPay') {
                 return redirect(
                     route('razorpay')
-                    . '?amount=' . $grandTotal
+                    . '?amount=' . $this->amountPayableNow
                     . '&name=' . urlencode((string) $this->full_name)
                     . '&email=' . urlencode((string) $this->email)
                     . '&phone=' . urlencode((string) $this->phone)
@@ -360,7 +402,12 @@ class CheckoutPage extends Component
             report($exception);
             Cache::forget($lockKey);
             $this->isSubmitting = false;
-            session()->flash('error', 'Unable to place order. Please try again.');
+            session()->flash(
+                'error',
+                app()->isLocal()
+                    ? $exception->getMessage()
+                    : 'We could not process your reservation. Please try again.'
+            );
 
             return null;
         }
@@ -400,19 +447,36 @@ class CheckoutPage extends Component
             $order->dateTo = $this->nullIfEmpty($trip['end_date'] ?? null);
             $order->time = $this->nullIfEmpty($trip['time'] ?? null);
             $order->endTime = $this->nullIfEmpty($trip['end_time'] ?? null);
-            $order->booking_from = $this->pickup_address;
-            $order->booking_to = $this->drop_address ?: null;
+            $order->booking_from = $this->isSelfDriveBooking()
+                ? 'Pending customer profile completion'
+                : $this->pickup_address;
+            $order->booking_to = $this->isSelfDriveBooking()
+                ? null
+                : ($this->drop_address ?: null);
             $order->productName = $product['name'] ?? $vehicle['name'] ?? 'Dura Cabs Booking';
             $order->taxi_type = $product['category_name'] ?? null;
             $order->total_km = $trip['km_value'] ?? $trip['km'] ?? null;
             $order->plan = $this->normalisePlan($trip['plan'] ?? null);
 
+            $resolvedVehicle = null;
+
             if ($rideType === 'self_drive' && ! empty($draft['vehicle_id'])) {
                 $resolvedVehicle = $this->resolveSelfDriveVehicle();
+
                 $order->vehicle_id = (int) $draft['vehicle_id'];
-                $order->transporter_id = $resolvedVehicle?->transporter_profile_id
-                    ?? $vehicle['transporter_id']
-                    ?? null;
+
+                /*
+                 * orders.transporter_id references the transporter User record.
+                 * Vehicle ownership is linked through TransporterProfile, so the
+                 * profile's user_id must be stored here—not transporter_profile_id.
+                 */
+                if ($resolvedVehicle) {
+                    $resolvedVehicle->loadMissing('transporter.user');
+
+                    $order->transporter_id = $resolvedVehicle->transporter?->user_id
+                        ?? $resolvedVehicle->user_id
+                        ?? null;
+                }
             }
 
             if (Schema::hasColumn($order->getTable(), 'extraOptions')) {
@@ -428,6 +492,16 @@ class CheckoutPage extends Component
                     'discount_amount' => $this->discountAmount,
                     'pricing_breakdown' => $this->pricingBreakdown,
                     'booking_draft' => $draft,
+                    'transporter_profile_id' => $resolvedVehicle?->transporter_profile_id,
+                    'transporter_user_id' => $order->transporter_id,
+                    'reservation' => $this->isSelfDriveBooking() ? [
+                        'payment_option' => $this->payment_option,
+                        'reservation_token_amount' => $this->money($this->reservationTokenAmount),
+                        'amount_payable_now' => $this->amountPayableNow,
+                        'balance_amount' => $this->balanceAmount,
+                        'details_status' => 'pending',
+                        'current_step' => 'quick_reservation',
+                    ] : null,
                 ];
             }
 
@@ -439,12 +513,14 @@ class CheckoutPage extends Component
                 'full_name' => $this->full_name,
                 'email' => $this->email,
                 'phone' => $this->phone,
-                'phone2' => $this->phone2 ?: null,
-                'pickup_address' => $this->pickup_address,
-                'drop_address' => $this->drop_address ?: null,
-                'number_travellers' => $this->number_travellers ?: null,
-                'number_luggage' => $this->number_luggage ?: null,
-                'comments' => $this->comments ?: null,
+                'phone2' => $this->isSelfDriveBooking() ? null : ($this->phone2 ?: null),
+                'pickup_address' => $this->isSelfDriveBooking()
+                    ? 'Pending customer profile completion'
+                    : $this->pickup_address,
+                'drop_address' => $this->isSelfDriveBooking() ? null : ($this->drop_address ?: null),
+                'number_travellers' => $this->isSelfDriveBooking() ? null : ($this->number_travellers ?: null),
+                'number_luggage' => $this->isSelfDriveBooking() ? null : ($this->number_luggage ?: null),
+                'comments' => $this->isSelfDriveBooking() ? null : ($this->comments ?: null),
             ]);
 
             $productId = $draft['product_id'] ?? $product['id'] ?? null;
@@ -493,14 +569,14 @@ class CheckoutPage extends Component
                 'is_checked' => false,
                 'type' => 'roofCareer',
                 'description' => 'Car with roof carrier for adjusting extra luggage',
-                'title' => 'Roof Career',
+                'title' => 'Roof Carrier',
                 'price' => $this->optionPrice($product['roof_carrier'] ?? 0),
             ],
             [
                 'is_checked' => false,
                 'type' => 'newWehical',
                 'description' => 'Promised new car with 2023 or newer model',
-                'title' => 'New Vehical',
+                'title' => 'New Vehicle',
                 'price' => $this->optionPrice($product['new_vehicle'] ?? 0),
             ],
             [
@@ -525,6 +601,13 @@ class CheckoutPage extends Component
             ?: (string) Arr::get($this->bookingDraft, 'trip.pickup_name', '');
         $this->drop_address = $this->drop_address
             ?: (string) Arr::get($this->bookingDraft, 'trip.drop_name', '');
+
+        if ($this->isSelfDriveBooking()) {
+            $this->payment_method = 'RazorPay';
+            $this->payment_option = in_array($this->payment_option, ['token', 'full'], true)
+                ? $this->payment_option
+                : 'token';
+        }
     }
 
     private function getBookingDraft(): array
@@ -707,6 +790,9 @@ class CheckoutPage extends Component
         $product = (array) ($this->bookingDraft['product'] ?? []);
         $vehicle = (array) ($this->bookingDraft['vehicle'] ?? []);
         $quantity = max(1, (int) ($trip['quantity'] ?? $fare['quantity'] ?? 1));
+        $resolvedVehicle = $this->isSelfDriveBooking()
+            ? $this->resolveSelfDriveVehicle(false)
+            : null;
 
         return [[
             'id' => $this->bookingDraft['product_id'] ?? $this->bookingDraft['vehicle_id'] ?? null,
@@ -715,6 +801,8 @@ class CheckoutPage extends Component
             'type' => $this->bookingDraft['type'] ?? null,
             'name' => $product['name'] ?? $vehicle['name'] ?? 'Dura Cabs Booking',
             'cabModel' => $product['category_name'] ?? $vehicle['name'] ?? null,
+            'image_url' => $resolvedVehicle?->front_image_url
+                ?? ($product['image_url'] ?? $vehicle['image_url'] ?? null),
             'quantity' => $quantity,
             'unit_ammount' => $this->isSelfDriveBooking()
                 ? $this->money($this->pricingBreakdown['rate'] ?? 0)
@@ -756,6 +844,9 @@ class CheckoutPage extends Component
                 'cart_items' => [],
                 'grand_total' => 0,
                 'availableCoupons' => $availableCoupons,
+                'isSelfDrive' => false,
+                'amountPayableNow' => 0,
+                'balanceAmount' => 0,
             ]);
         }
 
@@ -766,6 +857,9 @@ class CheckoutPage extends Component
             'cart_items' => $this->cartItemsForView(),
             'grand_total' => $this->getBaseFare(),
             'availableCoupons' => $availableCoupons,
+            'isSelfDrive' => $this->isSelfDriveBooking(),
+            'amountPayableNow' => $this->amountPayableNow,
+            'balanceAmount' => $this->balanceAmount,
         ]);
     }
 }

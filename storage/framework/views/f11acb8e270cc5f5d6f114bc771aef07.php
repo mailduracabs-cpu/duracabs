@@ -9,13 +9,15 @@
                         </p>
 
                         <h1 class="mt-2 truncate text-2xl font-extrabold">
-                            Booking #{{ $order->booking_number }}
+                            Booking #<?php echo e($order->booking_number); ?>
+
                         </h1>
 
                         <p class="mt-2 text-sm leading-6 text-slate-200">
-                            {{ $isSelfDrive && $paymentOption === 'token'
+                            <?php echo e($isSelfDrive && $paymentOption === 'token'
                                 ? 'Pay the reservation token to secure your selected vehicle.'
-                                : 'Complete the secure payment for your reservation.' }}
+                                : 'Complete the secure payment for your reservation.'); ?>
+
                         </p>
                     </div>
 
@@ -43,24 +45,24 @@
                         this.processing = true;
 
                         const options = {
-                            key: @js(config('services.razorpay.key', env('RAZORPAY_API_KEY'))),
-                            amount: {{ (int) round(((float) $paymentAmount) * 100) }},
+                            key: <?php echo \Illuminate\Support\Js::from(config('services.razorpay.key', env('RAZORPAY_API_KEY')))->toHtml() ?>,
+                            amount: <?php echo e((int) round(((float) $paymentAmount) * 100)); ?>,
                             currency: 'INR',
-                            name: @js(config('app.name', 'Dura Cabs')),
-                            description: @js(
+                            name: <?php echo \Illuminate\Support\Js::from(config('app.name', 'Dura Cabs'))->toHtml() ?>,
+                            description: <?php echo \Illuminate\Support\Js::from(
                                 $isSelfDrive && $paymentOption === 'token'
                                     ? 'Self-Drive Reservation Token'
                                     : 'Dura Cabs Booking Payment'
-                            ),
-                            image: @js(asset('images/logo.png')),
+                            )->toHtml() ?>,
+                            image: <?php echo \Illuminate\Support\Js::from(asset('images/logo.png'))->toHtml() ?>,
                             prefill: {
-                                name: @js($customerName),
-                                email: @js($customerEmail),
-                                contact: @js($customerPhone),
+                                name: <?php echo \Illuminate\Support\Js::from($customerName)->toHtml() ?>,
+                                email: <?php echo \Illuminate\Support\Js::from($customerEmail)->toHtml() ?>,
+                                contact: <?php echo \Illuminate\Support\Js::from($customerPhone)->toHtml() ?>,
                             },
                             notes: {
-                                booking_id: @js((string) $order->id),
-                                payment_option: @js($paymentOption),
+                                booking_id: <?php echo \Illuminate\Support\Js::from((string) $order->id)->toHtml() ?>,
+                                payment_option: <?php echo \Illuminate\Support\Js::from($paymentOption)->toHtml() ?>,
                             },
                             theme: {
                                 color: '#0284c7',
@@ -106,11 +108,12 @@
                     }
                 }"
             >
-                @if (session('error'))
+                <!--[if BLOCK]><![endif]--><?php if(session('error')): ?>
                     <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                        {{ session('error') }}
+                        <?php echo e(session('error')); ?>
+
                     </div>
-                @endif
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                 <section class="grid gap-3 sm:grid-cols-2">
                     <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -119,7 +122,8 @@
                         </p>
 
                         <p class="mt-1 font-bold text-slate-900">
-                            {{ $order->productName ?: 'Dura Cabs Booking' }}
+                            <?php echo e($order->productName ?: 'Dura Cabs Booking'); ?>
+
                         </p>
                     </div>
 
@@ -129,9 +133,10 @@
                         </p>
 
                         <p class="mt-1 font-bold text-slate-900">
-                            {{ $isSelfDrive && $paymentOption === 'token'
+                            <?php echo e($isSelfDrive && $paymentOption === 'token'
                                 ? 'Reservation Token'
-                                : 'Full Payment' }}
+                                : 'Full Payment'); ?>
+
                         </p>
                     </div>
                 </section>
@@ -142,19 +147,21 @@
                             <span class="text-slate-600">Total Reservation Value</span>
 
                             <strong class="text-slate-900">
-                                ₹{{ number_format((float) $bookingTotal, 2) }}
+                                ₹<?php echo e(number_format((float) $bookingTotal, 2)); ?>
+
                             </strong>
                         </div>
 
-                        @if ($isSelfDrive && $paymentOption === 'token')
+                        <!--[if BLOCK]><![endif]--><?php if($isSelfDrive && $paymentOption === 'token'): ?>
                             <div class="flex items-center justify-between gap-4 text-sm">
                                 <span class="text-slate-600">Remaining Balance</span>
 
                                 <strong class="text-slate-900">
-                                    ₹{{ number_format((float) $balanceAmount, 2) }}
+                                    ₹<?php echo e(number_format((float) $balanceAmount, 2)); ?>
+
                                 </strong>
                             </div>
-                        @endif
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div class="flex items-center justify-between gap-4 border-t border-slate-200 bg-blue-50 px-5 py-4">
@@ -163,7 +170,8 @@
                         </span>
 
                         <strong class="text-2xl font-extrabold text-blue-700">
-                            ₹{{ number_format((float) $paymentAmount, 2) }}
+                            ₹<?php echo e(number_format((float) $paymentAmount, 2)); ?>
+
                         </strong>
                     </div>
                 </section>
@@ -192,13 +200,13 @@
 
                 <form
                     x-ref="paymentForm"
-                    action="{{ route('razorpay.payment.store') }}"
+                    action="<?php echo e(route('razorpay.payment.store')); ?>"
                     method="POST"
                     class="hidden"
                 >
-                    @csrf
+                    <?php echo csrf_field(); ?>
 
-                    <input type="hidden" name="booking_id" value="{{ $order->id }}">
+                    <input type="hidden" name="booking_id" value="<?php echo e($order->id); ?>">
                     <input x-ref="razorpayPaymentId" type="hidden" name="razorpay_payment_id">
                     <input x-ref="razorpayOrderId" type="hidden" name="razorpay_order_id">
                     <input x-ref="razorpaySignature" type="hidden" name="razorpay_signature">
@@ -217,7 +225,7 @@
 
                         <span class="mt-1 block text-lg font-extrabold">
                             <span x-show="!processing">
-                                Pay ₹{{ number_format((float) $paymentAmount, 2) }} Securely
+                                Pay ₹<?php echo e(number_format((float) $paymentAmount, 2)); ?> Securely
                             </span>
 
                             <span x-show="processing" x-cloak>
@@ -256,4 +264,4 @@
     </div>
 
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-</div>
+</div><?php /**PATH C:\xampp\htdocs\duracabs\resources\views/livewire/razore-pay.blade.php ENDPATH**/ ?>

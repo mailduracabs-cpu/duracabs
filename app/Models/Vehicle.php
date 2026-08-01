@@ -523,6 +523,36 @@ class Vehicle extends Model
 
         return DuraImage::url($this->interior_image);
     }
+	public function getGalleryImagesAttribute(): array
+{
+    $images = [
+        [
+            'key' => 'front',
+            'title' => 'Front View',
+            'url' => $this->front_image_url,
+        ],
+        [
+            'key' => 'back',
+            'title' => 'Back View',
+            'url' => $this->back_image_url,
+        ],
+        [
+            'key' => 'interior',
+            'title' => $this->isBikeRental()
+                ? 'Side / Dashboard View'
+                : 'Interior View',
+            'url' => $this->interior_image_url,
+        ],
+    ];
+
+    return array_values(
+        array_filter(
+            $images,
+            static fn (array $image): bool =>
+                filled($image['url'] ?? null)
+        )
+    );
+}
 
     public function getDisplayNameAttribute(): string
     {

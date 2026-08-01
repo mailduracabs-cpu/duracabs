@@ -1,4 +1,125 @@
-<div class="premium-motion-page rides-premium-page {{ ($tab ?? null) === 'self_drive' ? 'self-drive-mode' : '' }} w-full max-w-[86rem] px-3 sm:px-5 lg:px-6 mx-auto" id="rides-page" x-data="{ otpSeconds: 0 }" x-on:rides-otp-sent.window="otpSeconds = $event.detail.seconds; const timer = setInterval(() => { otpSeconds--; if (otpSeconds <= 0) clearInterval(timer); }, 1000)">
+<div
+    class="premium-motion-page rides-premium-page {{ ($tab ?? null) === 'self_drive' ? 'self-drive-mode' : '' }} w-full max-w-[86rem] px-3 sm:px-5 lg:px-6 mx-auto"
+    id="rides-page"
+    x-data="{
+        otpSeconds: 0,
+        galleryOpen: false,
+        galleryImages: [],
+        galleryIndex: 0,
+        galleryVehicleName: '',
+        galleryTouchStartX: 0,
+
+        selfDriveFareOpen: false,
+        selfDriveFare: {},
+
+        openSelfDriveFare(details) {
+            this.selfDriveFare = details || {};
+            this.selfDriveFareOpen = true;
+            document.documentElement.classList.add('overflow-hidden');
+            document.body.classList.add('overflow-hidden');
+
+            this.$nextTick(() => {
+                this.$refs.selfDriveFareCloseButton?.focus();
+            });
+        },
+
+        closeSelfDriveFare() {
+            this.selfDriveFareOpen = false;
+            document.documentElement.classList.remove('overflow-hidden');
+            document.body.classList.remove('overflow-hidden');
+        },
+
+        formatInr(amount) {
+            return new Intl.NumberFormat('en-IN', {
+                style: 'currency',
+                currency: 'INR',
+                maximumFractionDigits: 0
+            }).format(Number(amount || 0));
+        },
+
+        openGallery(images, vehicleName, startIndex = 0) {
+            if (!Array.isArray(images) || images.length === 0) {
+                return;
+            }
+
+            this.galleryImages = images;
+            this.galleryVehicleName = vehicleName || 'Vehicle Gallery';
+            this.galleryIndex = Math.min(
+                Math.max(Number(startIndex) || 0, 0),
+                images.length - 1
+            );
+            this.galleryOpen = true;
+
+            document.documentElement.classList.add('overflow-hidden');
+            document.body.classList.add('overflow-hidden');
+
+            this.$nextTick(() => {
+                this.$refs.galleryCloseButton?.focus();
+            });
+        },
+
+        closeGallery() {
+            this.galleryOpen = false;
+            document.documentElement.classList.remove('overflow-hidden');
+            document.body.classList.remove('overflow-hidden');
+        },
+
+        nextGalleryImage() {
+            if (this.galleryImages.length < 2) {
+                return;
+            }
+
+            this.galleryIndex =
+                (this.galleryIndex + 1) % this.galleryImages.length;
+        },
+
+        previousGalleryImage() {
+            if (this.galleryImages.length < 2) {
+                return;
+            }
+
+            this.galleryIndex =
+                (this.galleryIndex - 1 + this.galleryImages.length)
+                % this.galleryImages.length;
+        },
+
+        startGalleryTouch(event) {
+            this.galleryTouchStartX =
+                event.changedTouches?.[0]?.clientX ?? 0;
+        },
+
+        endGalleryTouch(event) {
+            const touchEndX =
+                event.changedTouches?.[0]?.clientX ?? 0;
+
+            const difference = touchEndX - this.galleryTouchStartX;
+
+            if (Math.abs(difference) < 45) {
+                return;
+            }
+
+            if (difference < 0) {
+                this.nextGalleryImage();
+            } else {
+                this.previousGalleryImage();
+            }
+        }
+    }"
+    x-on:rides-otp-sent.window="
+        otpSeconds = $event.detail.seconds;
+
+        const timer = setInterval(() => {
+            otpSeconds--;
+
+            if (otpSeconds <= 0) {
+                clearInterval(timer);
+            }
+        }, 1000);
+    "
+    x-on:keydown.escape.window="if (galleryOpen) closeGallery(); if (selfDriveFareOpen) closeSelfDriveFare()"
+    x-on:keydown.arrow-right.window="if (galleryOpen) nextGalleryImage()"
+    x-on:keydown.arrow-left.window="if (galleryOpen) previousGalleryImage()"
+>
     @section('title', $pageTitle)
     @section('description', $pageDescription)
     @section('image', $pageImage)
@@ -109,7 +230,7 @@
 
             <div wire:loading.flex wire:target="sort,selected_categories,selected_brands,price_range" class="surface mb-4 items-center gap-3 px-4 py-3 text-sm font-semibold text-blue-700">
                 <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
-                Updating available rides…
+                Updating available vehicles…
             </div>
             <div class="lg:flex flex-wrap mb-24 -mx-3">
                 <div class="rides-layout-sidebar w-full pr-2 lg:w-1/4 lg:block hidden">
@@ -224,9 +345,9 @@
                     @endif
 
                     <div class="rides-side-card p-4 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900">
-                        <h2 class="text-xl font-medium text-sky-500 dark:text-gray-400"> Need Help Booking?</h2>
+                        <h2 class="text-xl font-medium text-sky-500 dark:text-gray-400"> Need Booking Assistance?</h2>
                         <div class="flex mt-3">
-                            <p>Call Our Customer Care Executive. We Are Available 24×7 Just Dial.</p>
+                            <p>Contact our customer assistance team. Support is available 24×7.</p>
 
                         </div>
                         <div class="flex mt-3">
@@ -441,7 +562,7 @@
                             @if ($tab === 'self_drive')
                                 <div class="mb-3 flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
                                     <div class="min-w-0">
-                                        <h2 class="truncate text-sm font-extrabold text-slate-900 sm:text-base">Available Self Drive Cars</h2>
+                                        <h2 class="truncate text-sm font-extrabold text-slate-900 sm:text-base">Available Self-Drive Vehicles</h2>
                                         <p class="text-xs text-slate-500">{{ $rides->total() }} vehicle(s) found</p>
                                     </div>
                                 </div>
@@ -458,7 +579,7 @@
                                                 <button type="button" wire:click="showEditQueryModal"
                                                     class="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700">
                                                     <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
-                                                    Change Date &amp; Time
+                                                    Modify Rental Schedule
                                                 </button>
                                             </div>
                                         </div>
@@ -486,14 +607,14 @@
                         wire:click="showEditQueryModal"
                         class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-700">
                         <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
-                        Change Date &amp; Time
+                        Modify Rental Schedule
                     </button>
 
                     <button type="button"
                         wire:click="viewOtherSelfDriveCars"
                         class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-400 bg-white px-5 py-2.5 text-sm font-bold text-amber-800 transition hover:bg-amber-100">
                         <i class="fa-solid fa-car-side" aria-hidden="true"></i>
-                        View Other Cars
+                        Browse Similar Vehicles
                     </button>
                 </div>
             </div>
@@ -529,6 +650,24 @@
                 $vehicleImage = $vehicle->front_image_url
                     ?: asset('cab_images/default-car.png');
 
+                $vehicleGallery = collect($vehicle->gallery_images ?? [])
+                    ->filter(
+                        fn (array $image): bool =>
+                            filled($image['url'] ?? null)
+                    )
+                    ->values()
+                    ->all();
+
+                if (empty($vehicleGallery)) {
+                    $vehicleGallery = [
+                        [
+                            'key' => 'front',
+                            'title' => 'Front View',
+                            'url' => $vehicleImage,
+                        ],
+                    ];
+                }
+
                 $vendorName = data_get($vehicle, 'transporter.business_name')
                     ?: data_get($vehicle, 'transporter.company_name')
                     ?: data_get($vehicle, 'transporter.name')
@@ -539,34 +678,62 @@
                     ?? data_get($vehicle, 'distance');
 
                 $distanceLabel = is_numeric($vendorDistance)
-                    ? number_format((float) $vendorDistance, 1) . ' km from pickup'
-                    : 'Pickup from vendor location';
+                    ? number_format((float) $vendorDistance, 1) . ' km from Pick-up Location'
+                    : 'Pick-up at Partner Location';
             @endphp
 
             <article wire:key="self-drive-vehicle-{{ $vehicle->id }}"
                 class="sd-premium-card">
 
-                <div class="sd-premium-media">
-                    <img src="{{ $vehicleImage }}"
+                <div class="sd-premium-media group">
+                    <button
+                        type="button"
+                        class="absolute inset-0 z-[2] cursor-zoom-in"
+                        x-on:click="openGallery(
+                            @js($vehicleGallery),
+                            @js($vehicle->display_name),
+                            0
+                        )"
+                        aria-label="View the complete vehicle gallery for {{ $vehicle->display_name }}"
+                    >
+                        <span class="sr-only">
+                            View the complete vehicle gallery for {{ $vehicle->display_name }}
+                        </span>
+                    </button>
+
+                    <img
+                        src="{{ $vehicleImage }}"
                         alt="{{ $vehicle->display_name }}"
-                        title="{{ $vehicle->display_name }}"
+                        title="Open the vehicle gallery for {{ $vehicle->display_name }} photos"
                         loading="{{ $loop->first ? 'eager' : 'lazy' }}"
                         fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
                         decoding="async"
                         width="420"
                         height="240"
-                        onerror="this.onerror=null;this.src='{{ asset('cab_images/default-car.png') }}';">
+                        class="transition duration-500 group-hover:scale-105"
+                        onerror="this.onerror=null;this.src='{{ asset('cab_images/default-car.png') }}';"
+                    >
 
-                    <div class="sd-premium-badges">
+                    <div
+                        class="pointer-events-none absolute bottom-3 left-3 z-[4] inline-flex items-center gap-2 rounded-full border border-white/30 bg-slate-950/75 px-3 py-2 text-xs font-extrabold text-white shadow-lg backdrop-blur-md"
+                    >
+                        <i class="fa-solid fa-images" aria-hidden="true"></i>
+                        <span>View Gallery</span>
+                        <span class="rounded-full bg-white/20 px-1.5 py-0.5">
+                            {{ count($vehicleGallery) }}
+                        </span>
+                    </div>
+
+                    <div class="sd-premium-badges pointer-events-none z-[4]">
                         <span class="sd-premium-badge sd-premium-badge-blue">
                             <i class="fa-solid fa-car-side"></i>
-                            Self Drive
+                            Self-Drive Rental
                         </span>
 
                         @if ($vehicle->is_verified ?? false)
                             <span class="sd-premium-badge sd-premium-badge-green">
                                 <i class="fa-solid fa-circle-check"></i>
-                                Verified
+                                Verified Partner
                             </span>
                         @endif
                     </div>
@@ -588,7 +755,7 @@
                         <div class="sd-premium-rating">
                             <i class="fa-solid fa-star"></i>
                             <strong>4.8</strong>
-                            <span>Top rated</span>
+                            <span>Highly Rated</span>
                         </div>
                     </div>
 
@@ -600,7 +767,7 @@
                     <div class="sd-premium-specs">
                         <span>
                             <i class="fa-solid fa-gas-pump"></i>
-                            <small>Fuel</small>
+                            <small>Fuel Type</small>
                             <strong>
                                 {{ filled($vehicle->fuel_type)
                                     ? ucfirst($vehicle->fuel_type)
@@ -610,7 +777,7 @@
 
                         <span>
                             <i class="fa-solid fa-gears"></i>
-                            <small>Transmission</small>
+                            <small>Transmission Type</small>
                             <strong>
                                 {{ filled($vehicle->transmission)
                                     ? ucfirst($vehicle->transmission)
@@ -620,13 +787,13 @@
 
                         <span>
                             <i class="fa-solid fa-users"></i>
-                            <small>Seats</small>
+                            <small>Seating Capacity</small>
                             <strong>{{ $vehicle->seats ?: 'N/A' }}</strong>
                         </span>
 
                         <span>
                             <i class="fa-regular fa-clock"></i>
-                            <small>Duration</small>
+                            <small>Rental Duration</small>
                             <strong>{{ $selfDriveHours }} hrs</strong>
                         </span>
                     </div>
@@ -639,18 +806,18 @@
 
                         <span>
                             <i class="fa-solid fa-bolt"></i>
-                            Instant confirmation
+                            Instant Confirmation Available
                         </span>
 
                         <span>
                             <i class="fa-solid fa-headset"></i>
-                            24×7 support
+                            24×7 Customer Assistance
                         </span>
                     </div>
                 </div>
 
                 <div class="sd-premium-booking">
-                    <p class="sd-premium-price-label">Payable rental</p>
+                    <p class="sd-premium-price-label">Rental Charges</p>
 
                     @if ($hasValidPrice)
                         <div class="sd-premium-price">
@@ -681,11 +848,11 @@
                         @endif
                     @else
                         <div class="sd-premium-unavailable">
-                            Price unavailable
+                            Currently Unavailable
                         </div>
 
                         <p class="sd-premium-rate">
-                            Vendor price required
+                            Pricing Available on Request
                         </p>
                     @endif
 
@@ -699,7 +866,7 @@
                         <span wire:loading.remove
                             wire:target="addToCartSelfDrive({{ $vehicle->id }})">
 
-                            {{ $hasValidPrice ? 'Select This Car' : 'Unavailable' }}
+                            {{ $hasValidPrice ? 'Continue with this Vehicle' : 'Currently Unavailable' }}
 
                             @if ($hasValidPrice)
                                 <i class="fa-solid fa-arrow-right"></i>
@@ -710,14 +877,38 @@
                             wire:target="addToCartSelfDrive({{ $vehicle->id }})">
 
                             <i class="fa-solid fa-spinner fa-spin"></i>
-                            Please wait
+                            Processing...
                         </span>
                     </button>
 
-                    <p class="sd-premium-safe">
-                        <i class="fa-solid fa-lock"></i>
-                        Secure booking
-                    </p>
+                    <div class="mt-3 flex flex-wrap items-center justify-center gap-2">
+                        <span class="sd-premium-safe !m-0 inline-flex items-center gap-1.5">
+                            <i class="fa-solid fa-lock"></i>
+                            Secure Reservation
+                        </span>
+
+                        @if ($hasValidPrice)
+                            <button
+                                type="button"
+                                x-on:click="openSelfDriveFare(@js([
+                                    'vehicleName' => $vehicle->display_name,
+                                    'hourlyPrice' => $hourlyPrice,
+                                    'selectedHours' => $selfDriveHours,
+                                    'minimumHours' => $minimumBookingHours,
+                                    'billableHours' => $billableHours,
+                                    'rentalTotal' => $rentalTotal,
+                                    'securityDeposit' => $securityDeposit,
+                                    'payableAtBooking' => $rentalTotal + $securityDeposit,
+                                ]))"
+                                class="inline-flex h-7 items-center justify-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 text-[11px] font-extrabold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 focus:outline-none focus:ring-4 focus:ring-sky-100"
+                                aria-label="View fare details for {{ $vehicle->display_name }}"
+                                title="Rental Cost Breakdown"
+                            >
+                                <i class="fa-solid fa-circle-info text-xs" aria-hidden="true"></i>
+                                <span>Rental Cost Breakdown</span>
+                            </button>
+                        @endif
+                    </div>
                 </div>
             </article>
         @empty
@@ -727,17 +918,17 @@
                 </div>
 
                 <h3 class="mt-4 text-xl font-extrabold text-slate-900">
-                    No self-drive vehicle found
+                    No Self-Drive Vehicles Available
                 </h3>
 
                 <p class="mt-2 text-sm text-slate-600">
-                    Change the location, date, time or price filter and search again.
+                    Please modify your pick-up location, rental schedule, or filters to view available vehicles.
                 </p>
 
                 <button type="button"
                     wire:click="showEditQueryModal"
                     class="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white hover:bg-blue-700">
-                    Edit trip
+                    Modify Search
                 </button>
             </div>
         @endforelse
@@ -828,9 +1019,9 @@
 
 
                     <div class="rides-side-card p-4 mb-5 bg-white border border-gray-200 dark:border-gray-900 dark:bg-gray-900">
-                        <h2 class="text-2xl font-medium text-sky-500 dark:text-gray-400"> Need Help Booking?</h2>
+                        <h2 class="text-2xl font-medium text-sky-500 dark:text-gray-400"> Need Booking Assistance?</h2>
                         <div class="flex mt-3">
-                            <p>Call Our Customer Care Executive. We Are Available 24×7 Just Dial.</p>
+                            <p>Contact our customer assistance team. Support is available 24×7.</p>
 
                         </div>
                         <div class="flex mt-3">
@@ -1039,9 +1230,9 @@
                         <div>
                             <h4 class="font-semibold text-yellow-800 mb-2">Important Information:</h4>
                             <div id="fareNotes" class="text-sm text-yellow-700">
-                                Extra Charge After: <span id="extraKmLimit"></span> KMS. will be ₹<span
-                                    id="extraKmRate"></span>/KM.<br>
-                                There will be a night Allowance of ₹0 for the driver. after 8PM<br>
+                                Excess distance charges apply after <span id="extraKmLimit"></span> km at ₹<span
+                                    id="extraKmRate"></span>/km.<br>
+                                Night allowance after 8:00 PM: ₹0<br>
                                 <strong>Toll-Tax:</strong> Excluded |
                                 <strong>Parking:</strong> Extra (if applicable)
                             </div>
@@ -1053,7 +1244,7 @@
                 <div class="text-center text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
                     <div class="flex items-center justify-center">
                         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
-                        Extra KM charges would be directly paid to the driver.
+                        Excess distance charges, where applicable, are payable directly to the service provider.
                     </div>
                 </div>
             </div>
@@ -1142,8 +1333,231 @@
                 ])
             </div>
         </div>
-</div>
 @endif
 
+
+{{-- Self-Drive Rental Fare Summary --}}
+<template x-teleport="body">
+    <div
+        x-cloak
+        x-show="selfDriveFareOpen"
+        x-transition.opacity.duration.180ms
+        class="fixed inset-0 z-[999998] flex items-end justify-center bg-slate-950/65 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="self-drive-fare-title"
+        x-on:click.self="closeSelfDriveFare()"
+    >
+        <div
+            x-show="selfDriveFareOpen"
+            x-transition:enter="transition ease-out duration-200"
+            x-transition:enter-start="translate-y-full opacity-0 sm:translate-y-3 sm:scale-95"
+            x-transition:enter-end="translate-y-0 opacity-100 sm:scale-100"
+            x-transition:leave="transition ease-in duration-150"
+            x-transition:leave-start="translate-y-0 opacity-100 sm:scale-100"
+            x-transition:leave-end="translate-y-full opacity-0 sm:translate-y-3 sm:scale-95"
+            class="w-full max-w-[460px] overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl"
+        >
+            <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3">
+                <div class="min-w-0">
+                    <h2 id="self-drive-fare-title" class="flex items-center gap-2 text-base font-black text-slate-900">
+                        <span class="grid h-7 w-7 place-items-center rounded-full bg-sky-100 text-xs text-sky-700">
+                            <i class="fa-solid fa-receipt" aria-hidden="true"></i>
+                        </span>
+                        Rental Cost Breakdown
+                    </h2>
+                    <p class="mt-0.5 truncate pl-9 text-[11px] font-semibold text-slate-500" x-text="selfDriveFare.vehicleName"></p>
+                </div>
+
+                <button
+                    x-ref="selfDriveFareCloseButton"
+                    type="button"
+                    x-on:click="closeSelfDriveFare()"
+                    class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-100 text-sm text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-slate-100"
+                    aria-label="Close rental cost breakdown"
+                >
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div class="max-h-[68vh] overflow-y-auto p-4">
+                <div class="overflow-hidden rounded-xl border border-slate-200 bg-white text-sm">
+                    <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-3 py-2.5">
+                        <span class="font-semibold text-slate-600">Base Rental Charge</span>
+                        <strong class="text-slate-950" x-text="formatInr(selfDriveFare.rentalTotal)"></strong>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 border-b border-slate-100 px-3 py-2.5">
+                        <span class="font-semibold text-slate-600">Refundable Security Deposit</span>
+                        <strong class="text-amber-700" x-text="formatInr(selfDriveFare.securityDeposit)"></strong>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-4 bg-slate-950 px-3 py-3 text-white">
+                        <span class="font-extrabold">Estimated Total Payable</span>
+                        <strong class="text-lg font-black" x-text="formatInr(selfDriveFare.payableAtBooking)"></strong>
+                    </div>
+                </div>
+
+                <p class="mt-2 text-center text-[11px] font-semibold text-slate-500">
+                    <span x-text="selfDriveFare.billableHours || 0"></span> hrs ×
+                    <span x-text="formatInr(selfDriveFare.hourlyPrice)"></span>/hr
+                </p>
+
+                <template x-if="Number(selfDriveFare.selectedHours || 0) < Number(selfDriveFare.minimumHours || 0)">
+                    <div class="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs font-semibold leading-5 text-sky-900">
+                        <i class="fa-solid fa-circle-info mt-0.5 shrink-0" aria-hidden="true"></i>
+                        <p>
+                            A minimum rental duration of <span x-text="selfDriveFare.minimumHours"></span> hours applies.
+                        </p>
+                    </div>
+                </template>
+
+                <div class="mt-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[11px] font-medium leading-5 text-slate-600">
+                    <p><i class="fa-solid fa-circle-check mr-1 text-emerald-600"></i>The security deposit is refundable after the vehicle return inspection is completed.</p>
+                    <p><i class="fa-solid fa-circle-info mr-1 text-sky-600"></i>Additional charges, where applicable, will be calculated in accordance with the rental agreement and booking terms.</p>
+                </div>
+
+                <button
+                    type="button"
+                    x-on:click="closeSelfDriveFare()"
+                    class="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl bg-sky-600 px-4 text-sm font-extrabold text-white transition hover:bg-sky-700"
+                >
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+{{-- Self-Drive Rental Vehicle Gallery --}}
+<template x-teleport="body">
+    <div
+        x-cloak
+        x-show="galleryOpen"
+        x-transition.opacity.duration.200ms
+        class="fixed inset-0 z-[999999] flex items-center justify-center bg-slate-950/95"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Vehicle gallery"
+        x-on:click.self="closeGallery()"
+    >
+        <div class="relative flex h-full w-full flex-col overflow-hidden">
+            <div
+                class="relative z-20 flex shrink-0 items-center justify-between gap-4 border-b border-white/10 bg-slate-950/80 px-4 py-3 text-white backdrop-blur-md sm:px-6"
+            >
+                <div class="min-w-0">
+                    <h2
+                        class="truncate text-base font-extrabold sm:text-xl"
+                        x-text="galleryVehicleName"
+                    ></h2>
+
+                    <p class="mt-0.5 text-xs font-semibold text-slate-300">
+                        <span x-text="galleryIndex + 1"></span>
+                        /
+                        <span x-text="galleryImages.length"></span>
+
+                        <span
+                            x-show="galleryImages[galleryIndex]?.title"
+                            class="ml-2"
+                        >
+                            •
+                            <span
+                                x-text="galleryImages[galleryIndex]?.title"
+                            ></span>
+                        </span>
+                    </p>
+                </div>
+
+                <button
+                    x-ref="galleryCloseButton"
+                    type="button"
+                    x-on:click="closeGallery()"
+                    class="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 text-xl text-white transition hover:bg-white/20 focus:outline-none focus:ring-4 focus:ring-white/20"
+                    aria-label="Close gallery"
+                >
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div
+                class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-4 sm:px-16 sm:py-6"
+                x-on:touchstart.passive="startGalleryTouch($event)"
+                x-on:touchend.passive="endGalleryTouch($event)"
+            >
+                <template
+                    x-for="(image, index) in galleryImages"
+                    :key="image.key || image.url || index"
+                >
+                    <img
+                        x-show="galleryIndex === index"
+                        x-transition.opacity.duration.200ms
+                        :src="image.url"
+                        :alt="`${galleryVehicleName} - ${image.title || 'Vehicle photo'}`"
+                        class="max-h-full max-w-full select-none rounded-2xl object-contain shadow-2xl"
+                        draggable="false"
+                    >
+                </template>
+
+                <button
+                    x-show="galleryImages.length > 1"
+                    type="button"
+                    x-on:click.stop="previousGalleryImage()"
+                    class="absolute left-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/70 text-lg text-white shadow-xl backdrop-blur transition hover:bg-white hover:text-slate-950 sm:left-6 sm:h-12 sm:w-12"
+                    aria-label="Previous photo"
+                >
+                    <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+                </button>
+
+                <button
+                    x-show="galleryImages.length > 1"
+                    type="button"
+                    x-on:click.stop="nextGalleryImage()"
+                    class="absolute right-2 top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-slate-950/70 text-lg text-white shadow-xl backdrop-blur transition hover:bg-white hover:text-slate-950 sm:right-6 sm:h-12 sm:w-12"
+                    aria-label="Next photo"
+                >
+                    <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div
+                x-show="galleryImages.length > 0"
+                class="relative z-20 shrink-0 border-t border-white/10 bg-slate-950/85 px-3 py-3 backdrop-blur-md sm:px-6"
+            >
+                <div class="mx-auto flex max-w-5xl gap-3 overflow-x-auto pb-1">
+                    <template
+                        x-for="(image, index) in galleryImages"
+                        :key="`thumbnail-${image.key || image.url || index}`"
+                    >
+                        <button
+                            type="button"
+                            x-on:click="galleryIndex = index"
+                            class="relative h-16 w-24 shrink-0 overflow-hidden rounded-xl border-2 bg-slate-900 transition sm:h-20 sm:w-28"
+                            :class="galleryIndex === index
+                                ? 'border-sky-400 ring-2 ring-sky-400/30'
+                                : 'border-white/15 opacity-65 hover:border-white/50 hover:opacity-100'"
+                            :aria-label="`View ${image.title || 'photo'}`"
+                        >
+                            <img
+                                :src="image.url"
+                                :alt="image.title || 'Vehicle photo'"
+                                class="h-full w-full object-cover"
+                                loading="lazy"
+                            >
+
+                            <span
+                                class="absolute inset-x-0 bottom-0 truncate bg-slate-950/75 px-1.5 py-1 text-[10px] font-bold text-white"
+                                x-text="image.title || `Photo ${index + 1}`"
+                            ></span>
+                        </button>
+                    </template>
+                </div>
+
+                <p class="mt-2 text-center text-[11px] font-semibold text-slate-400">
+                    Swipe on mobile devices or use the arrow keys
+                </p>
+            </div>
+        </div>
+    </div>
+</template>
 
 </div>
