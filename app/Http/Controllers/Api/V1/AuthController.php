@@ -34,7 +34,7 @@ class AuthController extends BaseApiController
     ) {
         $mobile = $this->normalizeMobile($request->mobile);
 
-        $result = $otpService->send($mobile);
+        $result = $otpService->sendLoginOtp($mobile);
 
         if (! ($result['status'] ?? false)) {
             return $this->error(
@@ -76,9 +76,9 @@ class AuthController extends BaseApiController
     ) {
         $mobile = $this->normalizeMobile($request->mobile);
 
-        $result = $otpService->verify(
+        $result = $otpService->verifyLoginOtp(
             $mobile,
-            $request->otp
+            (string) $request->otp
         );
 
         if (! ($result['status'] ?? false)) {

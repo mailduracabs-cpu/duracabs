@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
@@ -23,7 +24,19 @@ class OtpService
     |--------------------------------------------------------------------------
     */
 
-    public function send(string $mobile): array
+    public function send(
+        string $mobile,
+        ?string $scope = null,
+        ?string $ipAddress = null
+    ): array {
+        if ($scope !== null && trim($scope) !== '') {
+            return $this->sendFareOtp($mobile, $scope, $ipAddress);
+        }
+
+        return $this->sendLoginOtp($mobile);
+    }
+
+    public function sendLoginOtp(string $mobile): array
     {
         $mobile = $this->cleanMobile($mobile);
 
@@ -118,7 +131,19 @@ class OtpService
         ];
     }
 
-    public function verify(string $mobile, string $otp): array
+    public function verify(
+        string $mobile,
+        string $otp,
+        ?string $scope = null
+    ): array {
+        if ($scope !== null && trim($scope) !== '') {
+            return $this->verifyFareOtp($mobile, $otp, $scope);
+        }
+
+        return $this->verifyLoginOtp($mobile, $otp);
+    }
+
+    public function verifyLoginOtp(string $mobile, string $otp): array
     {
         $mobile = $this->cleanMobile($mobile);
 
@@ -226,6 +251,8 @@ class OtpService
             ])
         );
 
+        Auth::login($user, true);
+
         $token = method_exists($user, 'createToken')
             ? $user
                 ->createToken('dura_app_token')
@@ -238,6 +265,188 @@ class OtpService
             'token' => $token,
             'user' => $user->fresh(),
         ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fare / Booking OTP
+    |--------------------------------------------------------------------------
+    */
+
+    public function sendFareOtp(
+        string $mobile,
+        string $scope,
+        ?string $ipAddress = null
+    ): array {
+        $mobile = $this->cleanMobile($mobile);
+
+        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            return $this->fareFailure(
+                'Valid 10 digit mobile number enter karein.'
+            );
+        }
+
+        $scope = $this->cleanPurpose($scope) ?: 'default';
+        $rateKey = "fare-otp:{$scope}:send:{$mobile}:" .
+            ($ipAddress ?: 'unknown');
+
+        if ((int) Cache::get($rateKey, 0) >= 3) {
+            return $this->fareFailure(
+                'Bahut zyada OTP requests hui hain. 15 minute baad try karein.'
+            );
+        }
+
+        $otp = $this->generateOtp();
+        $expiresAt = now()->addMinutes(self::OTP_EXPIRY_MINUTES);
+
+        Cache::put($this->fareOtpKey($scope, $mobile), [
+            'otp_hash' => Hash::make($otp),
+            'attempts' => 0,
+        ], $expiresAt);
+
+        Cache::put(
+            $rateKey,
+            (int) Cache::get($rateKey, 0) + 1,
+            now()->addMinutes(15)
+        );
+
+        $results = [
+            'sms' => $this->sendSmsOtp($mobile, $otp),
+            'whatsapp' => $this->sendWhatsAppOtp($mobile, $otp),
+        ];
+
+        $successChannels = collect($results)
+            ->filter(fn ($result) => ($result['status'] ?? false) === true)
+            ->keys()
+            ->values()
+            ->toArray();
+
+        if ($successChannels === []) {
+            Cache::forget($this->fareOtpKey($scope, $mobile));
+
+            return $this->fareFailure(
+                'OTP send nahi ho saka. Dobara try karein.',
+                ['channels' => $results]
+            );
+        }
+
+        return [
+            'success' => true,
+            'status' => true,
+            'message' => 'OTP successfully send ho gaya.',
+            'mobile' => $mobile,
+            'delivered_on' => $successChannels,
+            'expires_in' => self::OTP_EXPIRY_MINUTES * 60,
+        ];
+    }
+
+    public function verifyFareOtp(
+        string $mobile,
+        string $otp,
+        string $scope
+    ): array {
+        $mobile = $this->cleanMobile($mobile);
+        $otp = preg_replace('/\D+/', '', $otp) ?: '';
+        $scope = $this->cleanPurpose($scope) ?: 'default';
+
+        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            return $this->fareFailure('Valid mobile number enter karein.');
+        }
+
+        if (!preg_match('/^\d{4}$/', $otp)) {
+            return $this->fareFailure('Complete 4 digit OTP enter karein.');
+        }
+
+        $key = $this->fareOtpKey($scope, $mobile);
+        $stored = Cache::get($key);
+
+        if (!is_array($stored) || empty($stored['otp_hash'])) {
+            return $this->fareFailure(
+                'OTP expire ho gaya. Naya OTP bhejein.'
+            );
+        }
+
+        $attempts = (int) ($stored['attempts'] ?? 0);
+
+        if ($attempts >= self::OTP_MAX_ATTEMPTS) {
+            Cache::forget($key);
+
+            return $this->fareFailure(
+                'Maximum attempts complete. Naya OTP bhejein.'
+            );
+        }
+
+        if (!Hash::check($otp, (string) $stored['otp_hash'])) {
+            $stored['attempts'] = $attempts + 1;
+            Cache::put(
+                $key,
+                $stored,
+                now()->addMinutes(self::OTP_EXPIRY_MINUTES)
+            );
+
+            return $this->fareFailure(
+                'OTP galat hai. Dobara try karein.',
+                [
+                    'remaining_attempts' => max(
+                        0,
+                        self::OTP_MAX_ATTEMPTS - $stored['attempts']
+                    ),
+                ]
+            );
+        }
+
+        Cache::forget($key);
+        $user = $this->authenticate($mobile, true, false);
+
+        return [
+            'success' => true,
+            'status' => true,
+            'message' => 'OTP verified successfully.',
+            'mobile' => $mobile,
+            'user' => $user->fresh(),
+        ];
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Authentication
+    |--------------------------------------------------------------------------
+    */
+
+    public function authenticate(
+        string $mobileNumber,
+        bool $remember = true,
+        bool $sendRegistrationMessage = true
+    ): User {
+        $mobileNumber = $this->cleanMobile($mobileNumber);
+
+        if (!preg_match('/^[6-9]\d{9}$/', $mobileNumber)) {
+            throw new \InvalidArgumentException(
+                'Valid mobile number is required.'
+            );
+        }
+
+        $user = $this->findUserByMobile($mobileNumber);
+        $isNewUser = $user === null;
+
+        if (!$user) {
+            $user = $this->createCustomer($mobileNumber);
+        }
+
+        $user->forceFill($this->onlyUserColumns([
+            'login_type' => 'otp',
+            'is_active' => true,
+            'mobile_verified_at' => now(),
+        ]));
+        $user->save();
+
+        Auth::login($user, $remember);
+
+        if ($isNewUser && $sendRegistrationMessage) {
+            $this->sendRegistrationMessages($user, $mobileNumber);
+        }
+
+        return $user;
     }
 
     /*
@@ -553,29 +762,165 @@ class OtpService
         string $otp,
         $expireAt
     ): User {
-        $user = User::firstOrCreate(
-            ['email' => $mobile . '@duracabs.local'],
-            $this->onlyUserColumns([
-                'name' => 'Dura Cabs User',
-                'email' => $mobile . '@duracabs.local',
-                'mobile' => $mobile,
-                'password' => Hash::make($mobile),
-                'login_type' => 'otp',
-                'is_active' => true,
-            ])
-        );
+        $user = $this->findUserByMobile($mobile);
 
-        $user->update(
-            $this->onlyUserColumns([
-                'mobile' => $mobile,
-                'otp' => $otp,
-                'otp_expire_at' => $expireAt,
-                'login_type' => 'otp',
-                'is_active' => true,
-            ])
-        );
+        if (!$user) {
+            $user = $this->createCustomer($mobile);
+        }
+
+        $user->forceFill($this->onlyUserColumns([
+            'mobile' => $mobile,
+            'otp' => $otp,
+            'otp_expire_at' => $expireAt,
+            'login_type' => 'otp',
+            'is_active' => true,
+        ]));
+        $user->save();
 
         return $user;
+    }
+
+    private function findUserByMobile(string $mobile): ?User
+    {
+        $query = User::query();
+        $hasCondition = false;
+
+        foreach (['mobile', 'phone', 'mobile_number'] as $column) {
+            if (!Schema::hasColumn('users', $column)) {
+                continue;
+            }
+
+            $hasCondition
+                ? $query->orWhere($column, $mobile)
+                : $query->where($column, $mobile);
+            $hasCondition = true;
+        }
+
+        if (Schema::hasColumn('users', 'email')) {
+            $emails = [
+                $mobile . '@duracabs.local',
+                $mobile . '@gmail.com',
+            ];
+
+            foreach ($emails as $email) {
+                $hasCondition
+                    ? $query->orWhere('email', $email)
+                    : $query->where('email', $email);
+                $hasCondition = true;
+            }
+        }
+
+        return $hasCondition ? $query->first() : null;
+    }
+
+    private function createCustomer(string $mobile): User
+    {
+        $data = $this->onlyUserColumns([
+            'mobile' => $mobile,
+            'name' => $mobile,
+            'email' => $this->uniquePlaceholderEmail($mobile),
+            'password' => Hash::make(Str::random(32)),
+            'login_type' => 'otp',
+            'is_active' => true,
+            'mobile_verified_at' => now(),
+        ]);
+
+        $user = new User();
+        $user->forceFill($data);
+        $user->save();
+
+        return $user;
+    }
+
+    private function uniquePlaceholderEmail(string $mobile): string
+    {
+        $email = $mobile . '@duracabs.local';
+
+        if (!Schema::hasColumn('users', 'email')) {
+            return $email;
+        }
+
+        if (!User::query()->where('email', $email)->exists()) {
+            return $email;
+        }
+
+        return 'guest-' . $mobile . '-' .
+            Str::lower(Str::random(6)) . '@duracabs.local';
+    }
+
+    private function sendRegistrationMessages(
+        User $user,
+        string $mobile
+    ): void {
+        try {
+            $loginUrl = function_exists('route')
+                ? route('login')
+                : url('/login');
+        } catch (Throwable) {
+            $loginUrl = url('/login');
+        }
+
+        $customerMessage = implode("\n", [
+            'Dear User,',
+            '',
+            'Your Dura Cabs registration has been completed.',
+            '',
+            'User ID: ' . ($user->email ?? $mobile),
+            'Mobile Number: ' . $mobile,
+            '',
+            'Login: ' . $loginUrl,
+        ]);
+
+        $this->sendWhatsAppMessageSafely(
+            $mobile,
+            $customerMessage,
+            'customer'
+        );
+
+        $adminMobile = trim((string) config(
+            'services.admin.mobile',
+            env('ADMIN_MOBILE')
+        ));
+
+        if ($adminMobile === '') {
+            return;
+        }
+
+        $adminMessage = implode("\n", [
+            'Dear Duracabs,',
+            '',
+            'A new customer account has been registered.',
+            '',
+            'Name: ' . ($user->name ?? ''),
+            'Mobile Number: ' . $mobile,
+            'User ID: ' . ($user->email ?? ''),
+            '',
+            'Login: ' . $loginUrl,
+        ]);
+
+        $this->sendWhatsAppMessageSafely(
+            $adminMobile,
+            $adminMessage,
+            'admin'
+        );
+    }
+
+    private function sendWhatsAppMessageSafely(
+        string $mobile,
+        string $message,
+        string $recipient
+    ): void {
+        try {
+            if (class_exists(WhatsAppService::class)) {
+                WhatsAppService::send($mobile, $message);
+            }
+        } catch (Throwable $exception) {
+            Log::warning('OTP registration WhatsApp message failed.', [
+                'recipient' => $recipient,
+                'mobile' => $this->maskMobile($mobile),
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     private function getUserEmailForOtp(
@@ -828,6 +1173,22 @@ class OtpService
         ];
     }
 
+    private function fareOtpKey(string $scope, string $mobile): string
+    {
+        return "fare-otp:{$scope}:{$mobile}";
+    }
+
+    private function fareFailure(
+        string $message,
+        array $extra = []
+    ): array {
+        return array_merge([
+            'success' => false,
+            'status' => false,
+            'message' => $message,
+        ], $extra);
+    }
+
     private function clearPurposeOtp(
         string $mobile,
         string $purpose
@@ -874,9 +1235,6 @@ class OtpService
         array $data
     ): array {
         return collect($data)
-            ->filter(
-                fn ($value) => !is_null($value)
-            )
             ->filter(
                 fn ($value, $key) =>
                     Schema::hasColumn('users', $key)

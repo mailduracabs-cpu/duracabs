@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Services\FareOtpService;
+use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
@@ -538,7 +538,7 @@ class RidesPage extends Component
         $this->resetErrorBag();
         $this->otpError = null;
 
-        $result = app(FareOtpService::class)->send(
+        $result = app(OtpService::class)->sendFareOtp(
             (string) $this->mobileNumber,
             'rides',
             request()->ip()
@@ -565,7 +565,7 @@ class RidesPage extends Component
         $this->resetErrorBag();
         $this->otpError = null;
 
-        $result = app(FareOtpService::class)->verify(
+        $result = app(OtpService::class)->verifyFareOtp(
             (string) $this->mobileNumber,
             (string) $this->otpCode,
             'rides'

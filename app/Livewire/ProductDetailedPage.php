@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Services\FareOtpService;
+use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\RideInquiry;
@@ -328,7 +328,7 @@ public function tabValue($val){
         $this->resetErrorBag();
         $this->otpError = null;
 
-        $result = app(FareOtpService::class)->send(
+        $result = app(OtpService::class)->sendFareOtp(
             (string) $this->mobileNumber,
             'route-details',
             request()->ip()
@@ -350,7 +350,7 @@ public function tabValue($val){
         $this->resetErrorBag();
         $this->otpError = null;
 
-        $result = app(FareOtpService::class)->verify(
+        $result = app(OtpService::class)->verifyFareOtp(
             (string) $this->mobileNumber,
             (string) $this->otpCode,
             'route-details'
