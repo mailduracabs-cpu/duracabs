@@ -163,12 +163,101 @@ class RidesPage extends Component
 
     public function mount(): void
     {
-        $this->apiKey = (string) config('services.google_maps.key', env('GOOGLE_MAPS_API_KEY', ''));
-        $this->fareUnlocked = (bool) session('rides_fare_unlocked', false) || Auth::check();
-        $this->mobileNumber = (string) session('rides_verified_mobile', '');
+        $this->apiKey = (string) config(
+            'services.google_maps.key',
+            env('GOOGLE_MAPS_API_KEY', '')
+        );
+
+        $this->fareUnlocked =
+            (bool) session('rides_fare_unlocked', false)
+            || Auth::check();
+
+        $this->mobileNumber =
+            (string) session('rides_verified_mobile', '');
 
         if ($this->tab === 'self_drive') {
+            $this->normaliseSelfDriveRentalPeriod();
             $this->refreshSelfDriveAvailabilityState();
+        }
+    }
+
+    /**
+     * Ensure that every self-drive search has a valid pickup and drop period.
+     *
+     * Legacy links may contain only the pickup date and time. When the drop
+     * schedule is missing, invalid, or not later than the pickup schedule,
+     * the system applies a safe default rental period of 24 hours.
+     */
+    private function normaliseSelfDriveRentalPeriod(): void
+    {
+        try {
+            $pickupDate = filled($this->date)
+                ? trim((string) $this->date)
+                : now()->toDateString();
+
+            $pickupTime = filled($this->time)
+                ? trim((string) $this->time)
+                : now()->addMinutes(30)->format('H:i');
+
+            $pickupAt = Carbon::createFromFormat(
+                '!Y-m-d H:i',
+                $pickupDate . ' ' . $pickupTime
+            );
+
+            $dropAt = null;
+
+            if (filled($this->dateto) && filled($this->endTime)) {
+                try {
+                    $dropAt = Carbon::createFromFormat(
+                        '!Y-m-d H:i',
+                        trim((string) $this->dateto)
+                            . ' '
+                            . trim((string) $this->endTime)
+                    );
+                } catch (\Throwable) {
+                    $dropAt = null;
+                }
+            }
+
+            if (! $dropAt || ! $dropAt->greaterThan($pickupAt)) {
+                $fallbackHours = 24;
+
+                if (
+                    is_numeric($this->days)
+                    && (float) $this->days > 0
+                ) {
+                    $fallbackHours = max(
+                        24,
+                        (int) ceil((float) $this->days * 24)
+                    );
+                }
+
+                $dropAt = $pickupAt
+                    ->copy()
+                    ->addHours($fallbackHours);
+            }
+
+            $this->date = $pickupAt->format('Y-m-d');
+            $this->time = $pickupAt->format('H:i');
+            $this->dateto = $dropAt->format('Y-m-d');
+            $this->endTime = $dropAt->format('H:i');
+            $this->days = max(
+                1,
+                (int) ceil(
+                    $pickupAt->diffInMinutes($dropAt) / 1440
+                )
+            );
+        } catch (\Throwable $exception) {
+            Log::warning(
+                'Unable to normalise the self-drive rental period.',
+                [
+                    'pickup_date' => $this->date,
+                    'pickup_time' => $this->time,
+                    'drop_date' => $this->dateto,
+                    'drop_time' => $this->endTime,
+                    'message' => $exception->getMessage(),
+                ]
+            );
         }
     }
 
