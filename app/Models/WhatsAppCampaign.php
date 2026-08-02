@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -33,6 +34,7 @@ class WhatsAppCampaign extends Model
     public const AUDIENCE_CSV = 'csv';
 
     protected $fillable = [
+        'whatsapp_template_id',
         'campaign_name',
         'campaign_type',
         'template_name',
@@ -101,6 +103,86 @@ class WhatsAppCampaign extends Model
             WhatsAppCampaignRecipient::class,
             'campaign_id'
         );
+    }
+
+    public function template(): BelongsTo
+    {
+        return $this->belongsTo(
+            WhatsAppTemplate::class,
+            'whatsapp_template_id'
+        );
+    }
+
+    public function syncSelectedTemplate(): void
+    {
+        if (! $this->whatsapp_template_id) {
+            return;
+        }
+
+        $template = $this->template()->first();
+
+        if (! $template) {
+            return;
+        }
+
+        $this->forceFill([
+            'template_name' => $template->template_name,
+            'language' => $template->language ?: 'en',
+            'header_type' => $template->header_type ?: 'none',
+            'header_media' => $template->header_media,
+            'body' => $template->body,
+            'footer' => $template->footer,
+            'button_payload' => $template->buttons ?: [],
+            'template_variables' => $this->mapTemplateVariables(
+                $template->variables ?: []
+            ),
+        ]);
+    }
+
+    protected function mapTemplateVariables(array $variables): array
+    {
+        $mapped = [];
+
+        foreach ($variables as $index => $variable) {
+            if (! is_array($variable)) {
+                continue;
+            }
+
+            $position = (int) (
+                $variable['position']
+                ?? $variable['index']
+                ?? ($index + 1)
+            );
+
+            if ($position <= 0) {
+                continue;
+            }
+
+            $mapped[(string) $position] = (string) (
+                $variable['sample']
+                ?? $variable['key']
+                ?? '-'
+            );
+        }
+
+        ksort($mapped, SORT_NATURAL);
+
+        return $mapped;
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $campaign): void {
+            if (
+                $campaign->isDirty('whatsapp_template_id')
+                || (
+                    $campaign->whatsapp_template_id
+                    && empty($campaign->template_name)
+                )
+            ) {
+                $campaign->syncSelectedTemplate();
+            }
+        });
     }
 
     public static function statusOptions(): array

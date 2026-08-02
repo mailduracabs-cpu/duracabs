@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\WhatsAppCampaignResource\Pages;
 use App\Models\WhatsAppCampaign;
+use App\Models\WhatsAppTemplate;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -35,7 +36,7 @@ class WhatsAppCampaignResource extends Resource
                 Forms\Components\Wizard::make([
                     Forms\Components\Wizard\Step::make('Campaign')
                         ->icon('heroicon-o-megaphone')
-                        ->description('Campaign ki basic details')
+                        ->description('Campaign aur approved template select karein')
                         ->schema([
                             Forms\Components\TextInput::make('campaign_name')
                                 ->label('Campaign Name')
@@ -44,100 +45,254 @@ class WhatsAppCampaignResource extends Resource
                                 ->maxLength(255)
                                 ->columnSpanFull(),
 
-                            Forms\Components\Grid::make(2)
-                                ->schema([
-                                    Forms\Components\Select::make('campaign_type')
-                                        ->label('Campaign Type')
-                                        ->options(
-                                            WhatsAppCampaign::campaignTypeOptions()
-                                        )
-                                        ->default(
-                                            WhatsAppCampaign::TYPE_TEMPLATE
-                                        )
-                                        ->required()
-                                        ->native(false),
+                            Forms\Components\Select::make(
+                                'whatsapp_template_id'
+                            )
+                                ->label('Approved WhatsApp Template')
+                                ->relationship(
+                                    name: 'template',
+                                    titleAttribute: 'name',
+                                    modifyQueryUsing: fn (Builder $query): Builder =>
+                                        $query
+                                            ->where('is_active', true)
+                                            ->where(
+                                                'status',
+                                                WhatsAppTemplate::STATUS_ACTIVE
+                                            )
+                                            ->where(
+                                                'meta_status',
+                                                WhatsAppTemplate::META_STATUS_APPROVED
+                                            )
+                                )
+                                ->getOptionLabelFromRecordUsing(
+                                    fn (WhatsAppTemplate $record): string =>
+                                        $record->name
+                                        . ' — '
+                                        . $record->template_name
+                                )
+                                ->searchable([
+                                    'name',
+                                    'template_name',
+                                ])
+                                ->preload()
+                                ->required()
+                                ->live()
+                                ->afterStateUpdated(function (
+                                    mixed $state,
+                                    Forms\Set $set
+                                ): void {
+                                    $template = filled($state)
+                                        ? WhatsAppTemplate::query()->find($state)
+                                        : null;
 
-                                    Forms\Components\Select::make('language')
-                                        ->label('Template Language')
-                                        ->options([
-                                            'en_US' => 'English (US)',
-                                            'en' => 'English',
-                                            'hi' => 'Hindi',
-                                            'hi_IN' => 'Hindi (India)',
-                                        ])
-                                        ->default('en_US')
-                                        ->required()
-                                        ->searchable()
-                                        ->native(false),
+                                    if (! $template) {
+                                        $set('template_name', null);
+                                        $set('language', 'en');
+                                        $set(
+                                            'campaign_type',
+                                            WhatsAppCampaign::TYPE_TEMPLATE
+                                        );
+                                        $set('header_type', 'none');
+                                        $set('header_media', null);
+                                        $set('body', null);
+                                        $set('footer', null);
+                                        $set('template_variables', []);
+                                        $set('button_payload', []);
+
+                                        return;
+                                    }
+
+                                    $category = strtoupper(
+                                        (string) $template->category
+                                    );
+
+                                    $campaignType = match ($category) {
+                                        WhatsAppTemplate::CATEGORY_MARKETING =>
+                                            WhatsAppCampaign::TYPE_MARKETING,
+
+                                        WhatsAppTemplate::CATEGORY_UTILITY =>
+                                            WhatsAppCampaign::TYPE_UTILITY,
+
+                                        WhatsAppTemplate::CATEGORY_AUTHENTICATION =>
+                                            WhatsAppCampaign::TYPE_AUTHENTICATION,
+
+                                        default =>
+                                            WhatsAppCampaign::TYPE_TEMPLATE,
+                                    };
+
+                                    $variables = [];
+
+                                    foreach (
+                                        (array) ($template->variables ?? [])
+                                        as $index => $variable
+                                    ) {
+                                        if (! is_array($variable)) {
+                                            continue;
+                                        }
+
+                                        $position = (int) (
+                                            $variable['position']
+                                            ?? $variable['index']
+                                            ?? ($index + 1)
+                                        );
+
+                                        if ($position <= 0) {
+                                            continue;
+                                        }
+
+                                        $variables[(string) $position] =
+                                            (string) (
+                                                $variable['sample']
+                                                ?? $variable['key']
+                                                ?? '-'
+                                            );
+                                    }
+
+                                    ksort($variables, SORT_NATURAL);
+
+                                    $set(
+                                        'template_name',
+                                        $template->template_name
+                                    );
+                                    $set(
+                                        'language',
+                                        $template->language ?: 'en'
+                                    );
+                                    $set('campaign_type', $campaignType);
+                                    $set(
+                                        'header_type',
+                                        $template->header_type ?: 'none'
+                                    );
+                                    $set(
+                                        'header_media',
+                                        $template->header_media
+                                    );
+                                    $set('body', $template->body);
+                                    $set('footer', $template->footer);
+                                    $set(
+                                        'template_variables',
+                                        $variables
+                                    );
+                                    $set(
+                                        'button_payload',
+                                        $template->buttons ?: []
+                                    );
+                                })
+                                ->helperText(
+                                    'Sirf active aur Meta-approved templates yahan dikhengi.'
+                                )
+                                ->columnSpanFull(),
+
+                            Forms\Components\Grid::make(3)
+                                ->schema([
+                                    Forms\Components\Placeholder::make(
+                                        'selected_template_name'
+                                    )
+                                        ->label('Meta Template')
+                                        ->content(
+                                            fn (Forms\Get $get): string =>
+                                                filled($get('template_name'))
+                                                    ? (string) $get(
+                                                        'template_name'
+                                                    )
+                                                    : 'Template select karein'
+                                        ),
+
+                                    Forms\Components\Placeholder::make(
+                                        'selected_template_language'
+                                    )
+                                        ->label('Language')
+                                        ->content(
+                                            fn (Forms\Get $get): string =>
+                                                filled($get('language'))
+                                                    ? (string) $get('language')
+                                                    : '—'
+                                        ),
+
+                                    Forms\Components\Placeholder::make(
+                                        'selected_template_type'
+                                    )
+                                        ->label('Category')
+                                        ->content(
+                                            fn (Forms\Get $get): string =>
+                                                WhatsAppCampaign::campaignTypeOptions()[
+                                                    $get('campaign_type')
+                                                ]
+                                                ?? '—'
+                                        ),
                                 ]),
 
-                            Forms\Components\TextInput::make('template_name')
-                                ->label('Meta Template Name')
-                                ->placeholder('Example: hello_world')
-                                ->helperText(
-                                    'Meta WhatsApp Manager me approved template ka exact name enter karein.'
-                                )
-                                ->required()
-                                ->maxLength(255)
-                                ->columnSpanFull(),
-
-                            Forms\Components\Select::make('header_type')
-                                ->label('Header Type')
-                                ->options([
-                                    'none' => 'No Header',
-                                    'text' => 'Text',
-                                    'image' => 'Image',
-                                    'video' => 'Video',
-                                    'document' => 'Document',
-                                ])
-                                ->default('none')
-                                ->live()
-                                ->native(false),
-
-                            Forms\Components\TextInput::make('header_media')
-                                ->label('Header Media URL')
-                                ->placeholder(
-                                    'https://duracabs.com/storage/...'
-                                )
-                                ->url()
-                                ->maxLength(2048)
-                                ->visible(
-                                    fn (Forms\Get $get): bool => in_array(
-                                        $get('header_type'),
-                                        ['image', 'video', 'document'],
-                                        true
-                                    )
-                                ),
-
-                            Forms\Components\Textarea::make('body')
+                            Forms\Components\Placeholder::make(
+                                'selected_template_preview'
+                            )
                                 ->label('Message Preview')
-                                ->placeholder(
-                                    'Template message ka preview yahan likhein...'
-                                )
-                                ->helperText(
-                                    'Ye preview ke liye hai. Actual message Meta-approved template se send hoga.'
-                                )
-                                ->rows(6)
-                                ->columnSpanFull(),
+                                ->content(function (
+                                    Forms\Get $get
+                                ): string {
+                                    $parts = [];
 
-                            Forms\Components\Textarea::make('footer')
-                                ->label('Footer')
-                                ->placeholder('Example: DuraCabs Services')
-                                ->rows(2)
-                                ->maxLength(500)
+                                    if (
+                                        filled($get('header_type'))
+                                        && $get('header_type') !== 'none'
+                                    ) {
+                                        $parts[] = 'Header: '
+                                            . ucfirst(
+                                                (string) $get('header_type')
+                                            );
+                                    }
+
+                                    if (filled($get('body'))) {
+                                        $parts[] = (string) $get('body');
+                                    }
+
+                                    if (filled($get('footer'))) {
+                                        $parts[] = (string) $get('footer');
+                                    }
+
+                                    return $parts !== []
+                                        ? implode("\n\n", $parts)
+                                        : 'Approved template select karne ke baad preview yahan dikhega.';
+                                })
                                 ->columnSpanFull(),
 
                             Forms\Components\KeyValue::make(
                                 'template_variables'
                             )
-                                ->label('Template Variables')
+                                ->label('Template Variable Samples')
                                 ->keyLabel('Variable Number')
-                                ->valueLabel('Default Value')
-                                ->addActionLabel('Add Variable')
-                                ->helperText(
-                                    'Example: key 1 aur value Customer Name. Key 2 aur value Offer Amount.'
-                                )
+                                ->valueLabel('Sample Value')
+                                ->disabled()
+                                ->dehydrated()
                                 ->columnSpanFull(),
+
+                            Forms\Components\Hidden::make('template_name')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('language')
+                                ->default('en')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('campaign_type')
+                                ->default(
+                                    WhatsAppCampaign::TYPE_TEMPLATE
+                                )
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('header_type')
+                                ->default('none')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('header_media')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('body')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('footer')
+                                ->dehydrated(),
+
+                            Forms\Components\Hidden::make('button_payload')
+                                ->dehydrated(),
                         ])
                         ->columns(2),
 

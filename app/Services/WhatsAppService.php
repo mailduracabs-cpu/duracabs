@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\WhatsAppTemplate;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -911,6 +912,345 @@ class WhatsAppService
 
     /*
     |--------------------------------------------------------------------------
+    | Submit database template to Meta
+    |--------------------------------------------------------------------------
+    */
+
+    public static function submitTemplate(
+        WhatsAppTemplate $template
+    ): array {
+        if (! self::credentialsConfigured()) {
+            return self::failed(
+                message: 'Meta WhatsApp credentials are missing.',
+                error: 'credentials_missing'
+            );
+        }
+
+        if (self::businessAccountId() === '') {
+            return self::failed(
+                message: 'WhatsApp Business Account ID is missing.',
+                error: 'business_account_id_missing'
+            );
+        }
+
+        $templateName = trim((string) $template->template_name);
+        $language = trim((string) $template->language) ?: self::defaultLanguage();
+        $category = strtoupper(trim((string) $template->category));
+
+        if ($templateName === '') {
+            return self::failed(
+                message: 'Meta template name is required.',
+                error: 'missing_template_name'
+            );
+        }
+
+        if (! in_array($category, ['UTILITY', 'MARKETING', 'AUTHENTICATION'], true)) {
+            return self::failed(
+                message: 'Template category must be Utility, Marketing or Authentication.',
+                error: 'invalid_template_category'
+            );
+        }
+
+        $components = $category === 'AUTHENTICATION'
+            ? self::buildAuthenticationTemplateComponents($template)
+            : self::buildTemplateComponents($template);
+
+        if (! collect($components)->contains(
+            fn (array $component): bool => ($component['type'] ?? null) === 'BODY'
+        )) {
+            return self::failed(
+                message: 'Template body is required before submitting to Meta.',
+                error: 'missing_template_body'
+            );
+        }
+
+        $payload = [
+            'name' => $templateName,
+            'language' => $language,
+            'category' => $category,
+            'components' => $components,
+        ];
+
+        if ($category === 'AUTHENTICATION') {
+            $payload['message_send_ttl_seconds'] = 600;
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->asJson()
+                ->withToken(self::accessToken())
+                ->timeout(self::timeout())
+                ->retry(
+                    self::retryTimes(),
+                    self::retryDelay(),
+                    throw: false
+                )
+                ->post(self::templatesUrl(), $payload);
+
+            $body = self::responseBody($response);
+
+            if (! $response->successful()) {
+                $message = self::extractErrorMessage(
+                    $body,
+                    'Meta rejected the template submission.'
+                );
+
+                $template->forceFill([
+                    'meta_status' => 'rejected',
+                    'meta_rejection_reason' => $message,
+                    'rejected_at' => now(),
+                    'last_synced_at' => now(),
+                ])->save();
+
+                Log::error('Meta WhatsApp template submission failed.', [
+                    'template_id' => $template->id,
+                    'template_name' => $templateName,
+                    'http_code' => $response->status(),
+                    'meta_error' => data_get($body, 'error'),
+                ]);
+
+                return self::failed(
+                    message: $message,
+                    error: (string) (
+                        data_get($body, 'error.code')
+                        ?? 'template_submission_failed'
+                    ),
+                    statusCode: $response->status(),
+                    response: $body
+                );
+            }
+
+            $metaStatus = self::normalizeMetaTemplateStatus(
+                (string) ($body['status'] ?? 'PENDING')
+            );
+
+            $updates = [
+                'meta_template_id' => isset($body['id'])
+                    ? (string) $body['id']
+                    : $template->meta_template_id,
+                'meta_status' => $metaStatus,
+                'meta_rejection_reason' => null,
+                'submitted_at' => $template->submitted_at ?: now(),
+                'last_synced_at' => now(),
+                'rejected_at' => null,
+            ];
+
+            if ($metaStatus === 'approved') {
+                $updates['approved_at'] = now();
+            }
+
+            $template->forceFill($updates)->save();
+
+            Log::info('Meta WhatsApp template submitted.', [
+                'template_id' => $template->id,
+                'template_name' => $templateName,
+                'meta_template_id' => $updates['meta_template_id'],
+                'meta_status' => $metaStatus,
+            ]);
+
+            return self::successful(
+                message: $metaStatus === 'approved'
+                    ? 'Template submitted and approved by Meta.'
+                    : 'Template submitted to Meta for review.',
+                messageId: isset($body['id']) ? (string) $body['id'] : null,
+                statusCode: $response->status(),
+                response: $body
+            );
+        } catch (ConnectionException $exception) {
+            Log::error('Meta template submission connection failed.', [
+                'template_id' => $template->id,
+                'template_name' => $templateName,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return self::failed(
+                message: 'Could not connect to Meta while submitting the template.',
+                error: $exception->getMessage()
+            );
+        } catch (Throwable $exception) {
+            Log::error('Meta template submission failed.', [
+                'template_id' => $template->id,
+                'template_name' => $templateName,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return self::failed(
+                message: 'WhatsApp template submission failed.',
+                error: $exception->getMessage()
+            );
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sync one database template from Meta
+    |--------------------------------------------------------------------------
+    */
+
+    public static function syncTemplateStatus(
+        WhatsAppTemplate $template
+    ): array {
+        if (! self::credentialsConfigured()) {
+            return self::failed(
+                message: 'Meta WhatsApp credentials are missing.',
+                error: 'credentials_missing'
+            );
+        }
+
+        if (self::businessAccountId() === '') {
+            return self::failed(
+                message: 'WhatsApp Business Account ID is missing.',
+                error: 'business_account_id_missing'
+            );
+        }
+
+        $templateName = trim((string) $template->template_name);
+
+        if ($templateName === '') {
+            return self::failed(
+                message: 'Meta template name is required.',
+                error: 'missing_template_name'
+            );
+        }
+
+        try {
+            $response = Http::acceptJson()
+                ->withToken(self::accessToken())
+                ->timeout(self::timeout())
+                ->retry(
+                    self::retryTimes(),
+                    self::retryDelay(),
+                    throw: false
+                )
+                ->get(self::templatesUrl(), [
+                    'name' => $templateName,
+                    'limit' => 100,
+                    'fields' => implode(',', [
+                        'id',
+                        'name',
+                        'language',
+                        'category',
+                        'status',
+                        'rejected_reason',
+                        'quality_score',
+                        'components',
+                    ]),
+                ]);
+
+            $body = self::responseBody($response);
+
+            if (! $response->successful()) {
+                return self::failed(
+                    message: self::extractErrorMessage(
+                        $body,
+                        'Unable to sync template status from Meta.'
+                    ),
+                    error: (string) (
+                        data_get($body, 'error.code')
+                        ?? 'template_sync_failed'
+                    ),
+                    statusCode: $response->status(),
+                    response: $body
+                );
+            }
+
+            $records = is_array($body['data'] ?? null)
+                ? $body['data']
+                : [];
+
+            $language = trim((string) $template->language);
+            $record = collect($records)->first(function ($item) use (
+                $templateName,
+                $language
+            ): bool {
+                if (! is_array($item)) {
+                    return false;
+                }
+
+                if ((string) ($item['name'] ?? '') !== $templateName) {
+                    return false;
+                }
+
+                return $language === ''
+                    || (string) ($item['language'] ?? '') === $language;
+            });
+
+            if (! is_array($record)) {
+                $template->forceFill([
+                    'last_synced_at' => now(),
+                ])->save();
+
+                return self::failed(
+                    message: 'Template was not found in the connected Meta WhatsApp account.',
+                    error: 'template_not_found_on_meta',
+                    statusCode: $response->status(),
+                    response: $body
+                );
+            }
+
+            $metaStatus = self::normalizeMetaTemplateStatus(
+                (string) ($record['status'] ?? 'PENDING')
+            );
+
+            $rejectionReason = trim((string) (
+                $record['rejected_reason']
+                ?? data_get($record, 'status_reason')
+                ?? ''
+            ));
+
+            $updates = [
+                'meta_template_id' => isset($record['id'])
+                    ? (string) $record['id']
+                    : $template->meta_template_id,
+                'meta_status' => $metaStatus,
+                'meta_rejection_reason' => $rejectionReason !== ''
+                    ? $rejectionReason
+                    : null,
+                'last_synced_at' => now(),
+            ];
+
+            if ($metaStatus === 'approved') {
+                $updates['approved_at'] = $template->approved_at ?: now();
+                $updates['rejected_at'] = null;
+                $updates['meta_rejection_reason'] = null;
+            } elseif ($metaStatus === 'rejected') {
+                $updates['rejected_at'] = now();
+                $updates['approved_at'] = null;
+            }
+
+            $template->forceFill($updates)->save();
+
+            return self::successful(
+                message: 'Template status synced from Meta: '
+                    . ucfirst(str_replace('_', ' ', $metaStatus))
+                    . '.',
+                messageId: isset($record['id'])
+                    ? (string) $record['id']
+                    : null,
+                statusCode: $response->status(),
+                response: $record
+            );
+        } catch (ConnectionException $exception) {
+            return self::failed(
+                message: 'Could not connect to Meta while syncing the template.',
+                error: $exception->getMessage()
+            );
+        } catch (Throwable $exception) {
+            Log::error('Meta WhatsApp template status sync failed.', [
+                'template_id' => $template->id,
+                'template_name' => $templateName,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return self::failed(
+                message: 'WhatsApp template status sync failed.',
+                error: $exception->getMessage()
+            );
+        }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Test Meta connection
     |--------------------------------------------------------------------------
     */
@@ -1152,6 +1492,265 @@ class WhatsAppService
         ];
     }
 
+    /**
+     * Meta Authentication templates do not accept a freely written body.
+     * Meta generates the OTP sentence from these authentication settings.
+     */
+    private static function buildAuthenticationTemplateComponents(
+        WhatsAppTemplate $template
+    ): array {
+        $expiryMinutes = 5;
+
+        $variables = is_array($template->variables)
+            ? $template->variables
+            : [];
+
+        foreach ($variables as $variable) {
+            if (! is_array($variable)) {
+                continue;
+            }
+
+            if (($variable['key'] ?? null) !== 'expiry_minutes') {
+                continue;
+            }
+
+            $sample = (int) ($variable['sample'] ?? 5);
+
+            if ($sample > 0) {
+                $expiryMinutes = min(90, max(1, $sample));
+            }
+        }
+
+        return [
+            [
+                'type' => 'BODY',
+                'add_security_recommendation' => true,
+            ],
+            [
+                'type' => 'FOOTER',
+                'code_expiration_minutes' => $expiryMinutes,
+            ],
+            [
+                'type' => 'BUTTONS',
+                'buttons' => [
+                    [
+                        'type' => 'OTP',
+                        'otp_type' => 'COPY_CODE',
+                        'text' => 'Copy Code',
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    private static function buildTemplateComponents(
+        WhatsAppTemplate $template
+    ): array {
+        $components = [];
+        $headerType = strtolower(trim((string) $template->header_type));
+        $headerText = trim((string) $template->header_text);
+        $headerMedia = trim((string) $template->header_media);
+
+        if ($headerType === 'text' && $headerText !== '') {
+            $header = [
+                'type' => 'HEADER',
+                'format' => 'TEXT',
+                'text' => $headerText,
+            ];
+
+            $headerExamples = self::templateExamples(
+                $headerText,
+                is_array($template->variables) ? $template->variables : []
+            );
+
+            if ($headerExamples !== []) {
+                $header['example'] = [
+                    'header_text' => $headerExamples,
+                ];
+            }
+
+            $components[] = $header;
+        } elseif (in_array($headerType, ['image', 'video', 'document'], true)) {
+            $header = [
+                'type' => 'HEADER',
+                'format' => strtoupper($headerType),
+            ];
+
+            if ($headerMedia !== '') {
+                $header['example'] = [
+                    'header_handle' => [$headerMedia],
+                ];
+            }
+
+            $components[] = $header;
+        }
+
+        $body = trim((string) $template->body);
+
+        if ($body !== '') {
+            $bodyComponent = [
+                'type' => 'BODY',
+                'text' => $body,
+            ];
+
+            $examples = self::templateExamples(
+                $body,
+                is_array($template->variables) ? $template->variables : []
+            );
+
+            if ($examples !== []) {
+                $bodyComponent['example'] = [
+                    'body_text' => [$examples],
+                ];
+            }
+
+            $components[] = $bodyComponent;
+        }
+
+        $footer = trim((string) $template->footer);
+
+        if ($footer !== '') {
+            $components[] = [
+                'type' => 'FOOTER',
+                'text' => $footer,
+            ];
+        }
+
+        $buttons = self::normalizeTemplateButtons(
+            is_array($template->buttons) ? $template->buttons : []
+        );
+
+        if ($buttons !== []) {
+            $components[] = [
+                'type' => 'BUTTONS',
+                'buttons' => $buttons,
+            ];
+        }
+
+        return $components;
+    }
+
+    private static function templateExamples(
+        string $text,
+        array $variables
+    ): array {
+        preg_match_all('/\\{\\{(\\d+)\\}\\}/', $text, $matches);
+        $positions = array_values(array_unique(array_map(
+            'intval',
+            $matches[1] ?? []
+        )));
+
+        sort($positions);
+
+        if ($positions === []) {
+            return [];
+        }
+
+        $samples = [];
+
+        foreach ($positions as $position) {
+            $variable = collect($variables)->first(function ($item) use (
+                $position
+            ): bool {
+                return is_array($item)
+                    && (int) (
+                        $item['position']
+                        ?? $item['index']
+                        ?? 0
+                    ) === $position;
+            });
+
+            $sample = is_array($variable)
+                ? ($variable['sample'] ?? $variable['key'] ?? null)
+                : null;
+
+            $samples[] = trim((string) $sample) !== ''
+                ? trim((string) $sample)
+                : 'Sample ' . $position;
+        }
+
+        return $samples;
+    }
+
+    private static function normalizeTemplateButtons(array $buttons): array
+    {
+        $normalized = [];
+
+        foreach ($buttons as $button) {
+            if (! is_array($button)) {
+                continue;
+            }
+
+            $type = strtoupper(trim((string) ($button['type'] ?? '')));
+            $text = trim((string) (
+                $button['text']
+                ?? $button['label']
+                ?? $button['title']
+                ?? ''
+            ));
+            $value = trim((string) (
+                $button['value']
+                ?? $button['url']
+                ?? $button['phone_number']
+                ?? ''
+            ));
+
+            if ($text === '') {
+                continue;
+            }
+
+            if (in_array($type, ['QUICK_REPLY', 'QUICK REPLY'], true)) {
+                $normalized[] = [
+                    'type' => 'QUICK_REPLY',
+                    'text' => $text,
+                ];
+                continue;
+            }
+
+            if ($type === 'URL' && $value !== '') {
+                $normalized[] = [
+                    'type' => 'URL',
+                    'text' => $text,
+                    'url' => $value,
+                ];
+                continue;
+            }
+
+            if (in_array($type, ['PHONE_NUMBER', 'PHONE', 'CALL'], true)
+                && $value !== '') {
+                $normalized[] = [
+                    'type' => 'PHONE_NUMBER',
+                    'text' => $text,
+                    'phone_number' => $value,
+                ];
+                continue;
+            }
+
+            if ($type === 'COPY_CODE') {
+                $normalized[] = [
+                    'type' => 'COPY_CODE',
+                    'example' => $value !== '' ? $value : 'DURACABS',
+                ];
+            }
+        }
+
+        return array_slice($normalized, 0, 10);
+    }
+
+    private static function normalizeMetaTemplateStatus(string $status): string
+    {
+        return match (strtoupper(trim($status))) {
+            'APPROVED' => 'approved',
+            'REJECTED' => 'rejected',
+            'PAUSED' => 'paused',
+            'DISABLED' => 'disabled',
+            'IN_APPEAL' => 'in_appeal',
+            'PENDING_DELETION' => 'pending_deletion',
+            'DELETED' => 'deleted',
+            default => 'pending',
+        };
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Configuration
@@ -1205,6 +1804,24 @@ class WhatsAppService
             ),
             '/'
         );
+    }
+
+    private static function businessAccountId(): string
+    {
+        return trim((string) config(
+            'services.whatsapp.business_account_id',
+            env('WHATSAPP_BUSINESS_ACCOUNT_ID', '')
+        ));
+    }
+
+    private static function templatesUrl(): string
+    {
+        return self::baseUrl()
+            . '/'
+            . self::graphVersion()
+            . '/'
+            . self::businessAccountId()
+            . '/message_templates';
     }
 
     private static function messagesUrl(): string

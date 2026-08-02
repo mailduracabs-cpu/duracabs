@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Models\Address;
 use App\Models\Coupons;
 use App\Models\Order;
+use App\Models\Product;
 use App\Models\Vehicle;
 use App\Services\SelfDrivePricingService;
 use Carbon\Carbon;
@@ -399,20 +400,18 @@ class CheckoutPage extends Component
 
             return redirect(route('success') . '?id=' . $order->id);
         } catch (Throwable $exception) {
-    Cache::forget($lockKey);
-    $this->isSubmitting = false;
+            report($exception);
+            Cache::forget($lockKey);
+            $this->isSubmitting = false;
+            session()->flash(
+                'error',
+                app()->isLocal()
+                    ? $exception->getMessage()
+                    : 'We could not process your reservation. Please try again.'
+            );
 
-    logger()->error('CHECKOUT PLACE ORDER FAILED', [
-        'message' => $exception->getMessage(),
-        'file' => $exception->getFile(),
-        'line' => $exception->getLine(),
-        'trace' => $exception->getTraceAsString(),
-    ]);
-
-    session()->flash('error', $exception->getMessage());
-
-    return null;
-}
+            return null;
+        }
     }
 
     private function createOrder(float $grandTotal): Order
@@ -509,7 +508,9 @@ class CheckoutPage extends Component
 
             $order->save();
 
-            Address::query()->create([
+            $order->save();
+
+Address::query()->create([
     'order_id' => $order->id,
     'user_id' => auth()->id(),
     'full_name' => $this->full_name,
@@ -540,56 +541,102 @@ class CheckoutPage extends Component
         });
     }
 
-    private function configureExtraOptions(): void
-    {
-        $type = (string) ($this->bookingDraft['type'] ?? '');
-        $fare = (array) ($this->bookingDraft['fare'] ?? []);
-        $product = (array) ($this->bookingDraft['product'] ?? []);
+   private function configureExtraOptions(): void
+{
+    $type = (string) ($this->bookingDraft['type'] ?? '');
+    $fare = (array) ($this->bookingDraft['fare'] ?? []);
 
-        $this->security = (float) ($fare['security'] ?? $fare['security_deposit'] ?? 0);
+    $this->security = (float) (
+        $fare['security']
+        ?? $fare['security_deposit']
+        ?? 0
+    );
 
-        if ($type === 'self_drive') {
-            $vehicle = $this->resolveSelfDriveVehicle(false);
+    /*
+     * Self-drive checkout:
+     * refundable security is compulsory.
+     */
+    if ($type === 'self_drive') {
+        $vehicle = $this->resolveSelfDriveVehicle(false);
 
-            if ($this->security <= 0 && $vehicle) {
-                $this->security = $vehicle->getSecurityDepositAmount();
-            }
-
-            $this->extraAmountArr = [[
-                'is_checked' => true,
-                'type' => 'security',
-                'description' => 'Refundable security deposit',
-                'title' => 'Security',
-                'price' => $this->security,
-            ]];
-
-            return;
+        if ($this->security <= 0 && $vehicle) {
+            $this->security = $vehicle->getSecurityDepositAmount();
         }
 
-        $this->extraAmountArr = [
-            [
-                'is_checked' => false,
-                'type' => 'roofCareer',
-                'description' => 'Car with roof carrier for adjusting extra luggage',
-                'title' => 'Roof Carrier',
-                'price' => $this->optionPrice($product['roof_carrier'] ?? 0),
-            ],
-            [
-                'is_checked' => false,
-                'type' => 'newWehical',
-                'description' => 'Promised new car with 2023 or newer model',
-                'title' => 'New Vehicle',
-                'price' => $this->optionPrice($product['new_vehicle'] ?? 0),
-            ],
-            [
-                'is_checked' => false,
-                'type' => 'petFrindly',
-                'description' => 'Choose your pet friendly car for a smoother ride',
-                'title' => 'Pet Friendly',
-                'price' => $this->optionPrice($product['pet_friendly'] ?? 0),
-            ],
-        ];
+        $this->extraAmountArr = [[
+            'is_checked' => true,
+            'type' => 'security',
+            'description' => 'Refundable security deposit',
+            'title' => 'Security',
+            'price' => $this->security,
+        ]];
+
+        return;
     }
+
+    /*
+     * With-driver optional preferences are loaded from
+     * products.fare_cards JSON.
+     */
+    $productId = (int) (
+        $this->bookingDraft['product_id']
+        ?? data_get($this->bookingDraft, 'product.id')
+        ?? 0
+    );
+
+    if ($productId <= 0) {
+        $this->extraAmountArr = [];
+
+        return;
+    }
+
+    $product = Product::query()
+        ->select(['id', 'fare_cards'])
+        ->find($productId);
+
+    if (! $product) {
+        $this->extraAmountArr = [];
+
+        return;
+    }
+
+    $fareCards = $product->fare_cards;
+
+    if (is_string($fareCards)) {
+        $fareCards = json_decode($fareCards, true);
+    }
+
+    if (! is_array($fareCards)) {
+        $fareCards = [];
+    }
+
+    $preferences = data_get($fareCards, 'optional_preferences', []);
+
+    if (! is_array($preferences)) {
+        $preferences = [];
+    }
+
+    $this->extraAmountArr = collect($preferences)
+        ->filter(function ($preference): bool {
+            return is_array($preference)
+                && (bool) ($preference['is_active'] ?? true)
+                && filled($preference['title'] ?? null);
+        })
+        ->map(function (array $preference, int $index): array {
+            return [
+                'is_checked' => false,
+                'type' => (string) (
+                    $preference['type']
+                    ?? 'optional_preference_' . $index
+                ),
+                'title' => (string) ($preference['title'] ?? 'Optional Preference'),
+                'description' => (string) ($preference['description'] ?? ''),
+                'price' => $this->optionPrice($preference['price'] ?? 0),
+            ];
+        })
+        ->values()
+        ->all();
+}
 
     private function prefillCustomerDetails(): void
     {
