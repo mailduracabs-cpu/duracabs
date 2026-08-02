@@ -399,18 +399,20 @@ class CheckoutPage extends Component
 
             return redirect(route('success') . '?id=' . $order->id);
         } catch (Throwable $exception) {
-            report($exception);
-            Cache::forget($lockKey);
-            $this->isSubmitting = false;
-            session()->flash(
-                'error',
-                app()->isLocal()
-                    ? $exception->getMessage()
-                    : 'We could not process your reservation. Please try again.'
-            );
+    Cache::forget($lockKey);
+    $this->isSubmitting = false;
 
-            return null;
-        }
+    logger()->error('CHECKOUT PLACE ORDER FAILED', [
+        'message' => $exception->getMessage(),
+        'file' => $exception->getFile(),
+        'line' => $exception->getLine(),
+        'trace' => $exception->getTraceAsString(),
+    ]);
+
+    session()->flash('error', $exception->getMessage());
+
+    return null;
+}
     }
 
     private function createOrder(float $grandTotal): Order
