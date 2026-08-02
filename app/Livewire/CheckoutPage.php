@@ -507,21 +507,23 @@ class CheckoutPage extends Component
 
             $order->save();
 
-            address::query()->create([
-                'order_id' => $order->id,
-                'user_id' => auth()->id(),
-                'full_name' => $this->full_name,
-                'email' => $this->email,
-                'phone' => $this->phone,
-                'phone2' => $this->isSelfDriveBooking() ? null : ($this->phone2 ?: null),
-                'pickup_address' => $this->isSelfDriveBooking()
-                    ? 'Pending customer profile completion'
-                    : $this->pickup_address,
-                'drop_address' => $this->isSelfDriveBooking() ? null : ($this->drop_address ?: null),
-                'number_travellers' => $this->isSelfDriveBooking() ? null : ($this->number_travellers ?: null),
-                'number_luggage' => $this->isSelfDriveBooking() ? null : ($this->number_luggage ?: null),
-                'comments' => $this->isSelfDriveBooking() ? null : ($this->comments ?: null),
-            ]);
+            $order->save();
+
+Address::query()->create([
+    'order_id' => $order->id,
+    'user_id' => auth()->id(),
+    'full_name' => $this->full_name,
+    'email' => $this->email,
+    'phone' => $this->phone,
+    'phone2' => $this->isSelfDriveBooking() ? null : ($this->phone2 ?: null),
+    'pickup_address' => $this->isSelfDriveBooking()
+        ? 'Pending customer profile completion'
+        : $this->pickup_address,
+    'drop_address' => $this->isSelfDriveBooking() ? null : ($this->drop_address ?: null),
+    'number_travellers' => $this->isSelfDriveBooking() ? null : ($this->number_travellers ?: null),
+    'number_luggage' => $this->isSelfDriveBooking() ? null : ($this->number_luggage ?: null),
+    'comments' => $this->isSelfDriveBooking() ? null : ($this->comments ?: null),
+]);
 
             $productId = $draft['product_id'] ?? $product['id'] ?? null;
 
