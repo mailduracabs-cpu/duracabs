@@ -507,9 +507,7 @@ class CheckoutPage extends Component
 
             $order->save();
 
-            $order->save();
-
-Address::query()->create([
+            Address::query()->create([
     'order_id' => $order->id,
     'user_id' => auth()->id(),
     'full_name' => $this->full_name,
