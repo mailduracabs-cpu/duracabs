@@ -187,6 +187,67 @@ class WhatsAppService
 
     /*
     |--------------------------------------------------------------------------
+    | Booking received
+    |--------------------------------------------------------------------------
+    */
+
+    public static function bookingReceived(
+        string $number,
+        array $data
+    ): bool {
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $service = trim((string) ($data['service'] ?? 'Cab Booking')) ?: 'Cab Booking';
+        $route = trim((string) ($data['route'] ?? 'N/A')) ?: 'N/A';
+        $travelDate = trim((string) (
+            $data['travel_date']
+            ?? $data['date']
+            ?? $data['pickup_date']
+            ?? 'N/A'
+        )) ?: 'N/A';
+
+        $totalAmount = $data['total_amount']
+            ?? $data['amount']
+            ?? $data['grand_total']
+            ?? '0';
+
+        $formattedAmount = is_numeric($totalAmount)
+            ? number_format((float) $totalAmount, 2, '.', '')
+            : trim((string) $totalAmount);
+
+        if ($formattedAmount === '') {
+            $formattedAmount = '0.00';
+        }
+
+        $message =
+            "Hello {$customerName},\n\n" .
+            "Your Dura Cabs booking request has been received successfully.\n\n" .
+            "Booking ID: {$bookingId}\n" .
+            "Service: {$service}\n" .
+            "Route: {$route}\n" .
+            "Travel Date: {$travelDate}\n" .
+            "Total Amount: INR {$formattedAmount}\n\n" .
+            "Our team will review your booking and update you shortly.\n\n" .
+            "For assistance, call +91 70888 73331.\n\n" .
+            "Dura Cabs";
+
+        return self::sendConfiguredTemplateOrText(
+            number: $number,
+            templateConfigKey: 'booking_received',
+            fallbackMessage: $message,
+            parameters: [
+                $customerName,
+                $bookingId,
+                $service,
+                $route,
+                $travelDate,
+                $formattedAmount,
+            ]
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Booking confirmation
     |--------------------------------------------------------------------------
     */
