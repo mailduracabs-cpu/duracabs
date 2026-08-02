@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Models\address;
+use App\Models\Address;
 use App\Models\Coupons;
 use App\Models\Order;
 use App\Models\Vehicle;
