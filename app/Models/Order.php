@@ -61,9 +61,10 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    public function address() {
-        return $this->hasOne(address::class);
-    }
+    public function address()
+{
+    return $this->hasOne(Address::class);
+}
 
     public function invoices() {
         return $this->hasMany(Invoices::class);
@@ -190,7 +191,7 @@ class Order extends Model
                 // Get address explicitly if not loaded
                 $address = $order->address;
                 if (!$address) {
-                    $address = \App\Models\address::where('order_id', $order->id)->first();
+                    $address = \App\Models\Address::where('order_id', $order->id)->first();
                 }
                 
                 // Get mobile and name from address first, then user
@@ -706,7 +707,7 @@ class Order extends Model
                     $order->refresh();
                     $address = $order->address;
                     if (!$address) {
-                        $address = \App\Models\address::where('order_id', $order->id)->first();
+                        $address = \App\Models\Address::where('order_id', $order->id)->first();
                     }
                     
                     $customerName = $address->full_name ?? $order->user->name ?? 'N/A';
@@ -923,7 +924,7 @@ class Order extends Model
                 if ($transporter && $transporter->mobile) {
                     $address = $order->address;
                     if (!$address) {
-                        $address = \App\Models\address::where('order_id', $order->id)->first();
+                        $address = \App\Models\Address::where('order_id', $order->id)->first();
                     }
                     
                     $customerName = $address->full_name ?? $order->user->name ?? 'N/A';

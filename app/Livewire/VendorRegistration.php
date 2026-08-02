@@ -2,7 +2,7 @@
 
 namespace App\Livewire;
 
-use App\Models\address;
+use App\Models\Address;
 use App\Models\FleetManagement\TransporterProfile;
 use App\Models\Inquirys;
 use App\Models\User;

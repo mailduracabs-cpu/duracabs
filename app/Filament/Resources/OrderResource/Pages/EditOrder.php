@@ -4,7 +4,7 @@ namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Filament\Resources\OrderResource;
 use App\Mail\OrderUpdated;
-use App\Models\address;
+use App\Models\Address;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\FinalBillingService;
