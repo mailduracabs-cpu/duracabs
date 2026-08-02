@@ -240,23 +240,25 @@
                             </div>
                         </section>
                     @else
-                        <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-                            <h2 class="text-xl font-black text-slate-900">Optional Booking Preferences</h2>
-                            <div class="mt-5 space-y-3">
-                                @foreach ($this->extraAmountArr as $key => $item)
-                                    <label class="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-sky-300 hover:bg-sky-50/40">
-                                        <span class="flex items-start gap-3">
-                                            <input type="checkbox" wire:click="newWehicalValueFun({{ $key }})" {{ $item['is_checked'] ? 'checked' : '' }} class="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
-                                            <span>
-                                                <strong class="block text-sm text-slate-900">{{ $item['title'] }}</strong>
-                                                <small class="mt-1 block text-xs leading-5 text-slate-500">{{ $item['description'] ?? '' }}</small>
+                        @if (!empty($this->extraAmountArr))
+                            <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+                                <h2 class="text-xl font-black text-slate-900">Optional Booking Preferences</h2>
+                                <div class="mt-5 space-y-3">
+                                    @foreach ($this->extraAmountArr as $key => $item)
+                                        <label class="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-sky-300 hover:bg-sky-50/40">
+                                            <span class="flex items-start gap-3">
+                                                <input type="checkbox" wire:click="newWehicalValueFun({{ $key }})" {{ $item['is_checked'] ? 'checked' : '' }} class="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
+                                                <span>
+                                                    <strong class="block text-sm text-slate-900">{{ $item['title'] }}</strong>
+                                                    <small class="mt-1 block text-xs leading-5 text-slate-500">{{ $item['description'] ?? '' }}</small>
+                                                </span>
                                             </span>
-                                        </span>
-                                        <strong class="text-sm text-slate-900">{{ Number::currency($item['price'] ?? 0, 'INR') }}</strong>
-                                    </label>
-                                @endforeach
-                            </div>
-                        </section>
+                                            <strong class="text-sm text-slate-900">{{ Number::currency($item['price'] ?? 0, 'INR') }}</strong>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </section>
+                        @endif
                     @endif
                 </div>
 
@@ -408,7 +410,7 @@
                         <div class="mt-4 grid gap-3 {{ $isSelfDriveCheckout ? 'grid-cols-1' : 'sm:grid-cols-2 lg:grid-cols-1' }}">
                             @unless ($isSelfDriveCheckout)
                                 <label class="cursor-pointer">
-                                    <input wire:model="payment_method" type="radio" value="cash" class="peer sr-only">
+                                    <input wire:model.live="payment_method" type="radio" value="cash" class="peer sr-only">
                                     <span class="flex items-center gap-3 rounded-2xl border-2 border-slate-200 p-4 transition peer-checked:border-sky-600 peer-checked:bg-sky-50 peer-checked:ring-4 peer-checked:ring-sky-100">
                                         <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100 text-amber-700"><i class="fa-solid fa-money-bill-wave"></i></span>
                                         <span><strong class="block text-sm text-slate-900">Pay at Pick-up</strong><small class="text-xs text-slate-500">Cash payment</small></span>
@@ -417,7 +419,7 @@
                             @endunless
 
                             <label class="cursor-pointer">
-                                <input wire:model="payment_method" type="radio" value="RazorPay" class="peer sr-only" {{ $isSelfDriveCheckout ? 'checked' : '' }}>
+                                <input wire:model.live="payment_method" type="radio" value="RazorPay" class="peer sr-only" {{ $isSelfDriveCheckout ? 'checked' : '' }}>
                                 <span class="flex items-center gap-3 rounded-2xl border-2 border-slate-200 p-4 transition peer-checked:border-sky-600 peer-checked:bg-sky-50 peer-checked:ring-4 peer-checked:ring-sky-100">
                                     <span class="grid h-10 w-10 place-items-center rounded-xl bg-sky-100 text-sky-700"><i class="fa-solid fa-credit-card"></i></span>
                                     <span><strong class="block text-sm text-slate-900">Secure Online Payment</strong><small class="text-xs text-slate-500">UPI, cards and net banking</small></span>
@@ -439,7 +441,13 @@
                                 {{ $isSelfDriveCheckout ? 'Secure Your Reservation' : 'Confirm Your Booking' }}
                             </small>
                             <strong class="mt-0.5 block text-base font-black">
-                                {{ $isSelfDriveCheckout ? 'Reserve Vehicle' : 'Proceed to Payment' }}
+                                @if ($isSelfDriveCheckout)
+                                    Reserve Vehicle
+                                @elseif ($payment_method === 'cash')
+                                    Confirm Cash Booking
+                                @else
+                                    Proceed to Payment
+                                @endif
                                 • {{ Number::currency($isSelfDriveCheckout ? $amountPayableNow : $grandTotal, 'INR') }}
                             </strong>
                         </span>
