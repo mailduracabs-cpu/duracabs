@@ -55,7 +55,7 @@
                 </span>
             </button>
 
-            {{-- ROUND TRIP --}}
+            {{-- MULTI TRIP --}}
             <button
                 type="button"
                 x-on:click="activeTab = 'return'; $wire.set('selected_tab', 'return', false)"
@@ -69,7 +69,7 @@
                 >
                     <img
                         src="/cab_images/return.webp"
-                        alt="Round Trip"
+                        alt="Multi Trip"
                         class="h-8 w-8 object-contain transition"
                         x-bind:style="activeTab === 'return' ? 'filter:none' : 'filter:grayscale(1)'"
                     >
@@ -82,7 +82,7 @@
                     </span>
 
                     <span class="block text-xs font-extrabold uppercase sm:text-sm">
-                        Round Trip
+                        Multi Trip
                     </span>
                 </span>
 
@@ -482,7 +482,7 @@
         </form>
 
         {{-- =====================================================
-            ROUND TRIP FORM
+            MULTI TRIP FORM
         ====================================================== --}}
         <form
             x-on:submit.prevent="if (!submitting) { submitting = true; $wire.searchPackage().finally(() => submitting = false) }"
@@ -491,34 +491,31 @@
             x-cloak
             class="p-4 sm:p-5"
         >
-            <div
-                class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.25fr_1.25fr_1fr_1fr_1fr_150px]">
+            <div class="mb-4 flex flex-col gap-3 rounded-2xl border border-sky-100 bg-sky-50/70 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h3 class="text-base font-extrabold text-slate-900">Build Your Multi-City Route</h3>
+                    <p class="mt-1 text-xs font-medium leading-5 text-slate-600 sm:text-sm">
+                        Add up to 20 destinations. Your cab will return to the pickup city at the end.
+                    </p>
+                </div>
 
-                {{-- ROUND FROM --}}
+                <span class="inline-flex w-fit items-center gap-2 rounded-full bg-white px-3 py-2 text-xs font-bold text-sky-700 shadow-sm">
+                    <i class="fa-solid fa-route" aria-hidden="true"></i>
+                    {{ 1 + count($tripCities ?? []) }} Destination{{ (1 + count($tripCities ?? [])) === 1 ? '' : 's' }}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-[1.25fr_1.25fr_1fr_1fr_1fr_150px]">
+                {{-- PICKUP CITY --}}
                 <div class="relative">
-                    <label
-                        for="round-from"
-                        class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
-                    >
-                        From
+                    <label for="round-from" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Pickup City
                     </label>
 
                     <div class="relative">
-                        <span
-                            class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-sky-500"
-                        >
-                            <svg
-                                class="h-5 w-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z"
-                                />
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-sky-500">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z" />
                                 <circle cx="12" cy="9" r="2.5" />
                             </svg>
                         </span>
@@ -527,7 +524,7 @@
                             type="text"
                             id="round-from"
                             wire:model.live.debounce.350ms="queryFrom_search"
-                            placeholder="Pickup city"
+                            placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $this->hasError('queryFrom')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
@@ -536,76 +533,37 @@
                     </div>
 
                     @if ($this->hasError('queryFrom'))
-                        <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('queryFrom') }}
-                        </p>
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('queryFrom') }}</p>
                     @endif
 
                     @if (mb_strlen(trim((string) $queryFrom_search)) >= 3)
-                        <div
-                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
-                        >
-                            @if (!empty($dataFrom))
-                                @foreach ($dataFrom as $city)
-                                    <button
-                                        type="button"
-                                        wire:click="selectGooglePlace('round_from', '{{ $city['place_id'] }}')"
-                                        class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
-                                    >
-                                        <span
-                                            class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500"
-                                        >
-                                            <svg
-                                                class="h-4 w-4"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z"
-                                                />
-                                                <circle cx="12" cy="9" r="2.5" />
-                                            </svg>
-                                        </span>
-
-                                        <span>
-                                            {{ $city['description'] }}
-                                        </span>
-                                    </button>
-                                @endforeach
-                            @endif
+                        <div data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                            @foreach (($dataFrom ?? []) as $city)
+                                <button
+                                    type="button"
+                                    wire:click="selectGooglePlace('round_from', '{{ $city['place_id'] }}')"
+                                    class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-sky-50 hover:text-sky-700"
+                                >
+                                    <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-50 text-sky-500">
+                                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="leading-5">{{ $city['description'] }}</span>
+                                </button>
+                            @endforeach
                         </div>
                     @endif
                 </div>
 
-                {{-- ROUND TO --}}
+                {{-- FIRST DESTINATION --}}
                 <div class="relative">
-                    <label
-                        for="round-to"
-                        class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
-                    >
-                        To
+                    <label for="round-to" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                        Destination 1
                     </label>
 
                     <div class="relative">
-                        <span
-                            class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-rose-500"
-                        >
-                            <svg
-                                class="h-5 w-5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z"
-                                />
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-rose-500">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z" />
                                 <circle cx="12" cy="9" r="2.5" />
                             </svg>
                         </span>
@@ -614,7 +572,7 @@
                             type="text"
                             id="round-to"
                             wire:model.live.debounce.350ms="queryTo_search"
-                            placeholder="Destination city"
+                            placeholder="Enter first destination"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $this->hasError('queryTo')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
@@ -623,60 +581,30 @@
                     </div>
 
                     @if ($this->hasError('queryTo'))
-                        <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('queryTo') }}
-                        </p>
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('queryTo') }}</p>
                     @endif
 
                     @if (mb_strlen(trim((string) $queryTo_search)) >= 3)
-                        <div
-                            data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
-                        >
-                            @if (!empty($dataTo))
-                                @foreach ($dataTo as $city)
-                                    <button
-                                        type="button"
-                                        wire:click="selectGooglePlace('round_to', '{{ $city['place_id'] }}')"
-                                        class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
-                                    >
-                                        <span
-                                            class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500"
-                                        >
-                                            <svg
-                                                class="h-4 w-4"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M12 21s7-5.2 7-12a7 7 0 10-14 0c0 6.8 7 12 7 12z"
-                                                />
-                                                <circle cx="12" cy="9" r="2.5" />
-                                            </svg>
-                                        </span>
-
-                                        <span>
-                                            {{ $city['description'] }}
-                                        </span>
-                                    </button>
-                                @endforeach
-                            @endif
+                        <div data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                            @foreach (($dataTo ?? []) as $city)
+                                <button
+                                    type="button"
+                                    wire:click="selectGooglePlace('round_to', '{{ $city['place_id'] }}')"
+                                    class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-rose-50 hover:text-rose-700"
+                                >
+                                    <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+                                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                                    </span>
+                                    <span class="leading-5">{{ $city['description'] }}</span>
+                                </button>
+                            @endforeach
                         </div>
                     @endif
                 </div>
 
                 {{-- START DATE --}}
                 <div>
-                    <label
-                        for="round-start-date"
-                        class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
-                    >
-                        Start Date
-                    </label>
-
+                    <label for="round-start-date" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Date</label>
                     <input
                         type="date"
                         id="round-start-date"
@@ -684,53 +612,44 @@
                         min="{{ date('Y-m-d') }}"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
-                            ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                        {{ $this->hasError('date') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
-
                     @if ($this->hasError('date'))
-                        <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
-                        </p>
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('date') }}</p>
                     @endif
                 </div>
 
                 {{-- END DATE --}}
                 <div>
-                    <label
-                        for="round-end-date"
-                        class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
-                    >
-                        End Date
-                    </label>
-
+                    <label for="round-end-date" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">End Date</label>
                     <input
                         type="date"
                         id="round-end-date"
                         wire:model="dateto"
-                        min="{{ date('Y-m-d') }}"
+                        min="{{ $date ?: date('Y-m-d') }}"
                         required
-                        class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                        class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
+                        {{ $this->hasError('dateto') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
+                    @if ($this->hasError('dateto'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('dateto') }}</p>
+                    @endif
                 </div>
 
-                {{-- TIME --}}
+                {{-- START TIME --}}
                 <div>
-                    <label
-                        for="round-time"
-                        class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600"
-                    >
-                        Pickup Time
-                    </label>
-
+                    <label for="round-time" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Time</label>
                     <input
                         type="time"
                         id="round-time"
                         wire:model="time"
                         required
-                        class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                        class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
+                        {{ $this->hasError('time') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
+                    @if ($this->hasError('time'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('time') }}</p>
+                    @endif
                 </div>
 
                 {{-- SEARCH --}}
@@ -738,13 +657,102 @@
                     <button
                         type="submit"
                         :disabled="submitting"
-                        class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:opacity-70"
+                        class="flex h-14 w-full items-center justify-center rounded-xl bg-sky-500 px-5 text-sm font-extrabold uppercase text-white shadow-lg shadow-sky-500/25 transition hover:bg-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-200 disabled:cursor-not-allowed disabled:opacity-70"
                     >
                         <span x-show="!submitting">Search</span>
                         <span x-show="submitting" x-cloak>Searching...</span>
                     </button>
                 </div>
             </div>
+
+            {{-- ADDITIONAL DESTINATIONS --}}
+            <div class="mt-4 space-y-3">
+                @foreach (($tripCities ?? []) as $index => $tripCity)
+                    <div wire:key="multi-trip-city-{{ $index }}" class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+                        <div class="flex items-start gap-3">
+                            <div class="relative min-w-0 flex-1">
+                                <label for="trip-city-{{ $index }}" class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">
+                                    Destination {{ $index + 2 }}
+                                </label>
+
+                                <div class="relative">
+                                    <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-violet-500">
+                                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        id="trip-city-{{ $index }}"
+                                        wire:model.live.debounce.350ms="tripCities.{{ $index }}.search"
+                                        placeholder="Enter next destination"
+                                        class="h-14 w-full rounded-xl border bg-white pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:ring-4
+                                        {{ $this->hasError('tripCities.' . $index)
+                                            ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+                                            : 'border-slate-200 focus:border-violet-500 focus:ring-violet-100' }}"
+                                    >
+                                </div>
+
+                                @if ($this->hasError('tripCities.' . $index))
+                                    <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('tripCities.' . $index) }}</p>
+                                @endif
+
+                                @if (!empty($tripCity['suggestions']))
+                                    <div data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                        @foreach ($tripCity['suggestions'] as $city)
+                                            <button
+                                                type="button"
+                                                wire:click="selectTripCity({{ $index }}, '{{ $city['place_id'] }}')"
+                                                class="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-violet-50 hover:text-violet-700"
+                                            >
+                                                <span class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-50 text-violet-500">
+                                                    <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                                                </span>
+                                                <span class="leading-5">{{ $city['description'] }}</span>
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+
+                            <button
+                                type="button"
+                                wire:click="removeTripCity({{ $index }})"
+                                class="mt-[26px] flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-red-200 bg-white text-red-500 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-4 focus:ring-red-100"
+                                aria-label="Remove destination {{ $index + 2 }}"
+                                title="Remove destination"
+                            >
+                                <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                    type="button"
+                    wire:click="addTripCity"
+                    @disabled(count($tripCities ?? []) >= $maxTripCities)
+                    class="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-5 text-sm font-extrabold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
+                    Add Another City
+                </button>
+
+                <div class="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 sm:text-sm">
+                    <i class="fa-solid fa-rotate-left text-sky-500" aria-hidden="true"></i>
+                    Final route automatically returns to {{ $queryFrom ?: 'pickup city' }}.
+                </div>
+            </div>
+
+            @if ($this->hasError('tripCities'))
+                <p class="mt-3 text-xs font-medium text-red-600">{{ $this->getError('tripCities') }}</p>
+            @endif
+
+            @if (!empty($oneWayMsg))
+                <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                    {{ $oneWayMsg }}
+                </div>
+            @endif
         </form>
 
         {{-- =====================================================
