@@ -64,8 +64,23 @@ Route::get('/contact-us', ContactUs::class)->name('contact-us');
 Route::get('/terms-and-conditions', TermsAndConditions::class)->name('terms-and-conditions');
 Route::view('/cookie-policy', 'cookie-policy')->name('cookie-policy');
 
-Route::get('/route/{slug}', ProductDetailedPage::class)->name('route.show');
-Route::get('/pages/{slug}', Page::class)->name('pages.show');
+Route::get('/route/{slug}', ProductDetailedPage::class)
+    ->name('route.show');
+
+Route::get('/self-drive/{slug}', ProductDetailedPage::class)
+    ->name('self-drive.show');
+
+Route::get('/bike-rental/{slug}', ProductDetailedPage::class)
+    ->name('bike-rental.show');
+
+Route::get('/pages/{slug}', Page::class)
+    ->name('pages.show');
+
+Route::get('/blog/{slug}', Page::class)
+    ->name('blog.show');
+
+Route::get('/tour/{slug}', Page::class)
+    ->name('tour.show');
 
 
 Route::get('/reviews', Reviews::class)->name('reviews');
@@ -164,6 +179,36 @@ Route::get('/auth/google', [SocialController::class, 'redirectToGoogle'])
 
 Route::get('/auth/google/callback', [SocialController::class, 'handleGoogleCallback'])
     ->name('auth.google.callback');
+
+
+/*
+|--------------------------------------------------------------------------
+| Google Search Console
+|--------------------------------------------------------------------------
+|
+| Admin-authenticated OAuth routes for connecting the Dura Cabs SEO Control
+| Center with Google Search Console. Customer Google Login remains separate.
+|
+*/
+
+Route::middleware('auth')->group(function () {
+
+    Route::get(
+        '/auth/google/search-console/connect',
+        [SocialController::class, 'redirectToSearchConsole']
+    )->name('search-console.connect');
+
+    Route::get(
+        '/auth/google/search-console/callback',
+        [SocialController::class, 'handleSearchConsoleCallback']
+    )->name('search-console.callback');
+
+    Route::post(
+        '/auth/google/search-console/disconnect',
+        [SocialController::class, 'disconnectSearchConsole']
+    )->name('search-console.disconnect');
+
+});
 
 
 /*

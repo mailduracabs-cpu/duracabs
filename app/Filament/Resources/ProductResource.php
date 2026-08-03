@@ -11,6 +11,8 @@ use App\Forms\Components\DuraSeoAiWriter;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Vehicle;
+use App\SEO\Services\SeoAnalysisService;
+use Filament\Notifications\Notification;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Group;
 use Filament\Forms\Components\Hidden;
@@ -32,6 +34,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class ProductResource extends Resource
@@ -67,9 +70,9 @@ class ProductResource extends Resource
                                         Select::make('ride_type')
                                             ->label('Page Type')
                                             ->options([
-                                                'one_way' => 'One Way',
-                                                'return' => 'Round Trip',
-                                                'local' => 'Local Package',
+                                                'one_way' => 'Route — One Way',
+                                                'return' => 'Route — Round Trip',
+                                                'local' => 'Route — Local Package',
                                                 'bike_rental' => 'Bike Rental',
                                                 'self_drive' => 'Self Drive',
                                             ])
@@ -119,11 +122,52 @@ class ProductResource extends Resource
                                                     $operation === 'edit',
                                             )
                                             ->dehydrated()
+                                            ->live(debounce: 500)
+                                            ->afterStateUpdated(
+                                                function (
+                                                    ?string $state,
+                                                    Get $get,
+                                                    Set $set,
+                                                ): void {
+                                                    $set(
+                                                        'seo_public_url',
+                                                        static::previewProductUrl(
+                                                            (string) $get('ride_type'),
+                                                            (string) $state,
+                                                        ),
+                                                    );
+                                                },
+                                            )
                                             ->unique(
                                                 Product::class,
                                                 'slug',
                                                 ignoreRecord: true,
                                             ),
+
+                                        Placeholder::make('public_url_preview')
+                                            ->label('Public URL')
+                                            ->content(
+                                                fn (Get $get): string =>
+                                                    static::previewProductUrl(
+                                                        (string) $get('ride_type'),
+                                                        (string) $get('slug'),
+                                                    ),
+                                            )
+                                            ->helperText(
+                                                'New pages use the selected page type. Existing ranked slugs are never changed automatically.',
+                                            )
+                                            ->columnSpanFull(),
+
+                                        Hidden::make('seo_public_url')
+                                            ->default(
+                                                fn (?Product $record): string =>
+                                                    $record?->public_url
+                                                    ?? static::previewProductUrl(
+                                                        'one_way',
+                                                        '',
+                                                    ),
+                                            )
+                                            ->dehydrated(false),
                                     ]),
 
                                 Grid::make([
@@ -688,6 +732,98 @@ class ProductResource extends Resource
                     )
                     ->sortable(),
 
+                TextColumn::make('seo_score')
+                    ->label('SEO')
+                    ->badge()
+                    ->suffix('/100')
+                    ->getStateUsing(
+                        fn (Product $record): int => (int) ($record->seo_score ?? 0),
+                    )
+                    ->color(
+                        fn (int $state): string => match (true) {
+                            $state >= 80 => 'success',
+                            $state >= 60 => 'info',
+                            $state >= 40 => 'warning',
+                            default => 'danger',
+                        },
+                    )
+                    ->sortable(),
+
+                TextColumn::make('index_readiness')
+                    ->label('Index Status')
+                    ->badge()
+                    ->getStateUsing(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['status_label'],
+                    )
+                    ->color(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['status_color'],
+                    )
+                    ->description(
+                        fn (Product $record): string =>
+                            static::seoIndexDescription($record),
+                    ),
+
+                TextColumn::make('sitemap_status')
+                    ->label('Sitemap')
+                    ->badge()
+                    ->getStateUsing(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['sitemap_eligible']
+                                ? 'Eligible'
+                                : 'Excluded',
+                    )
+                    ->color(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['sitemap_eligible']
+                                ? 'success'
+                                : 'gray',
+                    )
+                    ->toggleable(),
+
+                TextColumn::make('canonical_status')
+                    ->label('Canonical')
+                    ->badge()
+                    ->getStateUsing(
+                        function (Product $record): string {
+                            $status = static::seoIndexData($record)['canonical_status'];
+
+                            return match ($status) {
+                                'self' => 'Valid',
+                                'different' => 'Different',
+                                default => 'Missing',
+                            };
+                        },
+                    )
+                    ->color(
+                        function (Product $record): string {
+                            $status = static::seoIndexData($record)['canonical_status'];
+
+                            return match ($status) {
+                                'self' => 'success',
+                                'different' => 'warning',
+                                default => 'danger',
+                            };
+                        },
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('robots_status')
+                    ->label('Robots')
+                    ->badge()
+                    ->getStateUsing(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['robots'],
+                    )
+                    ->color(
+                        fn (Product $record): string =>
+                            static::seoIndexData($record)['robots_index']
+                                ? 'success'
+                                : 'danger',
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('vehicle.display_name')
                     ->label('Self Drive Vehicle')
                     ->placeholder('—')
@@ -726,6 +862,81 @@ class ProductResource extends Resource
                         'self_drive' => 'Self Drive',
                     ]),
 
+                Tables\Filters\SelectFilter::make('indexing_status')
+                    ->label('Index Readiness')
+                    ->options([
+                        'ready' => 'Index Ready',
+                        'noindex' => 'Noindex',
+                        'inactive' => 'Inactive',
+                        'needs_attention' => 'Needs Attention',
+                    ])
+                    ->query(
+                        function (Builder $query, array $data): Builder {
+                            return match ($data['value'] ?? null) {
+                                'ready' => $query
+                                    ->where('is_active', true)
+                                    ->where('robots_index', true)
+                                    ->whereNotNull('slug')
+                                    ->where('slug', '!=', '')
+                                    ->whereNotNull('meta_title')
+                                    ->where('meta_title', '!=', '')
+                                    ->whereNotNull('description')
+                                    ->where('description', '!=', ''),
+
+                                'noindex' => $query->where('robots_index', false),
+
+                                'inactive' => $query->where('is_active', false),
+
+                                'needs_attention' => $query
+                                    ->where(function (Builder $builder): void {
+                                        $builder
+                                            ->whereNull('slug')
+                                            ->orWhere('slug', '')
+                                            ->orWhereNull('meta_title')
+                                            ->orWhere('meta_title', '')
+                                            ->orWhereNull('description')
+                                            ->orWhere('description', '');
+                                    }),
+
+                                default => $query,
+                            };
+                        },
+                    ),
+
+                Tables\Filters\SelectFilter::make('seo_score_range')
+                    ->label('SEO Score')
+                    ->options([
+                        'excellent' => '80–100',
+                        'good' => '60–79',
+                        'needs_work' => '40–59',
+                        'poor' => 'Below 40',
+                    ])
+                    ->query(
+                        function (Builder $query, array $data): Builder {
+                            return match ($data['value'] ?? null) {
+                                'excellent' => $query->whereBetween('seo_score', [80, 100]),
+                                'good' => $query->whereBetween('seo_score', [60, 79]),
+                                'needs_work' => $query->whereBetween('seo_score', [40, 59]),
+                                'poor' => $query->where('seo_score', '<', 40),
+                                default => $query,
+                            };
+                        },
+                    ),
+
+                Tables\Filters\TernaryFilter::make('canonical_url')
+                    ->label('Canonical URL')
+                    ->placeholder('All')
+                    ->trueLabel('Canonical Set')
+                    ->falseLabel('Canonical Missing')
+                    ->queries(
+                        true: fn (Builder $query): Builder =>
+                            $query->whereNotNull('canonical_url')
+                                ->where('canonical_url', '!=', ''),
+                        false: fn (Builder $query): Builder =>
+                            $query->whereNull('canonical_url')
+                                ->orWhere('canonical_url', ''),
+                    ),
+
                 SelectFilter::make('vehicle_id')
                     ->label('Self Drive Vehicle')
                     ->options(
@@ -753,6 +964,41 @@ class ProductResource extends Resource
             ])
             ->actions([
                 Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('open_live_page')
+                        ->label('Open Live Page')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->url(
+                            fn (Product $record): string =>
+                                static::seoIndexData($record)['page_url'],
+                            shouldOpenInNewTab: true,
+                        ),
+
+                    Tables\Actions\Action::make('analyze_seo')
+                        ->label('Analyze SEO')
+                        ->icon('heroicon-o-magnifying-glass-circle')
+                        ->color('info')
+                        ->action(function (Product $record): void {
+                            $analysis = app(SeoAnalysisService::class)
+                                ->analyzeToArray(static::seoRecordData($record));
+
+                            $indexing = $analysis['indexing'];
+
+                            $body = sprintf(
+                                'SEO Score: %d/100 | Index: %s | Sitemap: %s | Blockers: %d | Warnings: %d',
+                                (int) $analysis['score'],
+                                (string) $indexing['status_label'],
+                                $indexing['sitemap_eligible'] ? 'Eligible' : 'Excluded',
+                                count($indexing['blockers']),
+                                count($indexing['warnings']),
+                            );
+
+                            Notification::make()
+                                ->title('SEO analysis completed')
+                                ->body($body)
+                                ->color((string) $indexing['status_color'])
+                                ->send();
+                        }),
+
                     Tables\Actions\EditAction::make(),
                     Tables\Actions\DeleteAction::make(),
                 ]),
@@ -766,9 +1012,253 @@ class ProductResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('analyze_selected_seo')
+                        ->label('Analyze Selected SEO')
+                        ->icon('heroicon-o-chart-bar-square')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Analyze selected SEO pages')
+                        ->modalDescription(
+                            'This recalculates SEO and readability scores for the selected pages. It does not submit URLs to Google.'
+                        )
+                        ->action(function ($records): void {
+                            $service = app(SeoAnalysisService::class);
+
+                            $ready = 0;
+                            $needsAttention = 0;
+                            $updated = 0;
+
+                            foreach ($records as $record) {
+                                $analysis = $service->analyzeToArray(
+                                    static::seoRecordData($record)
+                                );
+
+                                $record->forceFill([
+                                    'seo_score' => (int) ($analysis['score'] ?? 0),
+                                    'readability_score' => (int) (
+                                        $analysis['readability_score']
+                                        ?? 0
+                                    ),
+                                ])->save();
+
+                                if (
+                                    (bool) data_get(
+                                        $analysis,
+                                        'indexing.index_ready',
+                                        false
+                                    )
+                                ) {
+                                    $ready++;
+                                } else {
+                                    $needsAttention++;
+                                }
+
+                                $updated++;
+                            }
+
+                            Notification::make()
+                                ->title('Bulk SEO analysis completed')
+                                ->body(
+                                    "Updated: {$updated} | Index Ready: {$ready} | Needs Attention: {$needsAttention}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('generate_canonical_urls')
+                        ->label('Generate Missing Canonicals')
+                        ->icon('heroicon-o-link')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Generate canonical URLs')
+                        ->modalDescription(
+                            'Only blank canonical fields will be filled. Existing canonical URLs and slugs will not be changed.'
+                        )
+                        ->action(function ($records): void {
+                            $updated = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if (filled($record->canonical_url)) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                $record->forceFill([
+                                    'canonical_url' => static::productionProductUrl(
+                                        $record
+                                    ),
+                                ])->save();
+
+                                $updated++;
+                            }
+
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            Notification::make()
+                                ->title('Canonical generation completed')
+                                ->body(
+                                    "Generated: {$updated} | Existing preserved: {$skipped}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('set_index_follow')
+                        ->label('Set Index, Follow')
+                        ->icon('heroicon-o-eye')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Allow search engine indexing')
+                        ->modalDescription(
+                            'This sets robots to index,follow for selected pages. It does not guarantee Google indexing.'
+                        )
+                        ->action(function ($records): void {
+                            $updated = 0;
+
+                            foreach ($records as $record) {
+                                $record->forceFill([
+                                    'robots_index' => true,
+                                    'robots_follow' => true,
+                                ])->save();
+
+                                $updated++;
+                            }
+
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            Notification::make()
+                                ->title('Robots settings updated')
+                                ->body("Updated {$updated} selected pages.")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('sync_selected_with_sitemap')
+                        ->label('Sync Sitemap')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Refresh dynamic sitemap')
+                        ->modalDescription(
+                            'The sitemap cache will be cleared so eligible selected pages appear on the next sitemap request.'
+                        )
+                        ->action(function ($records): void {
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            $eligible = 0;
+                            $excluded = 0;
+
+                            foreach ($records as $record) {
+                                $analysis = static::seoIndexData($record);
+
+                                if ($analysis['sitemap_eligible']) {
+                                    $eligible++;
+                                } else {
+                                    $excluded++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('Sitemap refreshed')
+                                ->body(
+                                    "Eligible selected pages: {$eligible} | Excluded: {$excluded}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function seoIndexData(Product $record): array
+    {
+        return app(SeoAnalysisService::class)
+            ->analyzeIndexReadiness(static::seoRecordData($record));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function seoRecordData(Product $record): array
+    {
+        return [
+            'name' => $record->name,
+            'slug' => $record->slug,
+            'description' => $record->description,
+            'meta_title' => $record->meta_title,
+            'meta_description' => $record->meta_description,
+            'focus_keyword' => $record->focus_keyword,
+            'canonical_url' => $record->canonical_url,
+            'robots_index' => $record->robots_index,
+            'robots_follow' => $record->robots_follow,
+            'is_active' => $record->is_active,
+            'page_url' => static::productionProductUrl($record),
+            'updated_at' => $record->updated_at,
+        ];
+    }
+
+    protected static function previewProductUrl(
+        string $rideType,
+        string $slug
+    ): string {
+        $baseUrl = rtrim(
+            (string) config(
+                'services.search_console.property',
+                config('app.url')
+            ),
+            '/'
+        );
+
+        $prefix = match ($rideType) {
+            'self_drive' => 'self-drive',
+            'bike_rental' => 'bike-rental',
+            'tour' => 'tour',
+            default => 'route',
+        };
+
+        $cleanSlug = ltrim(trim($slug), '/');
+
+        return $cleanSlug === ''
+            ? $baseUrl . '/' . $prefix . '/{slug}'
+            : $baseUrl . '/' . $prefix . '/' . $cleanSlug;
+    }
+
+    protected static function productionProductUrl(
+        Product $record
+    ): string {
+        return filled($record->public_url)
+            ? (string) $record->public_url
+            : static::previewProductUrl(
+                (string) $record->ride_type,
+                (string) $record->slug,
+            );
+    }
+
+    protected static function seoIndexDescription(Product $record): string
+    {
+        $analysis = static::seoIndexData($record);
+
+        if ($analysis['blockers'] !== []) {
+            return (string) ($analysis['blockers'][0]['title']
+                ?? 'Indexing issue found');
+        }
+
+        if ($analysis['warnings'] !== []) {
+            return (string) ($analysis['warnings'][0]['title']
+                ?? 'SEO warning found');
+        }
+
+        return 'Technically ready for indexing';
     }
 
     public static function getRelations(): array

@@ -13,6 +13,79 @@
         $returnDate = $primaryItem['dateTo'] ?? null;
         $pickupTime = $primaryItem['time'] ?? null;
         $returnTime = $primaryItem['endTime'] ?? null;
+
+        /*
+         * Multi-city and fare-type information is stored in the unified
+         * booking draft created by RidesPage.
+         */
+        $bookingDraft = session('booking_draft', []);
+        $draftTrip = is_array($bookingDraft['trip'] ?? null)
+            ? $bookingDraft['trip']
+            : [];
+        $draftFare = is_array($bookingDraft['fare'] ?? null)
+            ? $bookingDraft['fare']
+            : [];
+
+        $isRoundTripCheckout = ($bookingType === 'return')
+            || (($bookingDraft['type'] ?? null) === 'return');
+
+        $journeyRoute = is_array($draftTrip['route'] ?? null)
+            ? array_values(array_filter(
+                $draftTrip['route'],
+                static fn ($city) => filled($city)
+            ))
+            : [];
+
+        if ($journeyRoute === [] && $isRoundTripCheckout) {
+            $pickupName = trim((string) ($draftTrip['pickup_name'] ?? ''));
+            $dropName = trim((string) ($draftTrip['drop_name'] ?? ''));
+
+            if ($pickupName !== '') {
+                $journeyRoute[] = $pickupName;
+            }
+
+            if ($dropName !== '' && $dropName !== $pickupName) {
+                $journeyRoute[] = $dropName;
+            }
+
+            if (
+                ($draftTrip['return_to_pickup'] ?? false)
+                && $pickupName !== ''
+                && count($journeyRoute) > 1
+            ) {
+                $journeyRoute[] = $pickupName;
+            }
+        }
+
+        $fareType = (string) ($draftFare['fare_type']
+            ?? $draftTrip['fare_type']
+            ?? 'normal');
+
+        $isAllInclusive = $fareType === 'all_inclusive';
+
+        $vehicleFare = (float) ($draftFare['vehicle_fare']
+            ?? $rentalCharge);
+
+        $driverAllowance = (float) ($draftFare['driver_allowance'] ?? 0);
+        $allInclusiveCharge = (float) ($draftFare['all_inclusive_charge'] ?? 0);
+
+        $totalDistanceKm = is_numeric($draftTrip['km_value'] ?? null)
+            ? ((float) $draftTrip['km_value'] / 1000)
+            : (is_numeric($draftTrip['km'] ?? null)
+                ? (float) $draftTrip['km']
+                : 0);
+
+        $billableKm = is_numeric($draftTrip['km'] ?? null)
+            ? (float) $draftTrip['km']
+            : $totalDistanceKm;
+
+        $travelDays = max(1, (int) ($draftTrip['days'] ?? 1));
+
+        $parkingPolicy = (string) ($draftFare['parking_policy']
+            ?? $draftTrip['parking_policy']
+            ?? '');
+
+        $parkingPayDirect = $parkingPolicy === 'pay_direct_as_actual';
     @endphp
 
     <div class="mx-auto w-full max-w-7xl">
@@ -291,6 +364,93 @@
                                 </div>
                             </div>
 
+                            @if ($isRoundTripCheckout && !empty($journeyRoute))
+                                <div class="mt-4 overflow-hidden rounded-2xl border border-emerald-200 bg-emerald-50/60">
+                                    <div class="border-b border-emerald-100 px-4 py-3">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p class="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-700">
+                                                    Multi-City Journey
+                                                </p>
+                                                <h3 class="mt-1 text-sm font-black text-slate-900">
+                                                    Complete Route
+                                                </h3>
+                                            </div>
+
+                                            <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-800">
+                                                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                                Round Trip
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-4">
+                                        <div class="space-y-0">
+                                            @foreach ($journeyRoute as $routeCity)
+                                                <div class="flex items-stretch gap-3">
+                                                    <div class="flex w-5 flex-col items-center">
+                                                        <span class="mt-1 h-2.5 w-2.5 rounded-full {{ $loop->first || $loop->last ? 'bg-emerald-600' : 'bg-sky-500' }}"></span>
+
+                                                        @unless ($loop->last)
+                                                            <span class="min-h-7 w-px flex-1 bg-emerald-200"></span>
+                                                        @endunless
+                                                    </div>
+
+                                                    <div class="min-w-0 pb-3">
+                                                        <p class="break-words text-xs font-bold text-slate-800">
+                                                            {{ $routeCity }}
+                                                        </p>
+
+                                                        @if ($loop->first)
+                                                            <small class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                Pickup
+                                                            </small>
+                                                        @elseif ($loop->last)
+                                                            <small class="text-[10px] font-bold uppercase tracking-wide text-emerald-700">
+                                                                Return
+                                                            </small>
+                                                        @else
+                                                            <small class="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                                                                Stop {{ $loop->iteration - 1 }}
+                                                            </small>
+                                                        @endif
+                                                    </div>
+                                                </div>
+                                            @endforeach
+                                        </div>
+
+                                        <div class="mt-2 grid grid-cols-3 gap-2">
+                                            <div class="rounded-xl bg-white p-2.5 text-center shadow-sm">
+                                                <small class="block text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                                    Distance
+                                                </small>
+                                                <strong class="mt-1 block text-xs text-slate-900">
+                                                    {{ number_format($totalDistanceKm, 0) }} KM
+                                                </strong>
+                                            </div>
+
+                                            <div class="rounded-xl bg-white p-2.5 text-center shadow-sm">
+                                                <small class="block text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                                    Billable
+                                                </small>
+                                                <strong class="mt-1 block text-xs text-slate-900">
+                                                    {{ number_format($billableKm, 0) }} KM
+                                                </strong>
+                                            </div>
+
+                                            <div class="rounded-xl bg-white p-2.5 text-center shadow-sm">
+                                                <small class="block text-[9px] font-black uppercase tracking-wide text-slate-400">
+                                                    Duration
+                                                </small>
+                                                <strong class="mt-1 block text-xs text-slate-900">
+                                                    {{ $travelDays }} Days
+                                                </strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
+
                             @if ($isSelfDriveCheckout && ($selectedHours || $chargeableHours))
                                 <div class="mt-4 grid grid-cols-2 gap-3">
                                     <div class="rounded-2xl bg-slate-50 p-3">
@@ -315,19 +475,69 @@
                                         <span>Refundable Security Deposit</span>
                                         <strong class="text-slate-900">{{ Number::currency($securityDeposit, 'INR') }}</strong>
                                     </div>
-                                @elseif (!$isSelfDriveCheckout)
+                                @elseif ($isRoundTripCheckout)
+                                    <div class="rounded-xl border px-3 py-2.5 {{ $isAllInclusive ? 'border-emerald-200 bg-emerald-50' : 'border-sky-200 bg-sky-50' }}">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="text-xs font-black uppercase tracking-wide {{ $isAllInclusive ? 'text-emerald-700' : 'text-sky-700' }}">
+                                                Fare Type
+                                            </span>
+                                            <strong class="text-sm {{ $isAllInclusive ? 'text-emerald-900' : 'text-sky-900' }}">
+                                                {{ $isAllInclusive ? 'All Inclusive' : 'Normal Fare' }}
+                                            </strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-center justify-between gap-4 text-slate-600">
+                                        <span>Vehicle Fare</span>
+                                        <strong class="text-slate-900">{{ Number::currency($vehicleFare, 'INR') }}</strong>
+                                    </div>
+
+                                    @if ($isAllInclusive)
+                                        <div class="flex items-center justify-between gap-4 text-slate-600">
+                                            <span>All Inclusive Charge</span>
+                                            <strong class="text-emerald-700">{{ Number::currency($allInclusiveCharge, 'INR') }}</strong>
+                                        </div>
+
+                                        <p class="rounded-xl bg-emerald-50 px-3 py-2 text-[11px] font-semibold leading-5 text-emerald-800">
+                                            Includes Driver Allowance, Toll Tax and State Tax.
+                                        </p>
+                                    @else
+                                        <div class="flex items-center justify-between gap-4 text-slate-600">
+                                            <span>Driver Allowance</span>
+                                            <strong class="text-slate-900">{{ Number::currency($driverAllowance, 'INR') }}</strong>
+                                        </div>
+
+                                        <div class="space-y-2 rounded-xl bg-amber-50 px-3 py-2.5 text-xs">
+                                            <div class="flex justify-between gap-3 text-amber-900">
+                                                <span>Toll Tax</span>
+                                                <strong>As Actual (Pay Direct)</strong>
+                                            </div>
+                                            <div class="flex justify-between gap-3 text-amber-900">
+                                                <span>State Tax</span>
+                                                <strong>As Actual (Pay Direct)</strong>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    @if ($parkingPayDirect)
+                                        <div class="flex items-center justify-between gap-4 text-slate-600">
+                                            <span>Parking Charges</span>
+                                            <strong class="text-amber-700">As Actual (Pay Direct)</strong>
+                                        </div>
+                                    @endif
+                                @else
                                     <div class="flex items-center justify-between gap-4 text-slate-600">
                                         <span>Toll Charges</span>
                                         <strong class="text-slate-900">
                                             {{ ($tollTax ?? 0) > 0 ? Number::currency($tollTax, 'INR') : ($bookingType === 'one_way' ? 'Included' : 'Excluded') }}
                                         </strong>
                                     </div>
-                                @endif
 
-                                <div class="flex items-center justify-between gap-4 text-slate-600">
-                                    <span>Taxes</span>
-                                    <strong class="text-slate-900">{{ Number::currency($taxAmount, 'INR') }}</strong>
-                                </div>
+                                    <div class="flex items-center justify-between gap-4 text-slate-600">
+                                        <span>Taxes</span>
+                                        <strong class="text-slate-900">{{ Number::currency($taxAmount, 'INR') }}</strong>
+                                    </div>
+                                @endif
 
                                 @if (($discountAmount ?? 0) > 0)
                                     <div class="flex items-center justify-between gap-4 text-emerald-700">
@@ -342,7 +552,9 @@
                             <div class="rounded-2xl bg-slate-950 p-4 text-white">
                                 <div class="flex items-end justify-between gap-4">
                                     <span>
-                                        <small class="block text-xs font-bold uppercase tracking-wide text-slate-400">Estimated Total</small>
+                                        <small class="block text-xs font-bold uppercase tracking-wide text-slate-400">
+                                            {{ $isRoundTripCheckout ? 'Grand Total' : 'Estimated Total' }}
+                                        </small>
                                         <strong class="mt-1 block text-2xl font-black">{{ Number::currency($grandTotal, 'INR') }}</strong>
                                     </span>
                                     @if ($isSelfDriveCheckout && $payment_option === 'token')

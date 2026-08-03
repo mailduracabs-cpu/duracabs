@@ -89,12 +89,13 @@ final class SeoAiServiceProvider extends ServiceProvider
             SeoSuggestionService::class,
             function (Application $app): SeoSuggestionService {
                 return new SeoSuggestionService(
-                    aiManager: $app->make(AiManager::class),
-                    seoContentPrompt: $app->make(SeoContentPrompt::class),
-                    metaPrompt: $app->make(MetaPrompt::class),
-                    faqPrompt: $app->make(FaqPrompt::class),
-                    rewritePrompt: $app->make(RewritePrompt::class),
-                );
+    $app->make(\App\SEO\AI\AiManager::class),
+    $app->make(\App\SEO\Prompts\SeoContentPrompt::class),
+    $app->make(\App\SEO\Prompts\MetaPrompt::class),
+    $app->make(\App\SEO\Prompts\FaqPrompt::class),
+    $app->make(\App\SEO\Prompts\RewritePrompt::class),
+    $app->make(\App\SEO\Services\SeoAnalysisService::class),
+);
             },
         );
     }

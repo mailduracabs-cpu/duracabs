@@ -93,6 +93,12 @@ class Page extends Model
         'readability_score' => 0,
     ];
 
+    protected $appends = [
+        'public_path',
+        'public_url',
+        'resolved_canonical_url',
+    ];
+
     protected static function booted(): void
     {
         static::saving(function (Page $page): void {
@@ -149,7 +155,7 @@ class Page extends Model
             }
 
             if (blank($page->canonical_url) && filled($page->slug)) {
-                $page->canonical_url = url($page->slug);
+                $page->canonical_url = $page->public_url;
             }
         });
     }
@@ -169,6 +175,33 @@ class Page extends Model
         return $this->belongsTo(
             User::class,
             'updated_by',
+        );
+    }
+
+    public function getPublicPathAttribute(): string
+    {
+        $slug = ltrim((string) $this->slug, '/');
+
+        return match ((string) $this->content_type) {
+            'blog' => '/blog/' . $slug,
+            'tour_package' => '/tour/' . $slug,
+            default => '/pages/' . $slug,
+        };
+    }
+
+    public function getPublicUrlAttribute(): string
+    {
+        return self::productionBaseUrl() . $this->public_path;
+    }
+
+    public static function productionBaseUrl(): string
+    {
+        return rtrim(
+            (string) config(
+                'services.search_console.property',
+                config('app.url')
+            ),
+            '/'
         );
     }
 
@@ -208,7 +241,7 @@ class Page extends Model
             return (string) $this->canonical_url;
         }
 
-        return url((string) $this->slug);
+        return $this->public_url;
     }
 
     public function getResolvedImageUrlAttribute(): ?string

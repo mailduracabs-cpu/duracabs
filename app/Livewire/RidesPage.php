@@ -96,6 +96,31 @@ class RidesPage extends Component
     public $endTime ;
 
     /**
+     * JSON-encoded additional destinations received from the homepage
+     * multi-city round-trip builder.
+     */
+    #[Url(history: true)]
+    public $tripCities = null;
+
+    /**
+     * Indicates that a round trip must end at the original pickup location.
+     */
+    #[Url(history: true)]
+    public bool $returnToPickup = false;
+
+    /**
+     * Normalised multi-city destinations used by the listing and checkout.
+     *
+     * @var array<int, array{
+     *     address: string,
+     *     place_id: string|null,
+     *     latitude: float|null,
+     *     longitude: float|null
+     * }>
+     */
+    public array $multiCityStops = [];
+
+    /**
      * Homepage/banner se select ki gayi specific Self Drive vehicle ID.
      */
     #[Url(history: true)]
@@ -175,10 +200,138 @@ class RidesPage extends Component
         $this->mobileNumber =
             (string) session('rides_verified_mobile', '');
 
+        if ($this->tab === 'return') {
+            $this->normaliseMultiCityRoundTrip();
+        }
+
         if ($this->tab === 'self_drive') {
             $this->normaliseSelfDriveRentalPeriod();
             $this->refreshSelfDriveAvailabilityState();
         }
+    }
+
+    /**
+     * Decode and validate the additional round-trip destinations received
+     * from the homepage multi-city tour builder.
+     */
+    private function normaliseMultiCityRoundTrip(): void
+    {
+        $this->multiCityStops = [];
+        $this->returnToPickup = true;
+
+        if (blank($this->tripCities)) {
+            return;
+        }
+
+        $decoded = is_array($this->tripCities)
+            ? $this->tripCities
+            : json_decode((string) $this->tripCities, true);
+
+        if (! is_array($decoded)) {
+            Log::warning('Invalid multi-city round-trip payload.', [
+                'trip_cities' => $this->tripCities,
+            ]);
+
+            $this->tripCities = null;
+
+            return;
+        }
+
+        $normalised = [];
+
+        foreach (array_slice($decoded, 0, 19) as $stop) {
+            if (! is_array($stop)) {
+                continue;
+            }
+
+            $address = trim((string) (
+                $stop['address']
+                ?? $stop['search']
+                ?? $stop['name']
+                ?? ''
+            ));
+
+            if ($address === '') {
+                continue;
+            }
+
+            $normalised[] = [
+                'address' => $address,
+                'place_id' => filled($stop['place_id'] ?? null)
+                    ? (string) $stop['place_id']
+                    : null,
+                'latitude' => is_numeric($stop['latitude'] ?? null)
+                    ? (float) $stop['latitude']
+                    : null,
+                'longitude' => is_numeric($stop['longitude'] ?? null)
+                    ? (float) $stop['longitude']
+                    : null,
+            ];
+        }
+
+        $this->multiCityStops = $normalised;
+        $this->tripCities = $normalised !== []
+            ? json_encode(
+                $normalised,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+            )
+            : null;
+    }
+
+    /**
+     * Build the complete round-trip route in customer travel order.
+     *
+     * Example: Agra -> Delhi -> Jaipur -> Agra.
+     *
+     * @return array<int, string>
+     */
+    public function multiCityRoute(): array
+    {
+        if ($this->tab !== 'return') {
+            return [];
+        }
+
+        $pickup = trim((string) $this->nameTo);
+        $firstDestination = trim((string) (
+            $this->cityFrom
+            ?: $this->nameFrom
+        ));
+
+        $route = [];
+
+        if ($pickup !== '') {
+            $route[] = $pickup;
+        }
+
+        if (
+            $firstDestination !== ''
+            && $firstDestination !== $pickup
+        ) {
+            $route[] = $firstDestination;
+        }
+
+        foreach ($this->multiCityStops as $stop) {
+            $address = trim((string) ($stop['address'] ?? ''));
+
+            if (
+                $address !== ''
+                && $address !== end($route)
+                && $address !== $pickup
+            ) {
+                $route[] = $address;
+            }
+        }
+
+        if (
+            $this->returnToPickup
+            && $pickup !== ''
+            && count($route) > 1
+            && end($route) !== $pickup
+        ) {
+            $route[] = $pickup;
+        }
+
+        return array_values($route);
     }
 
     /**
@@ -418,6 +571,15 @@ class RidesPage extends Component
                         'days' => $bookingType === 'return' ? $this->days : null,
                         'km' => $bookingType === 'return' ? $this->km : null,
                         'km_value' => $bookingType === 'return' ? $this->kmValue : null,
+                        'route_stops' => $bookingType === 'return'
+                            ? $this->multiCityStops
+                            : [],
+                        'route' => $bookingType === 'return'
+                            ? $this->multiCityRoute()
+                            : [],
+                        'return_to_pickup' => $bookingType === 'return'
+                            ? $this->returnToPickup
+                            : false,
                         'plan' => $bookingType === 'local' ? (string) $this->plan : null,
                         'quantity' => $quantity,
                     ],
@@ -719,7 +881,7 @@ class RidesPage extends Component
                 'pickup_city_id' => is_numeric($this->cityFrom) ? $this->cityFrom : null,
                 'drop_city_id' => is_numeric($this->cityTo) ? $this->cityTo : null,
                 'pickup_name' => (string) $this->nameTo,
-                'drop_name' => (string) $this->nameFrom,
+                'drop_name' => (string) ($this->nameFrom ?: ($this->tab === 'return' ? $this->cityFrom : null)),
                 'trip_type' => (string) ($this->tab ?: 'one_way'),
                 'travel_date' => $this->date ?: now()->toDateString(),
                 'travel_time' => $this->time ?: null,
@@ -1259,6 +1421,8 @@ class RidesPage extends Component
                 $params['kmValue'] = $this->edit_kmValue;
                 $params['timeValue'] = $this->edit_timeValue;
                 $params['days'] = $this->edit_days;
+                $params['tripCities'] = $this->tripCities;
+                $params['returnToPickup'] = $this->returnToPickup ? 1 : 0;
                 break;
             case 'local':
                 $params['cityFrom'] = $this->edit_cityFrom_id;
@@ -1311,7 +1475,10 @@ class RidesPage extends Component
     private function seoData(): array
     {
         $from = trim((string) $this->nameTo);
-        $to = trim((string) $this->nameFrom);
+        $to = trim((string) (
+            $this->nameFrom
+            ?: ($this->tab === 'return' ? $this->cityFrom : null)
+        ));
         $tripType = (string) ($this->tab ?: 'one_way');
 
         $fallbackTitle = 'Duracabs: Trusted Online Cab Booking Services in India';
@@ -1453,6 +1620,9 @@ class RidesPage extends Component
             'selectedVehicleBooked' => $this->selectedVehicleBooked,
             'selfDrivePeriodInvalid' => $this->selfDrivePeriodInvalid,
             'selfDriveAvailabilityMessage' => $this->selfDriveAvailabilityMessage,
+            'multiCityStops' => $this->multiCityStops,
+            'multiCityRoute' => $this->multiCityRoute(),
+            'returnToPickup' => $this->returnToPickup,
             'brands' => $brandFilter,
             'categories' => $categories,
             'categories2' => $returnCategories,

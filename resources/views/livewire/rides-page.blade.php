@@ -228,6 +228,78 @@
                 </section>
             @endif
 
+            @if (($tab ?? null) === 'return' && !empty($multiCityRoute))
+                <section class="mb-5 overflow-hidden rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-sky-50 shadow-sm">
+                    <div class="flex flex-col gap-4 p-5 sm:p-6">
+                        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-emerald-700">
+                                    Multi-City Round Trip
+                                </p>
+                                <h2 class="mt-1 text-xl font-black text-slate-900">
+                                    Complete Journey Route
+                                </h2>
+                            </div>
+
+                            <span class="inline-flex w-max items-center gap-2 rounded-full bg-emerald-100 px-3 py-2 text-xs font-extrabold text-emerald-800">
+                                <i class="fa-solid fa-rotate-left" aria-hidden="true"></i>
+                                Return to Pickup Included
+                            </span>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            @foreach ($multiCityRoute as $routeCity)
+                                <span class="max-w-full truncate rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-extrabold text-slate-800 shadow-sm">
+                                    {{ $routeCity }}
+                                </span>
+
+                                @if (!$loop->last)
+                                    <i class="fa-solid fa-arrow-right text-xs text-emerald-600" aria-hidden="true"></i>
+                                @endif
+                            @endforeach
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                <small class="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Total Stops
+                                </small>
+                                <strong class="mt-1 block text-lg text-slate-900">
+                                    {{ max(1, count($multiCityRoute) - 1) }}
+                                </strong>
+                            </div>
+
+                            <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                <small class="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Total Distance
+                                </small>
+                                <strong class="mt-1 block text-lg text-slate-900">
+                                    {{ number_format(max(0, (float) $kmValue / 1000), 0) }} KM
+                                </strong>
+                            </div>
+
+                            <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                <small class="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Total Days
+                                </small>
+                                <strong class="mt-1 block text-lg text-slate-900">
+                                    {{ max(1, (int) $days) }} Days
+                                </strong>
+                            </div>
+
+                            <div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100">
+                                <small class="block text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                    Return Trip
+                                </small>
+                                <strong class="mt-1 block text-lg text-emerald-700">
+                                    Included
+                                </strong>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            @endif
+
             <div wire:loading.flex wire:target="sort,selected_categories,selected_brands,price_range" class="surface mb-4 items-center gap-3 px-4 py-3 text-sm font-semibold text-blue-700">
                 <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
                 Updating available vehicles…
@@ -440,57 +512,143 @@
                     <div class="w-full px-3 lg:w-3/4">
                         <div class="surface rides-toolbar mb-4 flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p class="text-sm font-bold text-slate-800">{{ $rides->total() }} {{ Str::plural('ride', $rides->total()) }} available</p>
-                                <p class="text-xs text-slate-500">Select a vehicle to continue your booking.</p>
+                                <p class="text-sm font-bold text-slate-800">
+                                    {{ $categories2->count() }} vehicle categories available
+                                </p>
+                                <p class="text-xs text-slate-500">
+                                    Compare Normal and All Inclusive fares before selecting your vehicle.
+                                </p>
                             </div>
+
                             <label class="flex items-center gap-2 text-sm font-semibold text-slate-600">
                                 <span>Sort</span>
-                                <select wire:model.live="sort" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:ring-blue-500">
+                                <select
+                                    wire:model.live="sort"
+                                    class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:ring-blue-500"
+                                >
                                     <option value="price">Price: low to high</option>
                                     <option value="latest">Latest first</option>
                                 </select>
                             </label>
                         </div>
-                        <div class="rides-results rides-premium-results grid items-center relative">
+
+                        <div class="rides-results rides-premium-results relative grid items-center">
                             @unless ($fareUnlocked)
                                 <div class="absolute inset-0 z-30 flex min-h-[420px] items-start justify-center rounded-2xl bg-white/90 px-4 pt-10 backdrop-blur-sm">
                                     <div class="surface max-w-md p-6 text-center">
-                                        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-2xl">₹</div>
-                                        <h3 class="mt-4 text-xl font-extrabold text-slate-900">Unlock exact cab fares</h3>
-                                        <p class="mt-2 text-sm leading-6 text-slate-600">Verify your mobile with a 4 digit OTP. We will also save this trip as an inquiry so our team can help if your booking remains incomplete.</p>
-                                        <button type="button" wire:click="openFareGate" class="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 font-extrabold text-white hover:bg-blue-700">View exact fares</button>
-                                        <p class="mt-3 text-xs text-slate-500">Fast verification • No password required</p>
+                                        <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-2xl">
+                                            ₹
+                                        </div>
+                                        <h3 class="mt-4 text-xl font-extrabold text-slate-900">
+                                            Unlock exact cab fares
+                                        </h3>
+                                        <p class="mt-2 text-sm leading-6 text-slate-600">
+                                            Verify your mobile number with a 4-digit OTP to view transparent Normal and All Inclusive fares.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            wire:click="openFareGate"
+                                            class="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 font-extrabold text-white hover:bg-blue-700"
+                                        >
+                                            View Exact Fares
+                                        </button>
                                     </div>
                                 </div>
                             @endunless
 
                             @foreach ($categories2 as $category)
                                 @php
-                                    $returnFare = ($kmValue / 1000) * ($days === 0 ? 2 : 2) > ($days === 0 ? 1 : $days + 1) * $category->range
-                                        ? ($kmValue / 1000) * ($days === 0 ? 2 : 2) * $category->km_charge + $category->driver_charge * ($days === 0 ? 0 : $days)
-                                        : ($days === 0 ? 1 : $days + 1) * $category->range * $category->km_charge + $category->driver_charge * ($days === 1 ? 1 : $days);
-                                    $returnKm = round(
-                                        ($kmValue / 1000) * ($days === 0 ? 2 : $days + 1) > ($days === 0 ? 1 : $days + 1) * $category->range
-                                            ? ($kmValue / 1000) * ($days === 0 ? 2 : $days + 1)
-                                            : ($days === 0 ? 1 : $days + 1) * $category->range
+                                    $actualRouteKm = max(
+                                        0,
+                                        (float) $kmValue / 1000
                                     );
+
+                                    $tripDays = max(
+                                        1,
+                                        (int) $days
+                                    );
+
+                                    $minimumKmPerDay = max(
+                                        0,
+                                        (float) ($category->range ?? 0)
+                                    );
+
+                                    $minimumBillableKm =
+                                        $tripDays * $minimumKmPerDay;
+
+                                    $billableKm = max(
+                                        $actualRouteKm,
+                                        $minimumBillableKm
+                                    );
+
+                                    $kmRate = max(
+                                        0,
+                                        (float) ($category->km_charge ?? 0)
+                                    );
+
+                                    $driverAllowancePerDay = max(
+                                        0,
+                                        (float) ($category->driver_charge ?? 0)
+                                    );
+
+                                    $vehicleFare = round(
+                                        $billableKm * $kmRate
+                                    );
+
+                                    $driverAllowance = round(
+                                        $tripDays * $driverAllowancePerDay
+                                    );
+
+                                    $normalGrandTotal =
+                                        $vehicleFare + $driverAllowance;
+
+                                    /*
+                                     * Final approved business rule:
+                                     * All Inclusive = ₹3 per billable kilometre.
+                                     * It includes Driver Allowance, Toll Tax and State Tax.
+                                     * Parking remains payable directly as per actual charges.
+                                     */
+                                    $allInclusiveRate = 3;
+
+                                    $allInclusiveCharge = round(
+                                        $billableKm * $allInclusiveRate
+                                    );
+
+                                    $allInclusiveGrandTotal =
+                                        $vehicleFare + $allInclusiveCharge;
                                 @endphp
-                                <article wire:key="return-category-{{ $category->id }}" class="ride-package-card">
+
+                                <article
+                                    wire:key="return-category-{{ $category->id }}"
+                                    class="ride-package-card"
+                                    x-data="{
+                                        allInclusive: false,
+                                        fareDetailsOpen: false,
+                                        normalTotal: {{ $normalGrandTotal }},
+                                        inclusiveTotal: {{ $allInclusiveGrandTotal }}
+                                    }"
+                                >
                                     <div class="ride-package-media">
-                                        <span class="ride-package-badge ride-package-badge--green">Best price</span>
+                                        <span class="ride-package-badge ride-package-badge--green">
+                                            Best Price
+                                        </span>
+
                                         <img
-    src="{{ url('storage') }}/{{ $category->image }}"
-    alt="{{ $category->name }}"
-    loading="{{ $loop->first ? 'eager' : 'lazy' }}"
-    fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
-    decoding="async"
-    width="420"
-    height="240">
+                                            src="{{ url('storage') }}/{{ $category->image }}"
+                                            alt="{{ $category->name }}"
+                                            loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+                                            fetchpriority="{{ $loop->first ? 'high' : 'auto' }}"
+                                            decoding="async"
+                                            width="420"
+                                            height="240"
+                                        >
                                     </div>
+
                                     <div class="ride-package-content">
                                         <div class="ride-package-title-row">
                                             <div>
                                                 <h3>{{ $category->name }}</h3>
+
                                                 <div class="ride-package-rating" aria-label="5 star rated">
                                                     @for ($star = 0; $star < 5; $star++)
                                                         <i class="fa-solid fa-star" aria-hidden="true"></i>
@@ -499,38 +657,264 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        <p class="ride-package-model">Comfortable AC cab with a professional driver or similar vehicle.</p>
+
+                                        <p class="ride-package-model">
+                                            Comfortable AC cab with a professional driver or a similar vehicle.
+                                        </p>
+
+                                        @if (!empty($multiCityRoute))
+                                            <div class="mt-3 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
+                                                <p class="text-[11px] font-extrabold uppercase tracking-wide text-emerald-700">
+                                                    Journey Route
+                                                </p>
+
+                                                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                                    @foreach ($multiCityRoute as $routeCity)
+                                                        <span class="max-w-[150px] truncate rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-700 shadow-sm">
+                                                            {{ $routeCity }}
+                                                        </span>
+
+                                                        @if (!$loop->last)
+                                                            <i class="fa-solid fa-arrow-right text-[10px] text-emerald-600" aria-hidden="true"></i>
+                                                        @endif
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
                                         <div class="ride-package-features">
-                                            <span><i class="fa-solid fa-bottle-water"></i>Water Bottle</span>
-                                            <span><i class="fa-solid fa-bolt"></i>Instant Booking</span>
-                                            <span><i class="fa-solid fa-user-shield"></i>Trusted Driver</span>
-                                            <span><i class="fa-solid fa-snowflake"></i>AC</span>
+                                            <span>
+                                                <i class="fa-solid fa-route"></i>
+                                                {{ number_format($actualRouteKm, 0) }} KM Route
+                                            </span>
+                                            <span>
+                                                <i class="fa-regular fa-calendar"></i>
+                                                {{ $tripDays }} Days
+                                            </span>
+                                            <span>
+                                                <i class="fa-solid fa-road"></i>
+                                                {{ number_format($billableKm, 0) }} Billable KM
+                                            </span>
+                                            <span>
+                                                <i class="fa-solid fa-snowflake"></i>
+                                                AC
+                                            </span>
                                         </div>
                                     </div>
+
                                     <div class="ride-package-price">
-                                        <p class="ride-package-price-label">Estimated trip fare</p>
-                                        <strong>{{ Number::currency($returnFare, 'INR') }}</strong>
-                                        <button type="button"
-                                            onclick="showFareSummary({{ $category->id }}, '{{ addslashes($category->name) }}', {{ $returnFare }}, {{ $category->km_charge }}, {{ $category->driver_charge }}, {{ $category->range }}, {{ $returnKm }}, {{ $days === 0 ? 1 : $days }})"
-                                            class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
+                                        <div class="mb-4 w-full rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p class="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                                                        Fare Type
+                                                    </p>
+
+                                                    <strong
+                                                        class="mt-1 block text-sm"
+                                                        x-text="allInclusive ? 'All Inclusive' : 'Normal Fare'"
+                                                    ></strong>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    role="switch"
+                                                    x-on:click="allInclusive = !allInclusive"
+                                                    x-bind:aria-checked="allInclusive"
+                                                    class="relative inline-flex h-8 w-16 shrink-0 items-center rounded-full transition focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                                                    x-bind:class="allInclusive ? 'bg-emerald-500' : 'bg-slate-300'"
+                                                    aria-label="Switch between Normal and All Inclusive fare"
+                                                >
+                                                    <span
+                                                        class="inline-block h-6 w-6 transform rounded-full bg-white shadow transition"
+                                                        x-bind:class="allInclusive ? 'translate-x-9' : 'translate-x-1'"
+                                                    ></span>
+                                                </button>
+                                            </div>
+
+                                            <div class="mt-2 flex justify-between text-[11px] font-bold">
+                                                <span x-bind:class="!allInclusive ? 'text-slate-900' : 'text-slate-400'">
+                                                    Normal
+                                                </span>
+                                                <span x-bind:class="allInclusive ? 'text-emerald-700' : 'text-slate-400'">
+                                                    All Inclusive
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <p class="ride-package-price-label">
+                                            Estimated Trip Fare
+                                        </p>
+
+                                        <strong
+                                            x-text="formatInr(allInclusive ? inclusiveTotal : normalTotal)"
+                                        ></strong>
+
+                                        <p class="mt-1 text-xs font-semibold text-slate-500">
+                                            <span x-show="!allInclusive">
+                                                Driver allowance included in displayed total
+                                            </span>
+
+                                            <span x-show="allInclusive" x-cloak class="text-emerald-700">
+                                                Driver allowance, toll tax and state tax included
+                                            </span>
+                                        </p>
+
+                                        <button
+                                            type="button"
+                                            x-on:click="fareDetailsOpen = !fareDetailsOpen"
+                                            class="ride-fare-icon-button"
+                                            aria-label="View fare details"
+                                            title="Fare details"
+                                        >
                                             <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                            <span x-text="fareDetailsOpen ? 'Hide Fare Details' : 'View Fare Details'"></span>
                                         </button>
-                                        <a href="#"
-                                            wire:click.prevent='addToCartReturn([{{ $category->id }},"{{ $nameTo }}", "{{ $cityFrom }}", "{{ $returnFare }}","{{ $date }}","{{ $dateto }}","{{ $time }}","{{ $tab }}","{{ $returnKm }}","{{ $category->new_vehicle }}","{{ $category->pet_friendly }}","{{ $category->roof_career }}"])'
-                                            class="ride-select-button">
-                                            <span>Select Vehicle</span><i class="fa-solid fa-arrow-right"></i>
+
+                                        <div
+                                            x-show="fareDetailsOpen"
+                                            x-collapse
+                                            class="mt-3 w-full overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm"
+                                        >
+                                            <div class="border-b border-slate-100 bg-slate-50 px-4 py-3">
+                                                <p class="text-sm font-black text-slate-900">
+                                                    Fare Summary
+                                                    <span x-show="allInclusive" x-cloak class="text-emerald-700">
+                                                        (All Inclusive)
+                                                    </span>
+                                                </p>
+                                            </div>
+
+                                            <div class="space-y-0 px-4 py-2 text-sm">
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">KM Rate</span>
+                                                    <strong>₹{{ number_format($kmRate, 0) }} / KM</strong>
+                                                </div>
+
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">Actual Route Distance</span>
+                                                    <strong>{{ number_format($actualRouteKm, 0) }} KM</strong>
+                                                </div>
+
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">Total Days</span>
+                                                    <strong>{{ $tripDays }} Days</strong>
+                                                </div>
+
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">Minimum Billing</span>
+                                                    <strong>
+                                                        {{ number_format($minimumKmPerDay, 0) }} KM × {{ $tripDays }}
+                                                    </strong>
+                                                </div>
+
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">Billable KM</span>
+                                                    <strong>{{ number_format($billableKm, 0) }} KM</strong>
+                                                </div>
+
+                                                <div class="flex justify-between gap-4 border-b border-slate-100 py-2.5">
+                                                    <span class="font-semibold text-slate-600">Vehicle Fare</span>
+                                                    <strong>{{ Number::currency($vehicleFare, 'INR') }}</strong>
+                                                </div>
+
+                                                <div
+                                                    x-show="!allInclusive"
+                                                    class="flex justify-between gap-4 border-b border-slate-100 py-2.5"
+                                                >
+                                                    <span class="font-semibold text-slate-600">Driver Allowance</span>
+                                                    <strong>{{ Number::currency($driverAllowance, 'INR') }}</strong>
+                                                </div>
+
+                                                <div
+                                                    x-show="!allInclusive"
+                                                    class="space-y-2 border-b border-slate-100 py-2.5 text-xs"
+                                                >
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-semibold text-slate-600">Toll Tax</span>
+                                                        <strong class="text-amber-700">As Actual (Pay Direct)</strong>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-semibold text-slate-600">State Tax</span>
+                                                        <strong class="text-amber-700">As Actual (Pay Direct)</strong>
+                                                    </div>
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-semibold text-slate-600">Parking Charges</span>
+                                                        <strong class="text-amber-700">As Actual (Pay Direct)</strong>
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    x-show="allInclusive"
+                                                    x-cloak
+                                                    class="border-b border-slate-100 py-2.5"
+                                                >
+                                                    <div class="flex justify-between gap-4">
+                                                        <span class="font-semibold text-slate-600">
+                                                            All Inclusive Charge
+                                                        </span>
+                                                        <strong class="text-emerald-700">
+                                                            {{ Number::currency($allInclusiveCharge, 'INR') }}
+                                                        </strong>
+                                                    </div>
+
+                                                    <p class="mt-1 text-[11px] font-semibold leading-5 text-emerald-700">
+                                                        {{ number_format($billableKm, 0) }} KM × ₹{{ $allInclusiveRate }}.
+                                                        Includes Driver Allowance, Toll Tax and State Tax.
+                                                    </p>
+                                                </div>
+
+                                                <div
+                                                    x-show="allInclusive"
+                                                    x-cloak
+                                                    class="flex justify-between gap-4 border-b border-slate-100 py-2.5"
+                                                >
+                                                    <span class="font-semibold text-slate-600">Parking Charges</span>
+                                                    <strong class="text-amber-700">As Actual (Pay Direct)</strong>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex items-center justify-between gap-4 bg-slate-950 px-4 py-3 text-white">
+                                                <span class="font-extrabold">Grand Total</span>
+                                                <strong
+                                                    class="text-lg font-black"
+                                                    x-text="formatInr(allInclusive ? inclusiveTotal : normalTotal)"
+                                                ></strong>
+                                            </div>
+                                        </div>
+
+                                        <a
+                                            href="#"
+                                            x-on:click.prevent="
+                                                $wire.addToCartReturn([
+                                                    {{ $category->id }},
+                                                    @js($nameTo),
+                                                    @js($cityFrom),
+                                                    allInclusive ? inclusiveTotal : normalTotal,
+                                                    @js($date),
+                                                    @js($dateto),
+                                                    @js($time),
+                                                    @js($tab),
+                                                    {{ round($billableKm) }},
+                                                    {{ (int) $category->new_vehicle }},
+                                                    {{ (int) $category->pet_friendly }},
+                                                    {{ (int) $category->roof_career }},
+                                                    allInclusive ? 'all_inclusive' : 'normal',
+                                                    {{ $vehicleFare }},
+                                                    allInclusive ? {{ $allInclusiveCharge }} : {{ $driverAllowance }}
+                                                ])
+                                            "
+                                            class="ride-select-button"
+                                        >
+                                            <span>Select Vehicle</span>
+                                            <i class="fa-solid fa-arrow-right"></i>
                                         </a>
                                     </div>
                                 </article>
                             @endforeach
-
                         </div>
-                        <!-- pagination start -->
-                        <div class="flex justify-end mt-6">
-                            {{ $rides->links() }}
-                        </div>
-                        <!-- pagination end -->
                     </div>
+
                 @else
                     <div class="rides-layout-content w-full px-3 lg:w-3/4">
                         <div class="rides-filter-bar mb-4">

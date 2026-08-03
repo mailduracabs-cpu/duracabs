@@ -23,6 +23,7 @@ final class SeoSuggestionService
         private readonly MetaPrompt $metaPrompt,
         private readonly FaqPrompt $faqPrompt,
         private readonly RewritePrompt $rewritePrompt,
+        private readonly SeoAnalysisService $seoAnalysisService,
     ) {
     }
 
@@ -237,6 +238,136 @@ final class SeoSuggestionService
             mode: 'improve_seo',
             provider: $provider,
         );
+    }
+
+    /**
+     * AI call ke bina page ki local index-readiness suggestions return karta hai.
+     *
+     * Actual Google indexing status yahan claim nahi kiya jata. Ye method sirf
+     * technical blockers, warnings aur recommended actions batata hai.
+     *
+     * @param array<string, mixed> $context
+     * @return array{
+     *     index_ready: bool,
+     *     status: string,
+     *     status_label: string,
+     *     status_color: string,
+     *     page_url: string,
+     *     sitemap_eligible: bool,
+     *     priority: string,
+     *     summary: string,
+     *     blockers: array<int, array<string, string>>,
+     *     warnings: array<int, array<string, string>>,
+     *     actions: array<int, array<string, string>>
+     * }
+     */
+    public function indexingSuggestions(array $context): array
+    {
+        $analysis = $this->seoAnalysisService
+            ->analyzeIndexReadiness($context);
+
+        $actions = [];
+
+        foreach ($analysis['blockers'] as $blocker) {
+            $actions[] = [
+                'priority' => 'high',
+                'code' => (string) ($blocker['code'] ?? 'indexing_blocker'),
+                'title' => (string) ($blocker['title'] ?? 'Indexing blocker'),
+                'action' => (string) (
+                    $blocker['recommendation']
+                    ?? 'Resolve this issue before requesting indexing.'
+                ),
+            ];
+        }
+
+        foreach ($analysis['warnings'] as $warning) {
+            $actions[] = [
+                'priority' => 'medium',
+                'code' => (string) ($warning['code'] ?? 'seo_warning'),
+                'title' => (string) ($warning['title'] ?? 'SEO warning'),
+                'action' => (string) (
+                    $warning['recommendation']
+                    ?? 'Review this recommendation.'
+                ),
+            ];
+        }
+
+        if ($analysis['index_ready']) {
+            $actions[] = [
+                'priority' => 'low',
+                'code' => 'submit_sitemap',
+                'title' => 'Include in sitemap',
+                'action' => 'Ensure this URL is present in the XML sitemap.',
+            ];
+
+            $actions[] = [
+                'priority' => 'low',
+                'code' => 'inspect_url',
+                'title' => 'Inspect in Search Console',
+                'action' => 'Use Google Search Console URL Inspection after publishing.',
+            ];
+        }
+
+        $priority = match (true) {
+            $analysis['blockers'] !== [] => 'high',
+            $analysis['warnings'] !== [] => 'medium',
+            default => 'low',
+        };
+
+        return [
+            'index_ready' => (bool) $analysis['index_ready'],
+            'status' => (string) $analysis['status'],
+            'status_label' => (string) $analysis['status_label'],
+            'status_color' => (string) $analysis['status_color'],
+            'page_url' => (string) $analysis['page_url'],
+            'sitemap_eligible' => (bool) $analysis['sitemap_eligible'],
+            'priority' => $priority,
+            'summary' => $this->buildIndexingSummary($analysis),
+            'blockers' => $analysis['blockers'],
+            'warnings' => $analysis['warnings'],
+            'actions' => $actions,
+        ];
+    }
+
+    /**
+     * Filament notification ya compact status card ke liye short text.
+     *
+     * @param array<string, mixed> $context
+     */
+    public function indexingSummary(array $context): string
+    {
+        return $this->indexingSuggestions($context)['summary'];
+    }
+
+    /**
+     * @param array<string, mixed> $analysis
+     */
+    private function buildIndexingSummary(array $analysis): string
+    {
+        $blockerCount = count($analysis['blockers'] ?? []);
+        $warningCount = count($analysis['warnings'] ?? []);
+
+        if ($blockerCount > 0) {
+            return sprintf(
+                '%s. Resolve %d indexing blocker%s and review %d warning%s.',
+                (string) ($analysis['status_label'] ?? 'Needs Attention'),
+                $blockerCount,
+                $blockerCount === 1 ? '' : 's',
+                $warningCount,
+                $warningCount === 1 ? '' : 's',
+            );
+        }
+
+        if ($warningCount > 0) {
+            return sprintf(
+                '%s with %d warning%s. The page is sitemap eligible.',
+                (string) ($analysis['status_label'] ?? 'Index Ready'),
+                $warningCount,
+                $warningCount === 1 ? '' : 's',
+            );
+        }
+
+        return 'Index Ready. No local indexing blockers or warnings were detected.';
     }
 
     /**

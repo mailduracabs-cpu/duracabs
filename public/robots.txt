@@ -2,22 +2,46 @@ User-agent: *
 
 Allow: /
 
+# Admin and internal dashboards
 Disallow: /admin/
-Disallow: /login
-Disallow: /checkout
-Disallow: /register
 Disallow: /dashboard/
+Disallow: /transporter/
+Disallow: /partner/dashboard
+
+# Authentication and customer account pages
+Disallow: /login
+Disallow: /register
 Disallow: /logout
+Disallow: /forgot
+Disallow: /reset/
 Disallow: /password/
 Disallow: /profile/
+Disallow: /my-account
+Disallow: /my-orders
+
+# Booking, checkout, invoice and payment flows
+Disallow: /checkout
 Disallow: /booking/
 Disallow: /order/
 Disallow: /payment/
+Disallow: /invoice/
+Disallow: /razorpay
+Disallow: /razorpay-payment
+Disallow: /success
+Disallow: /cancel
+Disallow: /edit-query
 
+# Social authentication callbacks
+Disallow: /auth/google
+Disallow: /auth/google/callback
+
+# Public static assets required for rendering
 Allow: /css/
 Allow: /js/
 Allow: /images/
 Allow: /assets/
+Allow: /build/
+Allow: /storage/
 Allow: /*.css$
 Allow: /*.js$
 Allow: /*.jpg$
@@ -27,6 +51,7 @@ Allow: /*.webp$
 Allow: /*.svg$
 Allow: /*.ico$
 
+# Livewire assets
 Allow: /livewire/livewire.js*
 
 Sitemap: https://www.duracabs.com/sitemap.xml

@@ -21,9 +21,9 @@ class DuraSeo extends Section
         parent::setUp();
 
         $this
-            ->heading('Dura SEO AI')
+            ->heading('Dura SEO Control Center')
             ->description(
-                'Search appearance, focus keyword, readability aur page content ka live SEO analysis.'
+                'Search appearance, index readiness, sitemap eligibility, canonical, robots and content SEO ka live analysis.'
             )
             ->icon('heroicon-o-chart-bar-square')
             ->collapsible()
@@ -56,6 +56,36 @@ class DuraSeo extends Section
                             ->columnSpan([
                                 'default' => 1,
                                 'lg' => 2,
+                            ]),
+                    ]),
+
+                Grid::make([
+                    'default' => 1,
+                    'lg' => 3,
+                ])
+                    ->schema([
+                        Placeholder::make('dura_index_health')
+                            ->label('')
+                            ->content(
+                                fn (Get $get): HtmlString => $this->renderIndexHealth(
+                                    $this->getAnalysis($get),
+                                ),
+                            )
+                            ->columnSpan([
+                                'default' => 1,
+                                'lg' => 2,
+                            ]),
+
+                        Placeholder::make('dura_search_console')
+                            ->label('')
+                            ->content(
+                                fn (Get $get): HtmlString => $this->renderSearchConsoleCard(
+                                    $this->getAnalysis($get),
+                                ),
+                            )
+                            ->columnSpan([
+                                'default' => 1,
+                                'lg' => 1,
                             ]),
                     ]),
 
@@ -153,6 +183,30 @@ TextInput::make('meta_title')
                 ?: $get('content')
                 ?: ''
             ),
+
+            'page_url' => trim((string) (
+                $get('seo_public_url')
+                ?: $get('page_url')
+                ?: $get('url')
+                ?: ''
+            )),
+
+            'canonical_url' => trim((string) (
+                $get('canonical_url')
+                ?: $get('canonical')
+                ?: $get('seo_public_url')
+                ?: ''
+            )),
+
+            'robots' => trim((string) $get('robots')),
+
+            'robots_index' => $get('robots_index'),
+
+            'robots_follow' => $get('robots_follow'),
+
+            'is_active' => $get('is_active') ?? true,
+
+            'published_at' => $get('published_at'),
         ]);
     } catch (Throwable $exception) {
         report($exception);
@@ -198,7 +252,267 @@ TextInput::make('meta_title')
                         'passed' => false,
                     ],
                 ],
+
+            'indexing' => [
+                'index_ready' => false,
+                'status' => 'blocked',
+                'status_label' => 'Not Analyzed',
+                'status_color' => 'danger',
+                'page_url' => rtrim((string) config('app.url'), '/'),
+                'canonical_url' => '',
+                'canonical_status' => 'missing',
+                'canonical_matches_page' => false,
+                'robots' => 'index,follow',
+                'robots_index' => true,
+                'robots_follow' => true,
+                'is_active' => true,
+                'is_published' => true,
+                'sitemap_eligible' => false,
+                'blockers' => [],
+                'warnings' => [],
+                'checks' => [],
+            ],
+
+            'index_ready' => false,
+            'index_status' => 'blocked',
+            'index_status_label' => 'Not Analyzed',
+            'index_status_color' => 'danger',
+            'page_url' => rtrim((string) config('app.url'), '/'),
+            'canonical_url' => '',
+            'robots' => 'index,follow',
+            'sitemap_eligible' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $analysis
+     */
+    private function renderIndexHealth(array $analysis): HtmlString
+    {
+        $indexing = is_array($analysis['indexing'] ?? null)
+            ? $analysis['indexing']
+            : [];
+
+        $statusLabel = e((string) (
+            $indexing['status_label']
+            ?? 'Not Analyzed'
+        ));
+
+        $statusColor = match ((string) (
+            $indexing['status_color']
+            ?? 'danger'
+        )) {
+            'success' => '#16a34a',
+            'warning' => '#d97706',
+            'info' => '#2563eb',
+            'gray' => '#64748b',
+            default => '#dc2626',
+        };
+
+        $pageUrl = e((string) ($indexing['page_url'] ?? ''));
+        $canonicalStatus = match ((string) (
+            $indexing['canonical_status']
+            ?? 'missing'
+        )) {
+            'self' => ['Valid', '#16a34a', '#dcfce7'],
+            'different' => ['Different', '#92400e', '#fef3c7'],
+            default => ['Missing', '#991b1b', '#fee2e2'],
+        };
+
+        $robots = e((string) (
+            $indexing['robots']
+            ?? 'index,follow'
+        ));
+
+        $robotsColor = ($indexing['robots_index'] ?? true)
+            ? '#166534'
+            : '#991b1b';
+
+        $robotsBackground = ($indexing['robots_index'] ?? true)
+            ? '#dcfce7'
+            : '#fee2e2';
+
+        $sitemapEligible = (bool) (
+            $indexing['sitemap_eligible']
+            ?? false
+        );
+
+        $sitemapLabel = $sitemapEligible
+            ? 'Eligible'
+            : 'Excluded';
+
+        $sitemapColor = $sitemapEligible
+            ? '#166534'
+            : '#64748b';
+
+        $sitemapBackground = $sitemapEligible
+            ? '#dcfce7'
+            : '#f1f5f9';
+
+        $blockers = is_array($indexing['blockers'] ?? null)
+            ? $indexing['blockers']
+            : [];
+
+        $warnings = is_array($indexing['warnings'] ?? null)
+            ? $indexing['warnings']
+            : [];
+
+        $issuesHtml = '';
+
+        foreach ($blockers as $blocker) {
+            if (! is_array($blocker)) {
+                continue;
+            }
+
+            $title = e((string) (
+                $blocker['title']
+                ?? 'Indexing blocker'
+            ));
+
+            $recommendation = e((string) (
+                $blocker['recommendation']
+                ?? ''
+            ));
+
+            $issuesHtml .= <<<HTML
+            <div style="padding: 10px 12px; border: 1px solid #fecaca; border-radius: 9px; background: #fef2f2;">
+                <div style="font-size: 12px; font-weight: 700; color: #991b1b;">✕ {$title}</div>
+                <div style="margin-top: 3px; font-size: 11px; line-height: 1.45; color: #7f1d1d;">{$recommendation}</div>
+            </div>
+            HTML;
+        }
+
+        foreach ($warnings as $warning) {
+            if (! is_array($warning)) {
+                continue;
+            }
+
+            $title = e((string) (
+                $warning['title']
+                ?? 'SEO warning'
+            ));
+
+            $recommendation = e((string) (
+                $warning['recommendation']
+                ?? ''
+            ));
+
+            $issuesHtml .= <<<HTML
+            <div style="padding: 10px 12px; border: 1px solid #fde68a; border-radius: 9px; background: #fffbeb;">
+                <div style="font-size: 12px; font-weight: 700; color: #92400e;">! {$title}</div>
+                <div style="margin-top: 3px; font-size: 11px; line-height: 1.45; color: #78350f;">{$recommendation}</div>
+            </div>
+            HTML;
+        }
+
+        if ($issuesHtml === '') {
+            $issuesHtml = <<<HTML
+            <div style="padding: 10px 12px; border: 1px solid #bbf7d0; border-radius: 9px; background: #f0fdf4; color: #166534; font-size: 12px; font-weight: 600;">
+                ✓ No local indexing blockers or warnings detected.
+            </div>
+            HTML;
+        }
+
+        $canonicalLabel = e($canonicalStatus[0]);
+        $canonicalColor = $canonicalStatus[1];
+        $canonicalBackground = $canonicalStatus[2];
+
+        $html = <<<HTML
+        <div style="height: 100%; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; background: rgba(255, 255, 255, 0.02);">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+                <div>
+                    <div style="font-size: 14px; font-weight: 800;">Index Readiness</div>
+                    <div style="margin-top: 3px; color: #64748b; font-size: 11px;">Technical status before Google URL inspection</div>
+                </div>
+
+                <span style="display: inline-flex; padding: 6px 10px; border-radius: 9999px; background: {$statusColor}18; color: {$statusColor}; font-size: 12px; font-weight: 800;">
+                    {$statusLabel}
+                </span>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px;">
+                <span style="padding: 6px 9px; border-radius: 9999px; background: {$sitemapBackground}; color: {$sitemapColor}; font-size: 11px; font-weight: 700;">
+                    Sitemap: {$sitemapLabel}
+                </span>
+
+                <span style="padding: 6px 9px; border-radius: 9999px; background: {$canonicalBackground}; color: {$canonicalColor}; font-size: 11px; font-weight: 700;">
+                    Canonical: {$canonicalLabel}
+                </span>
+
+                <span style="padding: 6px 9px; border-radius: 9999px; background: {$robotsBackground}; color: {$robotsColor}; font-size: 11px; font-weight: 700;">
+                    Robots: {$robots}
+                </span>
+            </div>
+
+            <div style="margin-top: 14px; padding: 10px 12px; border-radius: 9px; background: rgba(148, 163, 184, 0.10);">
+                <div style="font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .04em;">Page URL</div>
+                <div style="margin-top: 4px; color: #0f172a; font-size: 12px; overflow-wrap: anywhere;">{$pageUrl}</div>
+            </div>
+
+            <div style="display: grid; gap: 8px; margin-top: 14px;">
+                {$issuesHtml}
+            </div>
+        </div>
+        HTML;
+
+        return new HtmlString($html);
+    }
+
+    /**
+     * @param array<string, mixed> $analysis
+     */
+    private function renderSearchConsoleCard(array $analysis): HtmlString
+    {
+        $indexing = is_array($analysis['indexing'] ?? null)
+            ? $analysis['indexing']
+            : [];
+
+        $pageUrl = (string) ($indexing['page_url'] ?? '');
+        $appUrl = rtrim((string) config('app.url'), '/');
+
+        $liveUrl = e($pageUrl);
+        $searchConsoleUrl = e(
+            'https://search.google.com/search-console/inspect'
+            . '?resource_id=' . urlencode($appUrl)
+            . '&id=' . urlencode($pageUrl)
+        );
+
+        $connectUrl = e(
+            route('search-console.connect')
+        );
+
+        $html = <<<HTML
+        <div style="height: 100%; min-height: 230px; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; background: rgba(255, 255, 255, 0.02);">
+            <div style="font-size: 14px; font-weight: 800;">Google Search Console</div>
+            <div style="margin-top: 4px; color: #64748b; font-size: 11px; line-height: 1.5;">
+                Connect the verified Google account to load Search Console data inside Dura SEO.
+            </div>
+
+            <div style="margin-top: 14px; padding: 10px; border-radius: 9px; background: #f1f5f9;">
+                <div style="font-size: 10px; color: #64748b;">CURRENT STATUS</div>
+                <div style="margin-top: 4px; font-size: 13px; font-weight: 700; color: #475569;">Connection Required</div>
+            </div>
+
+            <div style="display: grid; gap: 8px; margin-top: 14px;">
+                <a href="{$connectUrl}"
+                    style="display: block; padding: 9px 11px; border-radius: 8px; background: #2563eb; color: white; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
+                    Connect Google Search Console
+                </a>
+
+                <a href="{$liveUrl}" target="_blank" rel="noopener noreferrer"
+                    style="display: block; padding: 9px 11px; border-radius: 8px; background: #0f172a; color: white; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
+                    Open Live Page
+                </a>
+
+                <a href="{$searchConsoleUrl}" target="_blank" rel="noopener noreferrer"
+                    style="display: block; padding: 9px 11px; border-radius: 8px; border: 1px solid #cbd5e1; color: #0f172a; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
+                    Inspect in Search Console
+                </a>
+            </div>
+        </div>
+        HTML;
+
+        return new HtmlString($html);
     }
 
     /**

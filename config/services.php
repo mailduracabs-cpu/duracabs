@@ -63,6 +63,53 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Google Search Console
+    |--------------------------------------------------------------------------
+    |
+    | Separate OAuth client for the admin SEO integration. This configuration
+    | is intentionally independent from the existing customer Google Login.
+    |
+    */
+
+    'search_console' => [
+        'client_id' => env(
+            'GOOGLE_SEARCH_CONSOLE_CLIENT_ID'
+        ),
+
+        'client_secret' => env(
+            'GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET'
+        ),
+
+        'redirect' => env(
+            'GOOGLE_SEARCH_CONSOLE_REDIRECT_URI',
+            'https://www.duracabs.com/auth/google/search-console/callback'
+        ),
+
+        'property' => env(
+            'GOOGLE_SEARCH_CONSOLE_PROPERTY',
+            'https://www.duracabs.com/'
+        ),
+
+        'scopes' => [
+            'https://www.googleapis.com/auth/webmasters.readonly',
+        ],
+
+        'authorization_url' => 'https://accounts.google.com/o/oauth2/v2/auth',
+
+        'token_url' => 'https://oauth2.googleapis.com/token',
+
+        'api_base_url' => 'https://searchconsole.googleapis.com/webmasters/v3',
+
+        'inspection_api_url' => 'https://searchconsole.googleapis.com/v1/urlInspection/index:inspect',
+
+        'timeout' => (int) env(
+            'GOOGLE_SEARCH_CONSOLE_TIMEOUT',
+            30
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Samb SMS
     |--------------------------------------------------------------------------
     |

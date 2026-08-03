@@ -29,6 +29,9 @@ class Product extends Model
     public const URL_TYPE_ROUTE = 'route';
     public const URL_TYPE_PAGE = 'page';
     public const URL_TYPE_ROOT = 'root';
+    public const URL_TYPE_SELF_DRIVE = 'self_drive';
+    public const URL_TYPE_BIKE_RENTAL = 'bike_rental';
+    public const URL_TYPE_TOUR = 'tour';
 	
 	
 	
@@ -134,7 +137,49 @@ class Product extends Model
         'primary_image',
         'image_url',
         'public_path',
+        'public_url',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (Product $product): void {
+            /*
+             * Existing records are never rewritten. For a new record only,
+             * choose the URL type from ride_type unless the form explicitly
+             * supplied a different URL type.
+             */
+            if (
+                blank($product->url_type)
+                || $product->url_type === self::URL_TYPE_ROUTE
+            ) {
+                $product->url_type = self::urlTypeFromRideType(
+                    (string) $product->ride_type
+                );
+            }
+
+            if (
+                blank($product->canonical_url)
+                && filled($product->slug)
+            ) {
+                $product->canonical_url = self::productionBaseUrl()
+                    . $product->public_path;
+            }
+        });
+
+        static::saving(function (Product $product): void {
+            /*
+             * Never regenerate or mutate the saved slug.
+             * Canonical is only filled when blank.
+             */
+            if (
+                blank($product->canonical_url)
+                && filled($product->slug)
+            ) {
+                $product->canonical_url = self::productionBaseUrl()
+                    . $product->public_path;
+            }
+        });
+    }
 
     public function getPrimaryImageAttribute(): ?string
     {
@@ -157,11 +202,47 @@ class Product extends Model
      */
     public function getPublicPathAttribute(): string
     {
-        return match ($this->url_type) {
-            self::URL_TYPE_PAGE => '/pages/' . $this->slug,
-            self::URL_TYPE_ROOT => '/' . $this->slug,
-            default => '/route/' . $this->slug,
+        $slug = ltrim((string) $this->slug, '/');
+
+        /*
+         * url_type is retained as the compatibility source for old records.
+         * New records receive url_type automatically from ride_type.
+         */
+        return match ((string) $this->url_type) {
+            self::URL_TYPE_PAGE => '/pages/' . $slug,
+            self::URL_TYPE_ROOT => '/' . $slug,
+            self::URL_TYPE_SELF_DRIVE => '/self-drive/' . $slug,
+            self::URL_TYPE_BIKE_RENTAL => '/bike-rental/' . $slug,
+            self::URL_TYPE_TOUR => '/tour/' . $slug,
+            default => '/route/' . $slug,
         };
+    }
+
+    public function getPublicUrlAttribute(): string
+    {
+        return self::productionBaseUrl() . $this->public_path;
+    }
+
+    public static function urlTypeFromRideType(
+        ?string $rideType
+    ): string {
+        return match ((string) $rideType) {
+            'self_drive' => self::URL_TYPE_SELF_DRIVE,
+            'bike_rental' => self::URL_TYPE_BIKE_RENTAL,
+            'tour' => self::URL_TYPE_TOUR,
+            default => self::URL_TYPE_ROUTE,
+        };
+    }
+
+    public static function productionBaseUrl(): string
+    {
+        return rtrim(
+            (string) config(
+                'services.search_console.property',
+                config('app.url')
+            ),
+            '/'
+        );
     }
 
     public function category(): BelongsTo

@@ -7,10 +7,13 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PageResource\Pages;
 use App\Forms\Components\ContentWriter;
 use App\Models\Page;
+use App\SEO\Services\SeoAnalysisService;
+use Filament\Notifications\Notification;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -26,6 +29,7 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 
 class PageResource extends Resource
@@ -124,7 +128,23 @@ class PageResource extends Resource
                                 ),
                             )
                             ->helperText(
-                                'Page URL me ye slug use hoga.',
+                                'Existing slug ko edit karne se ranked URL affect ho sakta hai.',
+                            )
+                            ->live(debounce: 500)
+                            ->afterStateUpdated(
+                                function (
+                                    ?string $state,
+                                    Get $get,
+                                    Set $set,
+                                ): void {
+                                    $set(
+                                        'seo_public_url',
+                                        static::previewPageUrl(
+                                            (string) $get('content_type'),
+                                            (string) $state,
+                                        ),
+                                    );
+                                },
                             ),
 
                         Select::make('content_type')
@@ -143,9 +163,52 @@ class PageResource extends Resource
                             ->required()
                             ->native(false)
                             ->live()
+                            ->afterStateUpdated(
+                                function (
+                                    ?string $state,
+                                    Get $get,
+                                    Set $set,
+                                ): void {
+                                    $set(
+                                        'seo_public_url',
+                                        static::previewPageUrl(
+                                            (string) $state,
+                                            (string) $get('slug'),
+                                        ),
+                                    );
+                                },
+                            )
                             ->helperText(
-                                'Self Drive ka search page banane ke liye Self Drive Page select karein.',
+                                'Blog se /blog/, Tour Package se /tour/, aur baaki page types se /pages/ URL banega.',
                             ),
+
+                        \Filament\Forms\Components\Placeholder::make('public_url_preview')
+                            ->label('Public URL')
+                            ->content(
+                                fn (Get $get): string =>
+                                    static::previewPageUrl(
+                                        (string) $get('content_type'),
+                                        (string) $get('slug'),
+                                    ),
+                            )
+                            ->helperText(
+                                'Existing ranked slug automatically change nahi hoga. Page type change karne par public URL prefix badal sakta hai.',
+                            )
+                            ->columnSpan([
+                                'default' => 1,
+                                'lg' => 3,
+                            ]),
+
+                        Hidden::make('seo_public_url')
+                            ->default(
+                                fn (?Page $record): string =>
+                                    $record?->public_url
+                                    ?? static::previewPageUrl(
+                                        'page',
+                                        '',
+                                    ),
+                            )
+                            ->dehydrated(false),
 
                         Select::make('brand_id')
                             ->label('Select City')
@@ -468,6 +531,74 @@ class PageResource extends Resource
                     )
                     ->sortable(),
 
+                TextColumn::make('index_readiness')
+                    ->label('Index Status')
+                    ->badge()
+                    ->getStateUsing(
+                        fn (Page $record): string =>
+                            static::seoIndexData($record)['status_label'],
+                    )
+                    ->color(
+                        fn (Page $record): string =>
+                            static::seoIndexData($record)['status_color'],
+                    )
+                    ->description(
+                        fn (Page $record): string =>
+                            static::seoIndexDescription($record),
+                    ),
+
+                TextColumn::make('sitemap_status')
+                    ->label('Sitemap')
+                    ->badge()
+                    ->getStateUsing(
+                        fn (Page $record): string =>
+                            static::seoIndexData($record)['sitemap_eligible']
+                                ? 'Eligible'
+                                : 'Excluded',
+                    )
+                    ->color(
+                        fn (Page $record): string =>
+                            static::seoIndexData($record)['sitemap_eligible']
+                                ? 'success'
+                                : 'gray',
+                    )
+                    ->toggleable(),
+
+                TextColumn::make('canonical_status')
+                    ->label('Canonical')
+                    ->badge()
+                    ->getStateUsing(
+                        function (Page $record): string {
+                            $status = static::seoIndexData($record)['canonical_status'];
+
+                            return match ($status) {
+                                'self' => 'Valid',
+                                'different' => 'Different',
+                                default => 'Missing',
+                            };
+                        },
+                    )
+                    ->color(
+                        function (Page $record): string {
+                            $status = static::seoIndexData($record)['canonical_status'];
+
+                            return match ($status) {
+                                'self' => 'success',
+                                'different' => 'warning',
+                                default => 'danger',
+                            };
+                        },
+                    )
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('google_status')
+                    ->label('Google')
+                    ->badge()
+                    ->getStateUsing(fn (): string => 'Not Connected')
+                    ->color('gray')
+                    ->description('Search Console integration pending')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('readability_score')
                     ->label('Readability')
                     ->badge()
@@ -537,6 +668,91 @@ class PageResource extends Resource
                     ->searchable()
                     ->preload(),
 
+                Tables\Filters\SelectFilter::make('indexing_status')
+                    ->label('Index Readiness')
+                    ->options([
+                        'ready' => 'Index Ready',
+                        'noindex' => 'Noindex',
+                        'scheduled' => 'Not Published',
+                        'needs_attention' => 'Needs Attention',
+                    ])
+                    ->query(
+                        function ($query, array $data) {
+                            return match ($data['value'] ?? null) {
+                                'ready' => $query
+                                    ->where(function ($builder): void {
+                                        $builder
+                                            ->whereNull('robots')
+                                            ->orWhere('robots', 'not like', '%noindex%');
+                                    })
+                                    ->whereNotNull('slug')
+                                    ->where('slug', '!=', '')
+                                    ->whereNotNull('meta_title')
+                                    ->where('meta_title', '!=', '')
+                                    ->whereNotNull('description')
+                                    ->where('description', '!=', '')
+                                    ->where(function ($builder): void {
+                                        $builder
+                                            ->whereNull('published_at')
+                                            ->orWhere('published_at', '<=', now());
+                                    }),
+
+                                'noindex' => $query->where('robots', 'like', '%noindex%'),
+
+                                'scheduled' => $query
+                                    ->whereNotNull('published_at')
+                                    ->where('published_at', '>', now()),
+
+                                'needs_attention' => $query
+                                    ->where(function ($builder): void {
+                                        $builder
+                                            ->whereNull('slug')
+                                            ->orWhere('slug', '')
+                                            ->orWhereNull('meta_title')
+                                            ->orWhere('meta_title', '')
+                                            ->orWhereNull('description')
+                                            ->orWhere('description', '');
+                                    }),
+
+                                default => $query,
+                            };
+                        },
+                    ),
+
+                Tables\Filters\SelectFilter::make('seo_score_range')
+                    ->label('SEO Score')
+                    ->options([
+                        'excellent' => '80–100',
+                        'good' => '60–79',
+                        'needs_work' => '40–59',
+                        'poor' => 'Below 40',
+                    ])
+                    ->query(
+                        function ($query, array $data) {
+                            return match ($data['value'] ?? null) {
+                                'excellent' => $query->whereBetween('seo_score', [80, 100]),
+                                'good' => $query->whereBetween('seo_score', [60, 79]),
+                                'needs_work' => $query->whereBetween('seo_score', [40, 59]),
+                                'poor' => $query->where('seo_score', '<', 40),
+                                default => $query,
+                            };
+                        },
+                    ),
+
+                Tables\Filters\TernaryFilter::make('canonical_url')
+                    ->label('Canonical URL')
+                    ->placeholder('All')
+                    ->trueLabel('Canonical Set')
+                    ->falseLabel('Canonical Missing')
+                    ->queries(
+                        true: fn ($query) =>
+                            $query->whereNotNull('canonical_url')
+                                ->where('canonical_url', '!=', ''),
+                        false: fn ($query) =>
+                            $query->whereNull('canonical_url')
+                                ->orWhere('canonical_url', ''),
+                    ),
+
                 SelectFilter::make('robots')
                     ->label('Indexing')
                     ->options([
@@ -547,12 +763,189 @@ class PageResource extends Resource
                     ]),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ActionGroup::make([
+                    Tables\Actions\Action::make('open_live_page')
+                        ->label('Open Live Page')
+                        ->icon('heroicon-o-arrow-top-right-on-square')
+                        ->url(
+                            fn (Page $record): string =>
+                                static::seoIndexData($record)['page_url'],
+                            shouldOpenInNewTab: true,
+                        ),
 
-                Tables\Actions\DeleteAction::make(),
+                    Tables\Actions\Action::make('analyze_seo')
+                        ->label('Analyze SEO')
+                        ->icon('heroicon-o-magnifying-glass-circle')
+                        ->color('info')
+                        ->action(function (Page $record): void {
+                            $analysis = app(SeoAnalysisService::class)
+                                ->analyzeToArray(static::seoRecordData($record));
+
+                            $indexing = $analysis['indexing'];
+
+                            $body = sprintf(
+                                'SEO Score: %d/100 | Index: %s | Sitemap: %s | Blockers: %d | Warnings: %d',
+                                (int) $analysis['score'],
+                                (string) $indexing['status_label'],
+                                $indexing['sitemap_eligible'] ? 'Eligible' : 'Excluded',
+                                count($indexing['blockers']),
+                                count($indexing['warnings']),
+                            );
+
+                            Notification::make()
+                                ->title('SEO analysis completed')
+                                ->body($body)
+                                ->color((string) $indexing['status_color'])
+                                ->send();
+                        }),
+
+                    Tables\Actions\Action::make('open_search_console')
+                        ->label('Open Search Console')
+                        ->icon('heroicon-o-globe-alt')
+                        ->url(
+                            fn (Page $record): string =>
+                                'https://search.google.com/search-console/inspect'
+                                . '?resource_id='
+                                . urlencode((string) config('app.url'))
+                                . '&id='
+                                . urlencode(static::seoIndexData($record)['page_url']),
+                            shouldOpenInNewTab: true,
+                        ),
+
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\DeleteAction::make(),
+                ]),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('analyze_selected_seo')
+                        ->label('Analyze Selected SEO')
+                        ->icon('heroicon-o-chart-bar')
+                        ->action(function ($records): void {
+                            $service = app(SeoAnalysisService::class);
+
+                            $ready = 0;
+                            $needsAttention = 0;
+                            $noindex = 0;
+
+                            foreach ($records as $record) {
+                                $analysis = $service->analyzeIndexReadiness(
+                                    static::seoRecordData($record)
+                                );
+
+                                if ($analysis['status'] === 'noindex') {
+                                    $noindex++;
+                                    continue;
+                                }
+
+                                if ($analysis['index_ready']) {
+                                    $ready++;
+                                } else {
+                                    $needsAttention++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('SEO bulk analysis completed')
+                                ->body(
+                                    "Ready: {$ready} | Needs Attention: {$needsAttention} | Noindex: {$noindex}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('generate_missing_canonicals')
+                        ->label('Generate Missing Canonicals')
+                        ->icon('heroicon-o-link')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalDescription(
+                            'Only blank canonical fields will be filled. Existing canonical URLs and slugs will remain unchanged.'
+                        )
+                        ->action(function ($records): void {
+                            $generated = 0;
+                            $preserved = 0;
+
+                            foreach ($records as $record) {
+                                if (filled($record->canonical_url)) {
+                                    $preserved++;
+                                    continue;
+                                }
+
+                                $record->forceFill([
+                                    'canonical_url' => (string) $record->public_url,
+                                ])->save();
+
+                                $generated++;
+                            }
+
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            Notification::make()
+                                ->title('Canonical generation completed')
+                                ->body(
+                                    "Generated: {$generated} | Existing preserved: {$preserved}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('set_index_follow')
+                        ->label('Set Index, Follow')
+                        ->icon('heroicon-o-eye')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->action(function ($records): void {
+                            $updated = 0;
+
+                            foreach ($records as $record) {
+                                $record->forceFill([
+                                    'robots' => 'index,follow',
+                                ])->save();
+
+                                $updated++;
+                            }
+
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            Notification::make()
+                                ->title('Robots settings updated')
+                                ->body("Updated {$updated} pages.")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    Tables\Actions\BulkAction::make('sync_sitemap')
+                        ->label('Sync Sitemap')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('primary')
+                        ->action(function ($records): void {
+                            Cache::forget('seo.sitemap.xml.data');
+
+                            $eligible = 0;
+                            $excluded = 0;
+
+                            foreach ($records as $record) {
+                                if (static::seoIndexData($record)['sitemap_eligible']) {
+                                    $eligible++;
+                                } else {
+                                    $excluded++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('Sitemap refreshed')
+                                ->body(
+                                    "Eligible selected pages: {$eligible} | Excluded: {$excluded}"
+                                )
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
@@ -561,6 +954,78 @@ class PageResource extends Resource
                 'Create your first SEO optimized page.',
             )
             ->emptyStateIcon('heroicon-o-document-text');
+    }
+
+    protected static function previewPageUrl(
+        string $contentType,
+        string $slug
+    ): string {
+        $baseUrl = rtrim(
+            (string) config(
+                'services.search_console.property',
+                config('app.url')
+            ),
+            '/'
+        );
+
+        $prefix = match ($contentType) {
+            'blog' => 'blog',
+            'tour_package' => 'tour',
+            default => 'pages',
+        };
+
+        $cleanSlug = ltrim(trim($slug), '/');
+
+        return $cleanSlug === ''
+            ? $baseUrl . '/' . $prefix . '/{slug}'
+            : $baseUrl . '/' . $prefix . '/' . $cleanSlug;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function seoIndexData(Page $record): array
+    {
+        return app(SeoAnalysisService::class)
+            ->analyzeIndexReadiness(static::seoRecordData($record));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected static function seoRecordData(Page $record): array
+    {
+        return [
+            'name' => $record->name,
+            'slug' => $record->slug,
+            'description' => $record->description,
+            'meta_title' => $record->meta_title,
+            'meta_description' => $record->meta_description,
+            'focus_keyword' => $record->focus_keyword,
+            'canonical_url' => $record->canonical_url,
+            'robots' => $record->robots,
+            'is_active' => true,
+            'page_url' => (string) $record->public_url,
+            'published_at' => $record->published_at,
+            'updated_at' => $record->updated_at,
+        ];
+    }
+
+    protected static function seoIndexDescription(Page $record): string
+    {
+        $analysis = static::seoIndexData($record);
+
+        if ($analysis['blockers'] !== []) {
+            return (string) ($analysis['blockers'][0]['title']
+                ?? 'Indexing issue found');
+        }
+
+        if ($analysis['warnings'] !== []) {
+            return (string) ($analysis['warnings'][0]['title']
+                ?? 'SEO warning found');
+        }
+
+        return 'Technically ready for indexing';
     }
 
     public static function getRelations(): array
