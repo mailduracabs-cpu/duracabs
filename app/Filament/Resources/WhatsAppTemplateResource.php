@@ -44,9 +44,71 @@ class WhatsAppTemplateResource extends Resource
                         Forms\Components\TextInput::make('template_name')
                             ->label('Meta Template Name')
                             ->required()
-                            ->unique(table: WhatsAppTemplate::class, column: 'template_name', ignoreRecord: true)
+                            ->unique(
+                                table: WhatsAppTemplate::class,
+                                column: 'template_name',
+                                ignoreRecord: true
+                            )
                             ->regex('/^[a-z0-9_]+$/')
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function (
+                                ?string $state,
+                                Forms\Set $set,
+                                Forms\Get $get
+                            ): void {
+                                if (filled($get('template_key'))) {
+                                    return;
+                                }
+
+                                $key = preg_replace(
+                                    '/_v\\d+$/i',
+                                    '',
+                                    trim((string) $state)
+                                ) ?: trim((string) $state);
+
+                                $key = Str::of($key)
+                                    ->lower()
+                                    ->replaceMatches('/[^a-z0-9_]+/', '_')
+                                    ->trim('_')
+                                    ->toString();
+
+                                $set('template_key', $key);
+                                $set(
+                                    'event_key',
+                                    str_replace('_', '.', $key)
+                                );
+                            }),
+
+                        Forms\Components\TextInput::make('template_key')
+                            ->label('Template Key')
+                            ->helperText(
+                                'Stable code key. Example: booking_received'
+                            )
+                            ->required()
+                            ->regex('/^[a-z0-9_]+$/')
+                            ->maxLength(120)
+                            ->unique(
+                                table: WhatsAppTemplate::class,
+                                column: 'template_key',
+                                ignoreRecord: true
+                            )
+                            ->disabledOn('edit')
+                            ->dehydrated(),
+
+                        Forms\Components\TextInput::make('event_key')
+                            ->label('Event Key')
+                            ->helperText(
+                                'Notification event. Example: booking.received'
+                            )
+                            ->required()
+                            ->regex('/^[a-z0-9_.-]+$/')
+                            ->maxLength(160)
+                            ->unique(
+                                table: WhatsAppTemplate::class,
+                                column: 'event_key',
+                                ignoreRecord: true
+                            ),
                         Forms\Components\Select::make('category')
                             ->options(WhatsAppTemplate::categories())
                             ->default(WhatsAppTemplate::CATEGORY_UTILITY)
@@ -174,7 +236,22 @@ class WhatsAppTemplateResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->weight('bold')
-                    ->description(fn (WhatsAppTemplate $record): string => $record->template_name),
+                    ->description(
+                        fn (WhatsAppTemplate $record): string =>
+                            $record->template_name
+                    ),
+
+                Tables\Columns\TextColumn::make('template_key')
+                    ->label('Template Key')
+                    ->searchable()
+                    ->copyable()
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('event_key')
+                    ->label('Event Key')
+                    ->searchable()
+                    ->copyable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('category')
                     ->badge()
                     ->formatStateUsing(fn (?string $state): string => WhatsAppTemplate::categories()[$state] ?? ucfirst(strtolower((string) $state)))
@@ -306,6 +383,99 @@ class WhatsAppTemplateResource extends Resource
                             ->send();
                     }),
 
+                Tables\Actions\Action::make('send_test')
+                    ->label('Send Test')
+                    ->icon('heroicon-o-paper-airplane')
+                    ->color('success')
+                    ->visible(
+                        fn (WhatsAppTemplate $record): bool =>
+                            $record->isReadyToSend()
+                    )
+                    ->form([
+                        Forms\Components\TextInput::make('number')
+                            ->label('WhatsApp Number')
+                            ->helperText(
+                                'Country code ke saath, example 919876543210'
+                            )
+                            ->required()
+                            ->maxLength(20),
+
+                        Forms\Components\Placeholder::make(
+                            'test_variable_info'
+                        )
+                            ->label('Test Variables')
+                            ->content(
+                                fn (WhatsAppTemplate $record): string =>
+                                    self::testVariableSummary($record)
+                            ),
+                    ])
+                    ->action(function (
+                        WhatsAppTemplate $record,
+                        array $data
+                    ): void {
+                        $parameters = collect(
+                            is_array($record->variables)
+                                ? $record->variables
+                                : []
+                        )
+                            ->sortBy(
+                                fn (mixed $item): int =>
+                                    is_array($item)
+                                        ? (int) (
+                                            $item['position']
+                                            ?? $item['index']
+                                            ?? 0
+                                        )
+                                        : 0
+                            )
+                            ->map(
+                                fn (mixed $item): string =>
+                                    is_array($item)
+                                        ? trim((string) (
+                                            $item['sample']
+                                            ?? $item['key']
+                                            ?? 'Sample'
+                                        ))
+                                        : 'Sample'
+                            )
+                            ->values()
+                            ->all();
+
+                        $result = WhatsAppService::sendByKey(
+                            templateKey: (string) $record->template_key,
+                            number: (string) $data['number'],
+                            bodyParameters: $parameters,
+                            languageCode: (string) $record->language
+                        );
+
+                        if ($result['status'] ?? false) {
+                            Notification::make()
+                                ->title('Test WhatsApp accepted')
+                                ->body(
+                                    (string) (
+                                        $result['message']
+                                        ?? 'Message Meta ne accept kar liya.'
+                                    )
+                                )
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Test WhatsApp failed')
+                            ->body(
+                                (string) (
+                                    $result['message']
+                                    ?? 'Test message send nahi hua.'
+                                )
+                            )
+                            ->danger()
+                            ->persistent()
+                            ->send();
+                    }),
+
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\Action::make('duplicate')
                     ->label('Duplicate')
@@ -320,8 +490,15 @@ class WhatsAppTemplateResource extends Resource
                             'rejected_at',
                             'last_synced_at',
                         ]);
+                        $stamp = now()->format('YmdHis');
+
                         $copy->name = $record->name . ' Copy';
-                        $copy->template_name = $record->template_name . '_copy_' . now()->format('YmdHis');
+                        $copy->template_name =
+                            $record->template_name . '_copy_' . $stamp;
+                        $copy->template_key =
+                            $record->template_key . '_copy_' . $stamp;
+                        $copy->event_key =
+                            $record->event_key . '.copy.' . $stamp;
                         $copy->status = WhatsAppTemplate::STATUS_DRAFT;
                         $copy->meta_status = WhatsAppTemplate::META_STATUS_NOT_SUBMITTED;
                         $copy->meta_rejection_reason = null;
@@ -408,6 +585,52 @@ class WhatsAppTemplateResource extends Resource
             'otp' => 'OTP',
             'support_number' => 'Support Number',
         ];
+    }
+
+    private static function testVariableSummary(
+        WhatsAppTemplate $record
+    ): string {
+        $variables = collect(
+            is_array($record->variables)
+                ? $record->variables
+                : []
+        )
+            ->sortBy(
+                fn (mixed $item): int =>
+                    is_array($item)
+                        ? (int) (
+                            $item['position']
+                            ?? $item['index']
+                            ?? 0
+                        )
+                        : 0
+            )
+            ->map(function (mixed $item): string {
+                if (! is_array($item)) {
+                    return 'Sample';
+                }
+
+                $position = (int) (
+                    $item['position']
+                    ?? $item['index']
+                    ?? 0
+                );
+
+                $key = trim((string) (
+                    $item['key'] ?? 'variable'
+                ));
+
+                $sample = trim((string) (
+                    $item['sample'] ?? 'Sample'
+                ));
+
+                return "{{{$position}}} {$key}: {$sample}";
+            })
+            ->values();
+
+        return $variables->isEmpty()
+            ? 'Is template me body variables nahi hain.'
+            : $variables->implode("\n");
     }
 
     private static function buildPreview(Forms\Get $get): string

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\WebsiteSetting;
+use App\Models\WhatsAppNotificationRule;
 use App\Models\WhatsAppTemplate;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
@@ -154,6 +156,263 @@ class WhatsAppService
         );
     }
 
+
+    /**
+     * Send an active and Meta-approved template selected from the database.
+     *
+     * The application passes a stable logical key such as:
+     * booking_received, payment_reminder, security_refunded.
+     *
+     * @return array<string, mixed>
+     */
+    public static function sendByKey(
+        string $templateKey,
+        string $number,
+        array $bodyParameters = [],
+        array $headerParameters = [],
+        array $buttonParameters = [],
+        ?string $languageCode = null
+    ): array {
+        $templateKey = self::normalizeTemplateKey($templateKey);
+        $number = self::cleanNumber($number);
+
+        if ($number === '') {
+            return self::failed(
+                message: 'WhatsApp mobile number is required.',
+                error: 'missing_mobile'
+            );
+        }
+
+        if ($templateKey === '') {
+            return self::failed(
+                message: 'WhatsApp template key is required.',
+                error: 'missing_template_key'
+            );
+        }
+
+        try {
+            $template = self::resolveReadyTemplate(
+                templateKey: $templateKey,
+                languageCode: $languageCode
+            );
+
+            if (! $template) {
+                Log::warning(
+                    'No active approved WhatsApp template found for key.',
+                    [
+                        'template_key' => $templateKey,
+                        'language_code' => $languageCode,
+                        'number' => self::maskNumber($number),
+                    ]
+                );
+
+                return self::failed(
+                    message: 'No active approved WhatsApp template is configured for this event.',
+                    error: 'template_not_ready'
+                );
+            }
+
+            return self::sendTemplate(
+                number: $number,
+                templateName: (string) $template->template_name,
+                languageCode: trim((string) $template->language)
+                    ?: self::defaultLanguage(),
+                bodyParameters: $bodyParameters,
+                headerParameters: $headerParameters,
+                buttonParameters: $buttonParameters
+            );
+        } catch (Throwable $exception) {
+            Log::error(
+                'Database-driven WhatsApp template resolution failed.',
+                [
+                    'template_key' => $templateKey,
+                    'number' => self::maskNumber($number),
+                    'error' => $exception->getMessage(),
+                ]
+            );
+
+            return self::failed(
+                message: 'WhatsApp template resolution failed.',
+                error: $exception->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Dispatch a configured WhatsApp notification event.
+     *
+     * Event example:
+     * booking.created, payment.received, lead.created.
+     *
+     * Recipient groups and template selection are controlled from:
+     * - WhatsApp Notification Rules
+     * - Website Settings
+     * - WhatsApp Templates
+     *
+     * @return array<string, mixed>
+     */
+    public static function dispatchEvent(
+        string $eventKey,
+        array $data = []
+    ): array {
+        $eventKey = trim($eventKey);
+
+        if ($eventKey === '') {
+            return self::failed(
+                message: 'WhatsApp event key is required.',
+                error: 'missing_event_key'
+            );
+        }
+
+        try {
+            $settings = WebsiteSetting::current();
+
+            if (! (bool) $settings->whatsapp_enabled) {
+                return self::failed(
+                    message: 'WhatsApp notifications are disabled in Website Settings.',
+                    error: 'whatsapp_disabled'
+                );
+            }
+
+            $rule = WhatsAppNotificationRule::activeForEvent(
+                $eventKey
+            );
+
+            if (! $rule) {
+                Log::warning(
+                    'WhatsApp notification rule not found or inactive.',
+                    ['event_key' => $eventKey]
+                );
+
+                return self::failed(
+                    message: 'No active WhatsApp notification rule is configured for this event.',
+                    error: 'notification_rule_missing'
+                );
+            }
+
+            $language = trim((string) (
+                $data['language']
+                ?? $settings->whatsapp_default_language
+                ?? ''
+            ));
+
+            $template = self::resolveReadyTemplate(
+                templateKey: (string) $rule->template_key,
+                languageCode: $language !== ''
+                    ? $language
+                    : null
+            );
+
+            if (! $template) {
+                Log::warning(
+                    'WhatsApp notification template is not ready.',
+                    [
+                        'event_key' => $eventKey,
+                        'template_key' => $rule->template_key,
+                    ]
+                );
+
+                return self::failed(
+                    message: 'The selected WhatsApp template is not active and approved.',
+                    error: 'template_not_ready'
+                );
+            }
+
+            $recipients = self::resolveEventRecipients(
+                rule: $rule,
+                settings: $settings,
+                data: $data
+            );
+
+            if ($recipients === []) {
+                return self::failed(
+                    message: 'No WhatsApp recipients were resolved for this event.',
+                    error: 'recipients_missing'
+                );
+            }
+
+            $bodyParameters = self::resolveEventBodyParameters(
+                template: $template,
+                data: $data
+            );
+
+            $headerParameters = is_array(
+                $data['header_parameters'] ?? null
+            )
+                ? $data['header_parameters']
+                : [];
+
+            $buttonParameters = is_array(
+                $data['button_parameters'] ?? null
+            )
+                ? $data['button_parameters']
+                : [];
+
+            $results = [];
+            $successful = 0;
+            $failed = 0;
+
+            foreach ($recipients as $recipient) {
+                $result = self::sendByKey(
+                    templateKey: (string) $rule->template_key,
+                    number: $recipient['number'],
+                    bodyParameters: $bodyParameters,
+                    headerParameters: $headerParameters,
+                    buttonParameters: $buttonParameters,
+                    languageCode: (string) $template->language
+                );
+
+                $status = (bool) (
+                    $result['status']
+                    ?? $result['success']
+                    ?? false
+                );
+
+                $status ? $successful++ : $failed++;
+
+                $results[] = [
+                    'type' => $recipient['type'],
+                    'number' => self::maskNumber(
+                        $recipient['number']
+                    ),
+                    'status' => $status,
+                    'message_id' =>
+                        $result['message_id'] ?? null,
+                    'message' =>
+                        $result['message'] ?? null,
+                    'error' =>
+                        $result['error'] ?? null,
+                ];
+            }
+
+            return [
+                'status' => $successful > 0 && $failed === 0,
+                'partial_success' =>
+                    $successful > 0 && $failed > 0,
+                'event_key' => $eventKey,
+                'template_key' => $rule->template_key,
+                'template_name' => $template->template_name,
+                'recipient_count' => count($recipients),
+                'successful_count' => $successful,
+                'failed_count' => $failed,
+                'results' => $results,
+            ];
+        } catch (Throwable $exception) {
+            Log::error(
+                'WhatsApp event dispatch failed.',
+                [
+                    'event_key' => $eventKey,
+                    'message' => $exception->getMessage(),
+                ]
+            );
+
+            return self::failed(
+                message: 'WhatsApp event dispatch failed.',
+                error: $exception->getMessage()
+            );
+        }
+    }
+
     /*
     |--------------------------------------------------------------------------
     | OTP
@@ -162,23 +421,21 @@ class WhatsAppService
 
     public static function sendOtp(string $number, string $otp): bool
     {
-        $templateName = trim((string) config(
-            'services.whatsapp.templates.otp',
-            ''
-        ));
+        $result = self::sendByKey(
+            templateKey: 'otp',
+            number: $number,
+            bodyParameters: [$otp],
+            buttonParameters: self::otpButtonParameters($otp)
+        );
 
-        if ($templateName !== '') {
-            $result = self::sendTemplate(
-                number: $number,
-                templateName: $templateName,
-                languageCode: self::defaultLanguage(),
-                bodyParameters: [$otp],
-                buttonParameters: self::otpButtonParameters($otp)
-            );
-
-            return (bool) ($result['status'] ?? false);
+        if ((bool) ($result['status'] ?? false)) {
+            return true;
         }
 
+        /*
+         * Authentication must remain usable while an OTP template is being
+         * reviewed, inactive or temporarily unavailable.
+         */
         $message =
             "Your Dura Cabs OTP is {$otp}. " .
             "Valid for 5 minutes. Do not share this OTP with anyone.";
@@ -1546,23 +1803,340 @@ class WhatsAppService
         string $fallbackMessage,
         array $parameters = []
     ): bool {
-        $templateName = trim((string) config(
-            "services.whatsapp.templates.{$templateConfigKey}",
-            ''
-        ));
-
-        if ($templateName === '') {
-            return self::send($number, $fallbackMessage);
-        }
-
-        $result = self::sendTemplate(
+        /*
+         * The parameter name is retained for backwards compatibility with
+         * existing named arguments. It now represents a database template key,
+         * not a config/services.php key.
+         */
+        $result = self::sendByKey(
+            templateKey: $templateConfigKey,
             number: $number,
-            templateName: $templateName,
-            languageCode: self::defaultLanguage(),
             bodyParameters: $parameters
         );
 
-        return (bool) ($result['status'] ?? false);
+        if ((bool) ($result['status'] ?? false)) {
+            return true;
+        }
+
+        /*
+         * Plain text fallback is useful only inside an open 24-hour customer
+         * conversation window. Failure is returned normally by send().
+         */
+        return self::send($number, $fallbackMessage);
+    }
+
+    private static function resolveReadyTemplate(
+        string $templateKey,
+        ?string $languageCode = null
+    ): ?WhatsAppTemplate {
+        $languageCode = trim((string) $languageCode);
+
+        foreach (self::templateKeyCandidates($templateKey) as $candidate) {
+            $template = WhatsAppTemplate::readyForKey(
+                $candidate,
+                $languageCode !== '' ? $languageCode : null
+            );
+
+            if ($template) {
+                return $template;
+            }
+        }
+
+        /*
+         * Compatibility for records created before template_key existed or
+         * records whose key has not yet been manually corrected in Admin.
+         */
+        foreach (self::templateKeyCandidates($templateKey) as $candidate) {
+            $query = WhatsAppTemplate::query()
+                ->readyToSend()
+                ->where(function ($builder) use ($candidate): void {
+                    $builder
+                        ->where('template_name', $candidate)
+                        ->orWhere(
+                            'template_name',
+                            'like',
+                            $candidate . '_v%'
+                        );
+                });
+
+            if ($languageCode !== '') {
+                $query->where('language', $languageCode);
+            }
+
+            $template = $query
+                ->latest('approved_at')
+                ->latest('id')
+                ->first();
+
+            if ($template) {
+                return $template;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Existing application methods use a few historical names. These aliases
+     * let old method calls resolve the current database keys without .env.
+     *
+     * @return array<int, string>
+     */
+    private static function templateKeyCandidates(
+        string $templateKey
+    ): array {
+        $templateKey = self::normalizeTemplateKey($templateKey);
+
+        $aliases = [
+            'booking_confirmation' => [
+                'booking_confirmation',
+                'booking_confirmed',
+            ],
+            'booking_cancellation' => [
+                'booking_cancellation',
+                'booking_cancelled',
+            ],
+            'driver_details' => [
+                'driver_details',
+                'driver_assigned',
+            ],
+            'payment_receipt' => [
+                'payment_receipt',
+                'payment_received',
+            ],
+            'invoice' => [
+                'invoice',
+                'invoice_ready',
+            ],
+            'refund' => [
+                'refund',
+                'refund_processed',
+            ],
+            'otp' => [
+                'otp',
+                'otp_login',
+                'authentication_otp',
+            ],
+        ];
+
+        return array_values(array_unique(
+            $aliases[$templateKey] ?? [$templateKey]
+        ));
+    }
+
+    private static function normalizeTemplateKey(
+        string $templateKey
+    ): string {
+        $templateKey = strtolower(trim($templateKey));
+
+        $templateKey = preg_replace(
+            '/_v\d+$/i',
+            '',
+            $templateKey
+        ) ?? $templateKey;
+
+        $templateKey = preg_replace(
+            '/[^a-z0-9_]+/',
+            '_',
+            $templateKey
+        ) ?? $templateKey;
+
+        return trim($templateKey, '_');
+    }
+
+    /**
+     * @return array<int, array{type: string, number: string}>
+     */
+    private static function resolveEventRecipients(
+        WhatsAppNotificationRule $rule,
+        WebsiteSetting $settings,
+        array $data
+    ): array {
+        $recipients = [];
+
+        if ($rule->send_customer) {
+            self::appendEventRecipient(
+                $recipients,
+                'customer',
+                $data['customer_mobile']
+                    ?? $data['customer_number']
+                    ?? $data['mobile']
+                    ?? null
+            );
+        }
+
+        if ($rule->send_vendor) {
+            self::appendEventRecipient(
+                $recipients,
+                'vendor',
+                $data['vendor_mobile']
+                    ?? $data['vendor_number']
+                    ?? null
+            );
+        }
+
+        if ($rule->send_driver) {
+            self::appendEventRecipient(
+                $recipients,
+                'driver',
+                $data['driver_mobile']
+                    ?? $data['driver_number']
+                    ?? null
+            );
+        }
+
+        foreach ([
+            'admin',
+            'sales',
+            'operations',
+            'accounts',
+            'support',
+        ] as $group) {
+            $flag = 'send_' . $group;
+
+            if (! (bool) $rule->{$flag}) {
+                continue;
+            }
+
+            foreach (
+                $settings->whatsappNumbersForGroup($group)
+                as $number
+            ) {
+                self::appendEventRecipient(
+                    $recipients,
+                    $group,
+                    $number
+                );
+            }
+        }
+
+        foreach (
+            is_array($data['extra_recipients'] ?? null)
+                ? $data['extra_recipients']
+                : []
+            as $recipient
+        ) {
+            if (! is_array($recipient)) {
+                continue;
+            }
+
+            self::appendEventRecipient(
+                $recipients,
+                trim((string) (
+                    $recipient['type'] ?? 'extra'
+                )) ?: 'extra',
+                $recipient['number'] ?? null
+            );
+        }
+
+        return collect($recipients)
+            ->filter(
+                fn (array $recipient): bool =>
+                    $recipient['number'] !== ''
+            )
+            ->unique('number')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param array<int, array{type: string, number: string}> $recipients
+     */
+    private static function appendEventRecipient(
+        array &$recipients,
+        string $type,
+        mixed $number
+    ): void {
+        if (is_array($number)) {
+            foreach ($number as $item) {
+                self::appendEventRecipient(
+                    $recipients,
+                    $type,
+                    $item
+                );
+            }
+
+            return;
+        }
+
+        $cleanNumber = self::cleanNumber(
+            (string) $number
+        );
+
+        if ($cleanNumber === '') {
+            return;
+        }
+
+        $recipients[] = [
+            'type' => $type,
+            'number' => $cleanNumber,
+        ];
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private static function resolveEventBodyParameters(
+        WhatsAppTemplate $template,
+        array $data
+    ): array {
+        if (is_array($data['body_parameters'] ?? null)) {
+            return array_values(
+                $data['body_parameters']
+            );
+        }
+
+        return collect(
+            is_array($template->variables)
+                ? $template->variables
+                : []
+        )
+            ->filter(
+                fn (mixed $item): bool =>
+                    is_array($item)
+            )
+            ->sortBy(
+                fn (array $item): int =>
+                    (int) (
+                        $item['position']
+                        ?? $item['index']
+                        ?? 0
+                    )
+            )
+            ->map(function (array $variable) use (
+                $data
+            ): string {
+                $key = trim((string) (
+                    $variable['key'] ?? ''
+                ));
+
+                $value = $key !== ''
+                    ? data_get($data, $key)
+                    : null;
+
+                if ($value === null || $value === '') {
+                    $value =
+                        $variable['sample']
+                        ?? $variable['key']
+                        ?? 'Not available';
+                }
+
+                if (is_bool($value)) {
+                    return $value ? 'Yes' : 'No';
+                }
+
+                if (is_array($value)) {
+                    return implode(
+                        ', ',
+                        array_map('strval', $value)
+                    );
+                }
+
+                return trim((string) $value)
+                    ?: 'Not available';
+            })
+            ->values()
+            ->all();
     }
 
     private static function prepareParameters(array $parameters): array

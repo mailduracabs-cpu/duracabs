@@ -184,6 +184,16 @@ return [
             'WHATSAPP_WEBHOOK_VERIFY_TOKEN'
         ),
 
+        'admin_number' => env(
+            'ADMIN_MOBILE',
+            ''
+        ),
+
+        'staff_numbers' => env(
+            'WHATSAPP_STAFF_NUMBERS',
+            ''
+        ),
+
         /*
         |--------------------------------------------------------------------------
         | Default message settings
@@ -308,33 +318,39 @@ return [
             |--------------------------------------------------------------------------
             */
 
-           'search_abandoned' => env(
-    'WHATSAPP_TEMPLATE_SEARCH_ABANDONED'
-),
+            'search_abandoned' => env(
+                'WHATSAPP_TEMPLATE_SEARCH_ABANDONED'
+            ),
 
-'checkout_abandoned' => env(
-    'WHATSAPP_TEMPLATE_CHECKOUT_ABANDONED'
-),
+            'checkout_abandoned' => env(
+                'WHATSAPP_TEMPLATE_CHECKOUT_ABANDONED'
+            ),
 
-'payment_failed' => env(
-    'WHATSAPP_TEMPLATE_PAYMENT_FAILED'
-),
+            'payment_failed' => env(
+                'WHATSAPP_TEMPLATE_PAYMENT_FAILED'
+            ),
 
-'hot_lead' => env(
-    'WHATSAPP_TEMPLATE_HOT_LEAD'
-),
+            'hot_lead' => env(
+                'WHATSAPP_TEMPLATE_HOT_LEAD'
+            ),
 
-'admin_customer_enquiry' => env(
-    'WHATSAPP_TEMPLATE_ADMIN_CUSTOMER_ENQUIRY'
-),
-'admin_new_customer' => env(
-    'WHATSAPP_TEMPLATE_ADMIN_NEW_CUSTOMER',
-    'admin_new_customer_v1'
-),
-'admin_new_vendor_registration' => env(
-    'WHATSAPP_TEMPLATE_ADMIN_NEW_VENDOR_REGISTRATION',
-    'admin_new_vendor_registration_v1'
-),
+            'admin_customer_enquiry' => env(
+                'WHATSAPP_TEMPLATE_ADMIN_CUSTOMER_ENQUIRY',
+                'admin_customer_enquiry_v1'
+            ),
+
+            'admin_new_customer' => env(
+                'WHATSAPP_TEMPLATE_ADMIN_NEW_CUSTOMER',
+                'admin_new_customer_v1'
+            ),
+
+            'admin_new_vendor_registration' => env(
+                'WHATSAPP_TEMPLATE_ADMIN_NEW_VENDOR_REGISTRATION',
+                'admin_new_vendor_registration_v1'
+            ),
+        ],
+    ],
+
 
     /*
     |--------------------------------------------------------------------------

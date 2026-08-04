@@ -315,6 +315,88 @@ class WebsiteSettingResource extends Resource
                                     ]),
                             ]),
 
+                        Forms\Components\Tabs\Tab::make('WhatsApp')
+                            ->icon('heroicon-o-chat-bubble-left-right')
+                            ->schema([
+                                Forms\Components\Section::make(
+                                    'WhatsApp Configuration'
+                                )
+                                    ->columns(2)
+                                    ->schema([
+                                        Forms\Components\Toggle::make(
+                                            'whatsapp_enabled'
+                                        )
+                                            ->label('Enable WhatsApp')
+                                            ->default(true)
+                                            ->inline(false),
+
+                                        Forms\Components\TextInput::make(
+                                            'whatsapp_test_number'
+                                        )
+                                            ->label('Test Recipient Number')
+                                            ->helperText(
+                                                'Country code ke saath, example 919876543210'
+                                            )
+                                            ->tel()
+                                            ->maxLength(30),
+
+                                        Forms\Components\TextInput::make(
+                                            'whatsapp_default_country_code'
+                                        )
+                                            ->label('Default Country Code')
+                                            ->default('91')
+                                            ->required()
+                                            ->maxLength(10),
+
+                                        Forms\Components\Select::make(
+                                            'whatsapp_default_language'
+                                        )
+                                            ->label('Default Language')
+                                            ->options([
+                                                'en' => 'English',
+                                                'en_US' => 'English (US)',
+                                                'hi' => 'Hindi',
+                                                'hi_IN' => 'Hindi (India)',
+                                            ])
+                                            ->default('en')
+                                            ->required()
+                                            ->native(false),
+                                    ]),
+
+                                Forms\Components\Section::make(
+                                    'Notification Recipient Groups'
+                                )
+                                    ->description(
+                                        'Har number country code ke saath add karein.'
+                                    )
+                                    ->schema([
+                                        self::numberRepeater(
+                                            'whatsapp_admin_numbers',
+                                            'Admin Numbers'
+                                        ),
+
+                                        self::numberRepeater(
+                                            'whatsapp_sales_numbers',
+                                            'Sales Numbers'
+                                        ),
+
+                                        self::numberRepeater(
+                                            'whatsapp_operations_numbers',
+                                            'Operations Numbers'
+                                        ),
+
+                                        self::numberRepeater(
+                                            'whatsapp_accounts_numbers',
+                                            'Accounts Numbers'
+                                        ),
+
+                                        self::numberRepeater(
+                                            'whatsapp_support_numbers',
+                                            'Support Numbers'
+                                        ),
+                                    ]),
+                            ]),
+
                         Forms\Components\Tabs\Tab::make('Analytics')
                             ->icon('heroicon-o-chart-bar')
                             ->schema([
@@ -409,6 +491,34 @@ class WebsiteSettingResource extends Resource
             ->emptyStateDescription(
                 'Create the global website settings record.'
             );
+    }
+
+    private static function numberRepeater(
+        string $field,
+        string $label
+    ): Forms\Components\Repeater {
+        return Forms\Components\Repeater::make($field)
+            ->label($label)
+            ->schema([
+                Forms\Components\TextInput::make('name')
+                    ->label('Name / Department')
+                    ->maxLength(100),
+
+                Forms\Components\TextInput::make('number')
+                    ->label('WhatsApp Number')
+                    ->tel()
+                    ->required()
+                    ->maxLength(30)
+                    ->helperText(
+                        'Example: 919876543210'
+                    ),
+            ])
+            ->columns(2)
+            ->defaultItems(0)
+            ->addActionLabel('Add Number')
+            ->reorderable()
+            ->collapsible()
+            ->columnSpanFull();
     }
 
     /**

@@ -64,6 +64,16 @@ class WebsiteSetting extends Model
         'yandex_verification',
         'pinterest_domain_verification',
 
+        'whatsapp_enabled',
+        'whatsapp_default_country_code',
+        'whatsapp_default_language',
+        'whatsapp_test_number',
+        'whatsapp_admin_numbers',
+        'whatsapp_sales_numbers',
+        'whatsapp_operations_numbers',
+        'whatsapp_accounts_numbers',
+        'whatsapp_support_numbers',
+
         'is_active',
     ];
 
@@ -76,6 +86,14 @@ class WebsiteSetting extends Model
         'review_count' => 'integer',
 
         'open_24_hours' => 'boolean',
+
+        'whatsapp_enabled' => 'boolean',
+        'whatsapp_admin_numbers' => 'array',
+        'whatsapp_sales_numbers' => 'array',
+        'whatsapp_operations_numbers' => 'array',
+        'whatsapp_accounts_numbers' => 'array',
+        'whatsapp_support_numbers' => 'array',
+
         'is_active' => 'boolean',
     ];
 
@@ -110,6 +128,9 @@ class WebsiteSetting extends Model
                         'business_type' => 'TaxiService',
                         'open_24_hours' => true,
                         'best_rating' => 5,
+                        'whatsapp_enabled' => true,
+                        'whatsapp_default_country_code' => '91',
+                        'whatsapp_default_language' => 'en',
                         'is_active' => true,
                     ]);
             }
@@ -145,6 +166,41 @@ class WebsiteSetting extends Model
             $this->pinterest_url,
         ])
             ->filter(fn ($url): bool => filled($url))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function whatsappNumbersForGroup(
+        string $group
+    ): array {
+        $field = match ($group) {
+            'admin' => 'whatsapp_admin_numbers',
+            'sales' => 'whatsapp_sales_numbers',
+            'operations' => 'whatsapp_operations_numbers',
+            'accounts' => 'whatsapp_accounts_numbers',
+            'support' => 'whatsapp_support_numbers',
+            default => null,
+        };
+
+        if ($field === null) {
+            return [];
+        }
+
+        $numbers = $this->{$field};
+
+        return collect(is_array($numbers) ? $numbers : [])
+            ->map(function (mixed $item): string {
+                $number = is_array($item)
+                    ? (string) ($item['number'] ?? '')
+                    : (string) $item;
+
+                return preg_replace('/\D+/', '', $number) ?? '';
+            })
+            ->filter()
+            ->unique()
             ->values()
             ->all();
     }

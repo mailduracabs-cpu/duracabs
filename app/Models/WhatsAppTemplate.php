@@ -14,22 +14,19 @@ class WhatsAppTemplate extends Model
     public const CATEGORY_AUTHENTICATION = 'AUTHENTICATION';
 
     public const STATUS_DRAFT = 'draft';
-
     public const STATUS_ACTIVE = 'active';
-
     public const STATUS_ARCHIVED = 'archived';
 
     public const META_STATUS_NOT_SUBMITTED = 'not_submitted';
-
     public const META_STATUS_PENDING = 'pending';
-
     public const META_STATUS_APPROVED = 'approved';
-
     public const META_STATUS_REJECTED = 'rejected';
 
     protected $fillable = [
         'name',
         'template_name',
+        'template_key',
+        'event_key',
         'category',
         'language',
         'header_type',
@@ -80,6 +77,60 @@ class WhatsAppTemplate extends Model
         return $query
             ->active()
             ->approved();
+    }
+
+    public function scopeForKey(
+        Builder $query,
+        string $templateKey
+    ): Builder {
+        return $query->where(
+            'template_key',
+            trim($templateKey)
+        );
+    }
+
+    public function scopeForEvent(
+        Builder $query,
+        string $eventKey
+    ): Builder {
+        return $query->where(
+            'event_key',
+            trim($eventKey)
+        );
+    }
+
+    public static function readyForKey(
+        string $templateKey,
+        ?string $language = null
+    ): ?self {
+        return static::query()
+            ->readyToSend()
+            ->forKey($templateKey)
+            ->when(
+                filled($language),
+                fn (Builder $query): Builder =>
+                    $query->where('language', $language)
+            )
+            ->latest('approved_at')
+            ->latest('id')
+            ->first();
+    }
+
+    public static function readyForEvent(
+        string $eventKey,
+        ?string $language = null
+    ): ?self {
+        return static::query()
+            ->readyToSend()
+            ->forEvent($eventKey)
+            ->when(
+                filled($language),
+                fn (Builder $query): Builder =>
+                    $query->where('language', $language)
+            )
+            ->latest('approved_at')
+            ->latest('id')
+            ->first();
     }
 
     public function isApproved(): bool
