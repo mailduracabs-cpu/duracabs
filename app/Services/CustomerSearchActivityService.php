@@ -127,7 +127,7 @@ class CustomerSearchActivityService
     ): CustomerSearchActivity {
         $request ??= request();
 
-        return DB::transaction(function () use (
+        $search = DB::transaction(function () use (
             $module,
             $serviceType,
             $data,
@@ -155,6 +155,13 @@ class CustomerSearchActivityService
 
             return CustomerSearchActivity::create($payload);
         });
+
+        $this->notifyAdminLead(
+            $search,
+            AdminLeadNotificationService::EVENT_SEARCHED
+        );
+
+        return $search;
     }
 
     /*
@@ -195,7 +202,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_FARE_CHECKED
+        );
+
+        return $freshSearch;
     }
 
     public function markVehicleViewed(
@@ -303,7 +317,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_VEHICLE_SELECTED
+        );
+
+        return $freshSearch;
     }
 
     public function markCheckoutStarted(
@@ -349,7 +370,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_CHECKOUT_STARTED
+        );
+
+        return $freshSearch;
     }
 
     public function markPaymentStarted(
@@ -386,7 +414,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_PAYMENT_STARTED
+        );
+
+        return $freshSearch;
     }
 
     public function markPaymentFailed(
@@ -422,7 +457,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_PAYMENT_FAILED
+        );
+
+        return $freshSearch;
     }
 
     public function markPaymentSuccess(
@@ -594,7 +636,14 @@ class CustomerSearchActivityService
             'priority' => $search->priority,
         ]);
 
-        return $search->fresh();
+        $freshSearch = $search->fresh();
+
+        $this->notifyAdminLead(
+            $freshSearch,
+            AdminLeadNotificationService::EVENT_ABANDONED
+        );
+
+        return $freshSearch;
     }
 
     public function restoreSearch(
@@ -777,6 +826,31 @@ class CustomerSearchActivityService
             ->latestFirst()
             ->limit(max(1, min($limit, 500)))
             ->get();
+    }
+
+    private function notifyAdminLead(
+        CustomerSearchActivity $search,
+        string $event
+    ): void {
+        try {
+            app(AdminLeadNotificationService::class)->send(
+                $search,
+                $event
+            );
+        } catch (Throwable $exception) {
+            /*
+             * Admin WhatsApp must never break customer search, fare,
+             * checkout or payment tracking.
+             */
+            Log::error(
+                'Admin lead WhatsApp notification failed.',
+                [
+                    'search_activity_id' => $search->id,
+                    'event' => $event,
+                    'message' => $exception->getMessage(),
+                ]
+            );
+        }
     }
 
     /*
