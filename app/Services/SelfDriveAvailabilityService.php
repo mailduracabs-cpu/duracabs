@@ -179,19 +179,8 @@ class SelfDriveAvailabilityService
                 $query
                     ->whereIn('partner_type', ['host', 'vendor', 'both'])
                     ->where('status', true)
-                    ->where(function (Builder $locationQuery): void {
-                        $locationQuery
-                            ->where(function (Builder $query): void {
-                                $query
-                                    ->whereNotNull('pickup_latitude')
-                                    ->whereNotNull('pickup_longitude');
-                            })
-                            ->orWhere(function (Builder $query): void {
-                                $query
-                                    ->whereNotNull('pickup_lat')
-                                    ->whereNotNull('pickup_lng');
-                            });
-                    });
+                    ->whereNotNull('pickup_latitude')
+                    ->whereNotNull('pickup_longitude');
             })
             ->whereDoesntHave(
                 'selfDriveBookings',
@@ -229,10 +218,10 @@ class SelfDriveAvailabilityService
                 }
 
                 $hostLat = $this->nullableFloat(
-                    $host->pickup_latitude ?? $host->pickup_lat ?? null
+                    $host->pickup_latitude
                 );
                 $hostLng = $this->nullableFloat(
-                    $host->pickup_longitude ?? $host->pickup_lng ?? null
+                    $host->pickup_longitude
                 );
 
                 if ($hostLat === null || $hostLng === null) {
@@ -562,10 +551,10 @@ class SelfDriveAvailabilityService
         }
 
         $hostLat = $this->nullableFloat(
-            $host->pickup_latitude ?? $host->pickup_lat ?? null
+            $host->pickup_latitude
         );
         $hostLng = $this->nullableFloat(
-            $host->pickup_longitude ?? $host->pickup_lng ?? null
+            $host->pickup_longitude
         );
 
         if ($hostLat === null || $hostLng === null) {
