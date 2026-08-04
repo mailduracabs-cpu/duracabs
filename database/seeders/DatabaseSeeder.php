@@ -24,7 +24,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $user1 = User::factory()->create([
-            'name' => 'VikasAdmin',
+            'name' => 'Admin',
             'email' => 'mail.duracabs1@gmail.com',
            
         ]);
@@ -93,6 +93,8 @@ class DatabaseSeeder extends Seeder
         $Permission24 = Permission::create(['name' => 'Update Inquiry']);
         $Permission24 = Permission::create(['name' => 'Delete Inquiry']);
 
-        
+        $this->call([
+            WhatsAppTemplateSeeder::class,
+        ]);
     }
 }
