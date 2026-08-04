@@ -18,11 +18,9 @@ trait HandlesOtpCustomerAuthentication
      * this method. This method only resolves or creates the customer account,
      * logs the customer in, and regenerates the session.
      */
-    protected function authenticateOtpCustomer(): User
+    protected function authenticateOtpCustomer(?string $mobileNumber = null): User
     {
-        $mobile = $this->normalizeOtpCustomerMobile(
-            $this->mobileNumber ?? null
-        );
+        $mobile = $this->resolveOtpCustomerMobile($mobileNumber);
 
         if ($mobile === '') {
             throw new \RuntimeException(
@@ -84,6 +82,8 @@ trait HandlesOtpCustomerAuthentication
                 $this->mobileNumber = $mobile;
             }
 
+            request()->session()->forget('otp_customer_mobile');
+
             Log::info('Homepage OTP customer authenticated', [
                 'user_id' => $user->getKey(),
                 'mobile' => $mobile,
@@ -99,6 +99,47 @@ trait HandlesOtpCustomerAuthentication
 
             throw $exception;
         }
+    }
+
+
+    /**
+     * Store the mobile number before the OTP verification request.
+     *
+     * Livewire can rehydrate public properties between requests, so the session
+     * copy provides a reliable fallback for all Homepage OTP flows.
+     */
+    protected function rememberOtpCustomerMobile(mixed $mobile): string
+    {
+        $mobile = $this->normalizeOtpCustomerMobile($mobile);
+
+        if ($mobile !== '') {
+            request()->session()->put('otp_customer_mobile', $mobile);
+        }
+
+        return $mobile;
+    }
+
+    /**
+     * Resolve the OTP customer mobile from the safest available source.
+     */
+    protected function resolveOtpCustomerMobile(?string $mobileNumber = null): string
+    {
+        $candidates = [
+            $mobileNumber,
+            property_exists($this, 'mobileNumber') ? $this->mobileNumber : null,
+            request()->session()->get('otp_customer_mobile'),
+            Auth::user()?->mobile,
+        ];
+
+        foreach ($candidates as $candidate) {
+            $mobile = $this->normalizeOtpCustomerMobile($candidate);
+
+            if ($mobile !== '') {
+                return $mobile;
+            }
+        }
+
+        return '';
     }
 
     protected function normalizeOtpCustomerMobile(mixed $mobile): string
