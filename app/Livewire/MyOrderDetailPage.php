@@ -3,10 +3,13 @@
 namespace App\Livewire;
 
 use App\Models\Order;
+use App\Services\WhatsAppService;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 use Jantinnerezo\LivewireAlert\LivewireAlert;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 #[Title("My Orders Details -  Duracabs")]
 class MyOrderDetailPage extends Component
@@ -84,33 +87,291 @@ class MyOrderDetailPage extends Component
         $this->showCancelModal = true;
     }
 
-    public function cancelOrder() {
+    public function cancelOrder()
+    {
         $this->validate([
-            'cancelReason' => 'required|string|min:10|max:500'
+            'cancelReason' => 'required|string|min:10|max:500',
         ]);
 
         $this->order->refresh();
 
-        if (!$this->canCancel()) {
-            $this->alert('error', 'This booking can no longer be cancelled.');
+        if (! $this->canCancel()) {
+            $this->alert(
+                'error',
+                'This booking can no longer be cancelled.'
+            );
+
+            return;
+        }
+
+        $reason = trim((string) $this->cancelReason);
+
+        /*
+         * Status is checked again immediately before update. This prevents a
+         * duplicate cancellation notification when the action is submitted
+         * twice or the page has stale data.
+         */
+        if ((string) $this->order->status === 'cancelled') {
+            $this->showCancelModal = false;
+            $this->cancelReason = '';
+
+            $this->alert(
+                'info',
+                'This booking is already cancelled.'
+            );
+
             return;
         }
 
         $this->order->update([
             'status' => 'cancelled',
-            'notes' => 'Cancelled by customer: ' . $this->cancelReason
+            'notes' => 'Cancelled by customer: ' . $reason,
         ]);
+
+        $this->order->loadMissing([
+            'address',
+            'user',
+            'items.product',
+        ]);
+
+        /*
+         * WhatsApp failure must never roll back a valid cancellation.
+         */
+        $this->sendCancellationWhatsAppNotifications(
+            $this->order,
+            $reason
+        );
 
         $this->showCancelModal = false;
         $this->cancelReason = '';
-        
-        $this->alert('success', 'Order cancelled successfully!', [
-            'position' => 'center',
-            'timer' => 3000,
-            'toast' => true,
-        ]);
-        
+
+        $this->alert(
+            'success',
+            'Order cancelled successfully!',
+            [
+                'position' => 'center',
+                'timer' => 3000,
+                'toast' => true,
+            ]
+        );
+
         $this->order->refresh();
+    }
+
+    private function sendCancellationWhatsAppNotifications(
+        Order $order,
+        string $reason
+    ): void {
+        $this->sendCustomerCancellationWhatsApp(
+            $order,
+            $reason
+        );
+
+        $this->sendInternalCancellationWhatsApp(
+            $order,
+            $reason
+        );
+    }
+
+    private function sendCustomerCancellationWhatsApp(
+        Order $order,
+        string $reason
+    ): void {
+        $number = $this->customerMobile($order);
+
+        if ($number === '') {
+            Log::warning(
+                'Customer cancellation WhatsApp skipped because mobile is missing.',
+                ['order_id' => $order->id]
+            );
+
+            return;
+        }
+
+        try {
+            $sent = WhatsAppService::bookingCancellation(
+                $number,
+                [
+                    'customer_name' => $this->customerName($order),
+                    'booking_id' => $this->bookingReference($order),
+                    'reason' => $reason,
+                ]
+            );
+
+            if (! $sent) {
+                Log::warning(
+                    'Customer cancellation WhatsApp was not accepted.',
+                    [
+                        'order_id' => $order->id,
+                        'number' => $this->maskedMobile($number),
+                    ]
+                );
+            }
+        } catch (Throwable $exception) {
+            Log::error(
+                'Customer cancellation WhatsApp failed.',
+                [
+                    'order_id' => $order->id,
+                    'number' => $this->maskedMobile($number),
+                    'message' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendInternalCancellationWhatsApp(
+        Order $order,
+        string $reason
+    ): void {
+        $numbers = $this->internalNotificationNumbers();
+
+        if ($numbers === []) {
+            Log::warning(
+                'Internal cancellation WhatsApp skipped because recipients are missing.',
+                ['order_id' => $order->id]
+            );
+
+            return;
+        }
+
+        /*
+         * Until a separate approved admin-cancellation template is configured,
+         * the approved booking_cancelled_v1 template is reused for internal
+         * recipients. Set WHATSAPP_ADMIN_BOOKING_CANCELLED_TEMPLATE later to
+         * switch templates without changing this file.
+         */
+        $templateName = trim((string) config(
+            'services.whatsapp.templates.admin_booking_cancelled',
+            env(
+                'WHATSAPP_ADMIN_BOOKING_CANCELLED_TEMPLATE',
+                'booking_cancelled_v1'
+            )
+        ));
+
+        foreach ($numbers as $number) {
+            try {
+                $result = WhatsAppService::sendTemplate(
+                    number: $number,
+                    templateName: $templateName,
+                    languageCode: (string) config(
+                        'services.whatsapp.default_language',
+                        'en'
+                    ),
+                    bodyParameters: [
+                        'Dura Cabs Admin',
+                        $this->bookingReference($order),
+                        sprintf(
+                            '%s | Customer: %s | Mobile: %s',
+                            $reason,
+                            $this->customerName($order),
+                            $this->customerMobile($order)
+                        ),
+                    ]
+                );
+
+                if (! (bool) (
+                    $result['status']
+                    ?? $result['success']
+                    ?? false
+                )) {
+                    Log::warning(
+                        'Internal cancellation WhatsApp was not accepted.',
+                        [
+                            'order_id' => $order->id,
+                            'number' => $this->maskedMobile($number),
+                            'result' => $result,
+                        ]
+                    );
+                }
+            } catch (Throwable $exception) {
+                Log::error(
+                    'Internal cancellation WhatsApp failed.',
+                    [
+                        'order_id' => $order->id,
+                        'number' => $this->maskedMobile($number),
+                        'message' => $exception->getMessage(),
+                    ]
+                );
+            }
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function internalNotificationNumbers(): array
+    {
+        $configured = [
+            (string) config(
+                'services.whatsapp.admin_number',
+                env('ADMIN_MOBILE', '')
+            ),
+            (string) env('WHATSAPP_STAFF_NUMBERS', ''),
+        ];
+
+        return collect($configured)
+            ->flatMap(
+                fn (string $value): array =>
+                    preg_split('/[\s,;]+/', $value) ?: []
+            )
+            ->map(
+                fn (string $number): string =>
+                    WhatsAppService::cleanNumber($number)
+            )
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function customerName(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->full_name
+            ?: $order->user?->name
+            ?: auth()->user()?->name
+            ?: 'Customer'
+        ));
+    }
+
+    private function customerMobile(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->phone
+            ?: $order->user?->mobile
+            ?: auth()->user()?->mobile
+            ?: ''
+        ));
+    }
+
+    private function bookingReference(Order $order): string
+    {
+        $reference = trim((string) (
+            $order->booking_no
+            ?? $order->order_no
+            ?? ''
+        ));
+
+        return $reference !== ''
+            ? $reference
+            : 'DURA' . str_pad(
+                (string) $order->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
+
+    private function maskedMobile(string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', $number) ?? '';
+
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', strlen($digits) - 4)
+            . substr($digits, -4);
     }
 
     public function showModificationDialog() {

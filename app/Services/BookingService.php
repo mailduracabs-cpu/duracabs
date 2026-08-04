@@ -589,6 +589,17 @@ class BookingService
             ])
         );
 
+        /*
+         * Send the approved Meta WhatsApp cancellation templates.
+         * WhatsApp failures are logged and never roll back a valid cancellation.
+         */
+        $this->sendCancellationWhatsAppSafely(
+            bookingData: $bookingData,
+            requestData: array_merge($data, [
+                'reason' => $data['reason'] ?? 'Cancelled by customer',
+            ])
+        );
+
         return [
             'status' => true,
             'message' => 'Booking cancelled successfully.',
@@ -685,6 +696,186 @@ class BookingService
                 'vehicle_name' => $order->productName ?? null,
             ],
         ];
+    }
+
+    private function sendCancellationWhatsAppSafely(
+        array $bookingData,
+        array $requestData = []
+    ): void {
+        $reason = trim((string) (
+            $requestData['reason']
+            ?? 'Cancelled by customer'
+        ));
+
+        $bookingId = (string) (
+            $bookingData['booking_no']
+            ?? $bookingData['booking_id']
+            ?? $bookingData['id']
+            ?? 'N/A'
+        );
+
+        $userId = $bookingData['user_id']
+            ?? $requestData['user_id']
+            ?? null;
+
+        $user = $userId
+            ? User::query()->find((int) $userId)
+            : null;
+
+        $contact = $this->resolveBookingContact(
+            $bookingData,
+            $requestData,
+            $user
+        );
+
+        $customerMobile = trim((string) (
+            $requestData['mobile']
+            ?? $contact['mobile']
+            ?? $user?->mobile
+            ?? ''
+        ));
+
+        $customerName = trim((string) (
+            $requestData['name']
+            ?? $requestData['customer_name']
+            ?? $user?->name
+            ?? data_get($bookingData, 'address.full_name')
+            ?? 'Customer'
+        ));
+
+        if ($customerMobile !== '') {
+            try {
+                $sent = WhatsAppService::bookingCancellation(
+                    $customerMobile,
+                    [
+                        'customer_name' => $customerName,
+                        'booking_id' => $bookingId,
+                        'reason' => $reason,
+                    ]
+                );
+
+                if (! $sent) {
+                    Log::warning(
+                        'API customer cancellation WhatsApp was not accepted.',
+                        [
+                            'booking_id' => $bookingId,
+                            'number' => $this->maskMobile($customerMobile),
+                        ]
+                    );
+                }
+            } catch (\Throwable $exception) {
+                Log::error(
+                    'API customer cancellation WhatsApp failed.',
+                    [
+                        'booking_id' => $bookingId,
+                        'number' => $this->maskMobile($customerMobile),
+                        'message' => $exception->getMessage(),
+                    ]
+                );
+            }
+        } else {
+            Log::warning(
+                'API customer cancellation WhatsApp skipped: mobile missing.',
+                ['booking_id' => $bookingId]
+            );
+        }
+
+        $templateName = trim((string) config(
+            'services.whatsapp.templates.admin_booking_cancelled',
+            env(
+                'WHATSAPP_ADMIN_BOOKING_CANCELLED_TEMPLATE',
+                'booking_cancelled_v1'
+            )
+        ));
+
+        foreach ($this->internalWhatsAppNumbers() as $number) {
+            try {
+                $result = WhatsAppService::sendTemplate(
+                    number: $number,
+                    templateName: $templateName,
+                    languageCode: (string) config(
+                        'services.whatsapp.default_language',
+                        'en'
+                    ),
+                    bodyParameters: [
+                        'Dura Cabs Admin',
+                        $bookingId,
+                        sprintf(
+                            '%s | Customer: %s | Mobile: %s',
+                            $reason,
+                            $customerName,
+                            $customerMobile !== ''
+                                ? $customerMobile
+                                : 'N/A'
+                        ),
+                    ]
+                );
+
+                if (! (bool) (
+                    $result['status']
+                    ?? $result['success']
+                    ?? false
+                )) {
+                    Log::warning(
+                        'API internal cancellation WhatsApp was not accepted.',
+                        [
+                            'booking_id' => $bookingId,
+                            'number' => $this->maskMobile($number),
+                            'result' => $result,
+                        ]
+                    );
+                }
+            } catch (\Throwable $exception) {
+                Log::error(
+                    'API internal cancellation WhatsApp failed.',
+                    [
+                        'booking_id' => $bookingId,
+                        'number' => $this->maskMobile($number),
+                        'message' => $exception->getMessage(),
+                    ]
+                );
+            }
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function internalWhatsAppNumbers(): array
+    {
+        $sources = [
+            (string) config(
+                'services.whatsapp.admin_number',
+                env('ADMIN_MOBILE', '')
+            ),
+            (string) env('WHATSAPP_STAFF_NUMBERS', ''),
+        ];
+
+        return collect($sources)
+            ->flatMap(
+                fn (string $value): array =>
+                    preg_split('/[\s,;|]+/', $value) ?: []
+            )
+            ->map(
+                fn (string $number): string =>
+                    WhatsAppService::cleanNumber($number)
+            )
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    private function maskMobile(string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', $number) ?? '';
+
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', strlen($digits) - 4)
+            . substr($digits, -4);
     }
 
     private function bookingLockKey(array $data): string

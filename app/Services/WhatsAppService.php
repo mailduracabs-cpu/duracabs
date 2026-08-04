@@ -731,6 +731,121 @@ class WhatsAppService
 
     /*
     |--------------------------------------------------------------------------
+    | Trip started
+    |--------------------------------------------------------------------------
+    */
+
+    public static function tripStarted(
+        string $number,
+        array $data
+    ): bool {
+        $customerName = trim((string) (
+            $data['customer_name'] ?? 'Customer'
+        )) ?: 'Customer';
+
+        $bookingId = trim((string) (
+            $data['booking_id'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $route = trim((string) (
+            $data['route'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $driverName = trim((string) (
+            $data['driver_name'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $vehicleName = trim((string) (
+            $data['vehicle_name'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $message =
+            "Hello {$customerName},\n\n" .
+            "Your Dura Cabs trip has started.\n\n" .
+            "Booking ID: {$bookingId}\n" .
+            "Route: {$route}\n" .
+            "Driver: {$driverName}\n" .
+            "Vehicle: {$vehicleName}\n\n" .
+            "We wish you a safe and comfortable journey.";
+
+        return self::sendConfiguredTemplateOrText(
+            number: $number,
+            templateConfigKey: 'trip_started',
+            fallbackMessage: $message,
+            parameters: [
+                $customerName,
+                $bookingId,
+                $route,
+                $driverName,
+                $vehicleName,
+            ]
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Trip completed
+    |--------------------------------------------------------------------------
+    */
+
+    public static function tripCompleted(
+        string $number,
+        array $data
+    ): bool {
+        $customerName = trim((string) (
+            $data['customer_name'] ?? 'Customer'
+        )) ?: 'Customer';
+
+        $bookingId = trim((string) (
+            $data['booking_id'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $route = trim((string) (
+            $data['route'] ?? 'N/A'
+        )) ?: 'N/A';
+
+        $totalAmount = $data['total_amount']
+            ?? $data['amount']
+            ?? $data['grand_total']
+            ?? '0';
+
+        $formattedAmount = is_numeric($totalAmount)
+            ? number_format((float) $totalAmount, 2, '.', '')
+            : trim((string) $totalAmount);
+
+        if ($formattedAmount === '') {
+            $formattedAmount = '0.00';
+        }
+
+        $paymentStatus = trim((string) (
+            $data['payment_status'] ?? 'Pending'
+        )) ?: 'Pending';
+
+        $message =
+            "Hello {$customerName},\n\n" .
+            "Your Dura Cabs trip has been completed successfully.\n\n" .
+            "Booking ID: {$bookingId}\n" .
+            "Route: {$route}\n" .
+            "Total Amount: INR {$formattedAmount}\n" .
+            "Payment Status: {$paymentStatus}\n\n" .
+            "Thank you for travelling with Dura Cabs.";
+
+        return self::sendConfiguredTemplateOrText(
+            number: $number,
+            templateConfigKey: 'trip_completed',
+            fallbackMessage: $message,
+            parameters: [
+                $customerName,
+                $bookingId,
+                $route,
+                $formattedAmount,
+                $paymentStatus,
+            ]
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Self-drive pickup
     |--------------------------------------------------------------------------
     */

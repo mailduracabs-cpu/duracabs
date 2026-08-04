@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\OrderResource\Pages;
 
 use App\Filament\Resources\OrderResource;
+use App\Jobs\SendReviewRequestWhatsApp;
 use App\Mail\OrderUpdated;
 use App\Models\Address;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\FinalBillingService;
+use App\Services\WhatsAppService;
 use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL;
 
 class EditOrder extends EditRecord
 {
@@ -270,6 +273,7 @@ class EditOrder extends EditRecord
     protected function afterSave(): void
     {
         $this->sendStatusEmail();
+        $this->sendWhatsAppUpdates();
 
         Notification::make()
             ->title('Booking updated')
@@ -317,6 +321,725 @@ class EditOrder extends EditRecord
 
             Actions\DeleteAction::make(),
         ];
+    }
+
+    private function sendWhatsAppUpdates(): void
+    {
+        /*
+         * Capture dirty-change information before refresh. Refreshing the model
+         * first would clear wasChanged() and could suppress notifications.
+         */
+        $statusChanged = $this->record->wasChanged('status');
+        $driverChanged = $this->record->wasChanged('driver_id');
+        $vehicleChanged = $this->record->wasChanged('vehicle_id');
+        $paymentStatusChanged = $this->record->wasChanged('payment_status');
+        $extraOptionsChanged = $this->record->wasChanged('extraOptions');
+        $currentStatus = (string) $this->record->status;
+        $currentPaymentStatus = strtolower(trim((string) (
+            $this->record->payment_status ?? 'pending'
+        )));
+
+        try {
+            $this->record->loadMissing([
+                'user',
+                'address',
+                'items.product',
+            ]);
+
+            $customerMobile = $this->customerMobile();
+
+            if ($customerMobile === '') {
+                Log::warning(
+                    'Order WhatsApp update skipped because customer mobile is missing.',
+                    ['order_id' => $this->record->id]
+                );
+
+                return;
+            }
+
+            if ($statusChanged && $currentStatus === 'confirm') {
+                $this->sendBookingConfirmationWhatsApp(
+                    $customerMobile
+                );
+            }
+
+            if ($driverChanged || $vehicleChanged) {
+                $this->sendDriverAssignedWhatsApp(
+                    $customerMobile
+                );
+            }
+
+            if ($statusChanged && $currentStatus === 'start') {
+                $this->sendTripStartedWhatsApp(
+                    $customerMobile
+                );
+            }
+
+            if ($statusChanged && $currentStatus === 'closed') {
+                $this->sendTripCompletedWhatsApp(
+                    $customerMobile
+                );
+
+                $this->scheduleReviewRequestWhatsApp();
+            }
+
+            if ($statusChanged && $currentStatus === 'refund') {
+                $this->sendRefundProcessedWhatsApp(
+                    $customerMobile
+                );
+            }
+
+            if (
+                $currentPaymentStatus === 'pending'
+                && ($paymentStatusChanged || $extraOptionsChanged)
+                && $this->remainingPaymentAmount() > 0
+            ) {
+                $this->sendPaymentReminderWhatsApp(
+                    $customerMobile
+                );
+            }
+
+            /*
+             * Send invoice once when the trip is newly completed or payment
+             * becomes paid. If both change in one save, this single condition
+             * still sends only one invoice message.
+             */
+            if (
+                ($statusChanged && $currentStatus === 'closed')
+                || (
+                    $paymentStatusChanged
+                    && in_array(
+                        $currentPaymentStatus,
+                        ['paid', 'success', 'successful', 'captured'],
+                        true
+                    )
+                )
+            ) {
+                $this->sendInvoiceReadyWhatsApp(
+                    $customerMobile
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Order WhatsApp update failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendBookingConfirmationWhatsApp(
+        string $customerMobile
+    ): void {
+        try {
+            $sent = WhatsAppService::bookingConfirmation(
+                $customerMobile,
+                [
+                    'customer_name' => $this->customerName(),
+                    'booking_id' => OrderResource::bookingNumber(
+                        $this->record
+                    ),
+                    'pickup' => $this->pickupLabel(),
+                    'drop' => $this->dropLabel(),
+                    'date' => $this->travelDateLabel(),
+                    'time' => $this->travelTimeLabel(),
+                    'amount' => number_format(
+                        $this->money($this->record->grand_total),
+                        2,
+                        '.',
+                        ''
+                    ),
+                ]
+            );
+
+            if (! $sent) {
+                Log::warning(
+                    'Booking confirmation WhatsApp was not accepted.',
+                    ['order_id' => $this->record->id]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Booking confirmation WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendDriverAssignedWhatsApp(
+        string $customerMobile
+    ): void {
+        $driver = $this->driverRecord();
+        $vehicle = $this->vehicleRecord();
+
+        if (! $driver || ! $vehicle) {
+            Log::info(
+                'Driver assigned WhatsApp skipped until both driver and vehicle are selected.',
+                [
+                    'order_id' => $this->record->id,
+                    'driver_id' => $this->record->driver_id,
+                    'vehicle_id' => $this->record->vehicle_id,
+                ]
+            );
+
+            return;
+        }
+
+        $driverMobile = trim((string) (
+            $driver->mobile
+            ?? $driver->phone
+            ?? ''
+        ));
+
+        try {
+            $result = WhatsAppService::sendTemplate(
+                number: $customerMobile,
+                templateName: (string) config(
+                    'services.whatsapp.templates.driver_assigned',
+                    'driver_assigned_v1'
+                ),
+                languageCode: (string) config(
+                    'services.whatsapp.default_language',
+                    'en'
+                ),
+                bodyParameters: [
+                    $this->customerName(),
+                    OrderResource::bookingNumber($this->record),
+                    trim((string) ($driver->name ?: 'Driver')),
+                    $driverMobile !== '' ? $driverMobile : 'N/A',
+                    $this->vehicleName($vehicle),
+                    $this->vehicleNumber($vehicle),
+                    $this->travelTimeLabel(),
+                ]
+            );
+
+            if (! (bool) (
+                $result['status']
+                ?? $result['success']
+                ?? false
+            )) {
+                Log::warning(
+                    'Driver assigned WhatsApp was not accepted.',
+                    [
+                        'order_id' => $this->record->id,
+                        'result' => $result,
+                    ]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Driver assigned WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendTripStartedWhatsApp(
+        string $customerMobile
+    ): void {
+        $driver = $this->driverRecord();
+        $vehicle = $this->vehicleRecord();
+
+        try {
+            $sent = WhatsAppService::tripStarted(
+                $customerMobile,
+                [
+                    'customer_name' => $this->customerName(),
+                    'booking_id' => OrderResource::bookingNumber(
+                        $this->record
+                    ),
+                    'route' => $this->routeLabel(),
+                    'driver_name' => trim((string) (
+                        $driver?->name ?: 'Driver'
+                    )),
+                    'vehicle_name' => $vehicle
+                        ? $this->vehicleName($vehicle)
+                        : trim((string) (
+                            $this->record->productName
+                            ?: 'Assigned Vehicle'
+                        )),
+                ]
+            );
+
+            if (! $sent) {
+                Log::warning(
+                    'Trip started WhatsApp was not accepted.',
+                    ['order_id' => $this->record->id]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Trip started WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendTripCompletedWhatsApp(
+        string $customerMobile
+    ): void {
+        try {
+            $sent = WhatsAppService::tripCompleted(
+                $customerMobile,
+                [
+                    'customer_name' => $this->customerName(),
+                    'booking_id' => OrderResource::bookingNumber(
+                        $this->record
+                    ),
+                    'route' => $this->routeLabel(),
+                    'total_amount' => number_format(
+                        $this->money($this->record->grand_total),
+                        2,
+                        '.',
+                        ''
+                    ),
+                    'payment_status' => $this->paymentStatusLabel(),
+                ]
+            );
+
+            if (! $sent) {
+                Log::warning(
+                    'Trip completed WhatsApp was not accepted.',
+                    ['order_id' => $this->record->id]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Trip completed WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function scheduleReviewRequestWhatsApp(): void
+    {
+        try {
+            SendReviewRequestWhatsApp::dispatch(
+                (int) $this->record->id
+            )->delay(
+                now()->addHours(
+                    max(
+                        1,
+                        (int) config(
+                            'services.whatsapp.review_request_delay_hours',
+                            2
+                        )
+                    )
+                )
+            );
+
+            Log::info(
+                'Review request WhatsApp scheduled.',
+                [
+                    'order_id' => $this->record->id,
+                    'delay_hours' => max(
+                        1,
+                        (int) config(
+                            'services.whatsapp.review_request_delay_hours',
+                            2
+                        )
+                    ),
+                ]
+            );
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Review request WhatsApp scheduling failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendInvoiceReadyWhatsApp(
+        string $customerMobile
+    ): void {
+        if (! Route::has('invoice.shared')) {
+            Log::warning(
+                'Invoice WhatsApp skipped because invoice.shared route is missing.',
+                ['order_id' => $this->record->id]
+            );
+
+            return;
+        }
+
+        try {
+            $invoiceLink = URL::temporarySignedRoute(
+                'invoice.shared',
+                now()->addDays(
+                    max(
+                        1,
+                        (int) config(
+                            'services.whatsapp.invoice_link_days',
+                            30
+                        )
+                    )
+                ),
+                [
+                    'booking' => OrderResource::bookingNumber(
+                        $this->record
+                    ),
+                ]
+            );
+
+            $result = WhatsAppService::sendTemplate(
+                number: $customerMobile,
+                templateName: (string) config(
+                    'services.whatsapp.templates.invoice_ready',
+                    'invoice_ready_v1'
+                ),
+                languageCode: (string) config(
+                    'services.whatsapp.default_language',
+                    'en'
+                ),
+                bodyParameters: [
+                    $this->customerName(),
+                    OrderResource::bookingNumber($this->record),
+                    $invoiceLink,
+                ]
+            );
+
+            if (! (bool) (
+                $result['status']
+                ?? $result['success']
+                ?? false
+            )) {
+                Log::warning(
+                    'Invoice ready WhatsApp was not accepted.',
+                    [
+                        'order_id' => $this->record->id,
+                        'result' => $result,
+                    ]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Invoice ready WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function sendPaymentReminderWhatsApp(
+        string $customerMobile
+    ): void {
+        $remainingAmount = $this->remainingPaymentAmount();
+
+        if ($remainingAmount <= 0) {
+            return;
+        }
+
+        try {
+            $result = WhatsAppService::sendTemplate(
+                number: $customerMobile,
+                templateName: (string) config(
+                    'services.whatsapp.templates.payment_reminder',
+                    'payment_reminder_v1'
+                ),
+                languageCode: (string) config(
+                    'services.whatsapp.default_language',
+                    'en'
+                ),
+                bodyParameters: [
+                    $this->customerName(),
+                    OrderResource::bookingNumber($this->record),
+                    number_format(
+                        $remainingAmount,
+                        2,
+                        '.',
+                        ''
+                    ),
+                    $this->paymentLink(),
+                ]
+            );
+
+            if (! (bool) (
+                $result['status']
+                ?? $result['success']
+                ?? false
+            )) {
+                Log::warning(
+                    'Payment reminder WhatsApp was not accepted.',
+                    [
+                        'order_id' => $this->record->id,
+                        'result' => $result,
+                    ]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Payment reminder WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function remainingPaymentAmount(): float
+    {
+        $extraOptions = $this->extraOptions();
+
+        $remaining = $extraOptions['remaining_amount'] ?? null;
+
+        if ($remaining !== null && $remaining !== '') {
+            return $this->money($remaining);
+        }
+
+        $paidAmount = $this->money(
+            $extraOptions['paid_amount'] ?? 0
+        );
+
+        return max(
+            0,
+            $this->money($this->record->grand_total) - $paidAmount
+        );
+    }
+
+    private function paymentLink(): string
+    {
+        $bookingNumber = OrderResource::bookingNumber(
+            $this->record
+        );
+
+        if (Route::has('razorpay')) {
+            return route('razorpay', [
+                'id' => $this->record->id,
+            ]);
+        }
+
+        $baseUrl = rtrim(
+            (string) config(
+                'app.frontend_url',
+                config('app.url')
+            ),
+            '/'
+        );
+
+        return $baseUrl . '/pay/' . rawurlencode($bookingNumber);
+    }
+
+    private function sendRefundProcessedWhatsApp(
+        string $customerMobile
+    ): void {
+        $extraOptions = $this->extraOptions();
+
+        $refundAmount = $this->money(
+            $extraOptions['refund_amount']
+            ?? $this->record->refund_amount
+            ?? $this->record->grand_total
+            ?? 0
+        );
+
+        $refundStatus = trim((string) (
+            $extraOptions['refund_status']
+            ?? $this->record->refund_status
+            ?? 'Processed'
+        )) ?: 'Processed';
+
+        try {
+            $result = WhatsAppService::sendTemplate(
+                number: $customerMobile,
+                templateName: (string) config(
+                    'services.whatsapp.templates.refund_processed',
+                    'refund_processed_v1'
+                ),
+                languageCode: (string) config(
+                    'services.whatsapp.default_language',
+                    'en'
+                ),
+                bodyParameters: [
+                    $this->customerName(),
+                    OrderResource::bookingNumber($this->record),
+                    number_format(
+                        $refundAmount,
+                        2,
+                        '.',
+                        ''
+                    ),
+                    $refundStatus,
+                ]
+            );
+
+            if (! (bool) (
+                $result['status']
+                ?? $result['success']
+                ?? false
+            )) {
+                Log::warning(
+                    'Refund processed WhatsApp was not accepted.',
+                    [
+                        'order_id' => $this->record->id,
+                        'result' => $result,
+                    ]
+                );
+            }
+        } catch (\Throwable $exception) {
+            Log::error(
+                'Refund processed WhatsApp failed.',
+                [
+                    'order_id' => $this->record->id,
+                    'error' => $exception->getMessage(),
+                ]
+            );
+        }
+    }
+
+    private function driverRecord(): ?User
+    {
+        return $this->record->driver_id
+            ? User::query()->find($this->record->driver_id)
+            : null;
+    }
+
+    private function vehicleRecord(): ?Vehicle
+    {
+        return $this->record->vehicle_id
+            ? Vehicle::query()->find($this->record->vehicle_id)
+            : null;
+    }
+
+    private function vehicleName(Vehicle $vehicle): string
+    {
+        $name = trim(
+            (string) ($vehicle->car_company_name ?? '')
+            . ' '
+            . (string) ($vehicle->model_name ?? '')
+        );
+
+        return $name !== ''
+            ? $name
+            : trim((string) (
+                $this->record->productName
+                ?: 'Assigned Vehicle'
+            ));
+    }
+
+    private function vehicleNumber(Vehicle $vehicle): string
+    {
+        return trim((string) (
+            $vehicle->vehicle_number
+            ?? $this->record->vehicle_number
+            ?? 'N/A'
+        ));
+    }
+
+    private function customerName(): string
+    {
+        return trim((string) (
+            $this->record->address?->full_name
+            ?: $this->record->user?->name
+            ?: 'Customer'
+        ));
+    }
+
+    private function customerMobile(): string
+    {
+        return trim((string) (
+            $this->record->address?->phone
+            ?: $this->record->user?->mobile
+            ?: ''
+        ));
+    }
+
+    private function pickupLabel(): string
+    {
+        return trim((string) (
+            $this->record->cityFrom
+            ?: $this->record->booking_from
+            ?: 'N/A'
+        ));
+    }
+
+    private function dropLabel(): string
+    {
+        return trim((string) (
+            $this->record->cityTo
+            ?: $this->record->booking_to
+            ?: $this->record->cityFrom
+            ?: 'N/A'
+        ));
+    }
+
+    private function routeLabel(): string
+    {
+        $pickup = $this->pickupLabel();
+        $drop = $this->dropLabel();
+
+        if (
+            $pickup !== 'N/A'
+            && $drop !== 'N/A'
+            && strcasecmp($pickup, $drop) !== 0
+        ) {
+            return $pickup . ' to ' . $drop;
+        }
+
+        return $pickup !== 'N/A'
+            ? $pickup
+            : $drop;
+    }
+
+    private function travelDateLabel(): string
+    {
+        if (blank($this->record->date)) {
+            return 'N/A';
+        }
+
+        try {
+            return Carbon::parse(
+                $this->record->date
+            )->format('d M Y');
+        } catch (\Throwable) {
+            return trim((string) $this->record->date);
+        }
+    }
+
+    private function travelTimeLabel(): string
+    {
+        if (blank($this->record->time)) {
+            return 'N/A';
+        }
+
+        try {
+            return Carbon::parse(
+                $this->record->time
+            )->format('h:i A');
+        } catch (\Throwable) {
+            return trim((string) $this->record->time);
+        }
+    }
+
+    private function paymentStatusLabel(): string
+    {
+        $status = strtolower(trim((string) (
+            $this->record->payment_status ?? 'pending'
+        )));
+
+        return match ($status) {
+            'paid', 'success', 'successful', 'captured' => 'Paid',
+            'failed' => 'Failed',
+            'refunded' => 'Refunded',
+            default => 'Pending',
+        };
     }
 
     private function sendStatusEmail(): void

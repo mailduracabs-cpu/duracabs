@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Services\RazorpayService;
+use App\Services\WhatsAppService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -78,7 +79,13 @@ class RazorpayPaymentController extends Controller
         }
 
         try {
-            $order = DB::transaction(function () use ($order, $validated): Order {
+            $paymentWasProcessed = false;
+
+            $order = DB::transaction(function () use (
+                $order,
+                $validated,
+                &$paymentWasProcessed
+            ): Order {
                 /** @var Order $lockedOrder */
                 $lockedOrder = Order::query()
                     ->whereKey($order->id)
@@ -175,9 +182,17 @@ class RazorpayPaymentController extends Controller
                 $this->putIfColumnExists($updates, 'paid_at', now());
 
                 $lockedOrder->forceFill($updates)->save();
+                $paymentWasProcessed = true;
 
                 return $lockedOrder->fresh(['address', 'items']) ?? $lockedOrder;
             }, 3);
+
+            if ($paymentWasProcessed) {
+                $this->sendPaymentSuccessWhatsApp(
+                    $order,
+                    (string) $validated['razorpay_payment_id']
+                );
+            }
 
             $request->session()->forget('booking_draft');
 
@@ -198,6 +213,184 @@ class RazorpayPaymentController extends Controller
                 ->route('razorpay', ['id' => $order->id])
                 ->with('error', $this->publicErrorMessage($e));
         }
+    }
+
+    private function sendPaymentSuccessWhatsApp(
+        Order $order,
+        string $paymentId
+    ): void {
+        $customerNumber = $this->customerMobile($order);
+
+        if ($customerNumber === '') {
+            Log::warning(
+                'Payment WhatsApp skipped because customer mobile is missing.',
+                ['order_id' => $order->id]
+            );
+
+            return;
+        }
+
+        $bookingId = $this->bookingReference($order);
+        $amount = $this->formattedAmount($order->grand_total);
+
+        try {
+            $receiptSent = WhatsAppService::paymentReceipt(
+                $customerNumber,
+                [
+                    'booking_id' => $bookingId,
+                    'payment_id' => $paymentId,
+                    'amount' => $amount,
+                ]
+            );
+
+            if (! $receiptSent) {
+                Log::warning('Payment receipt WhatsApp was not accepted.', [
+                    'order_id' => $order->id,
+                    'payment_id' => $paymentId,
+                    'number' => $this->maskedMobile($customerNumber),
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::error('Payment receipt WhatsApp failed.', [
+                'order_id' => $order->id,
+                'payment_id' => $paymentId,
+                'number' => $this->maskedMobile($customerNumber),
+                'message' => $exception->getMessage(),
+            ]);
+        }
+
+        try {
+            $confirmationSent = WhatsAppService::bookingConfirmation(
+                $customerNumber,
+                [
+                    'customer_name' => $this->customerName($order),
+                    'booking_id' => $bookingId,
+                    'pickup' => $this->pickupLabel($order),
+                    'drop' => $this->dropLabel($order),
+                    'date' => $this->travelDateLabel($order),
+                    'time' => $this->travelTimeLabel($order),
+                    'amount' => $amount,
+                ]
+            );
+
+            if (! $confirmationSent) {
+                Log::warning('Booking confirmation WhatsApp was not accepted.', [
+                    'order_id' => $order->id,
+                    'number' => $this->maskedMobile($customerNumber),
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::error('Booking confirmation WhatsApp failed.', [
+                'order_id' => $order->id,
+                'number' => $this->maskedMobile($customerNumber),
+                'message' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function customerMobile(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->phone
+            ?: $order->user?->mobile
+            ?: Auth::user()?->mobile
+            ?: ''
+        ));
+    }
+
+    private function customerName(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->full_name
+            ?: $order->user?->name
+            ?: Auth::user()?->name
+            ?: 'Customer'
+        ));
+    }
+
+    private function bookingReference(Order $order): string
+    {
+        $reference = trim((string) (
+            $order->booking_no
+            ?? $order->order_no
+            ?? ''
+        ));
+
+        return $reference !== ''
+            ? $reference
+            : 'DC' . str_pad(
+                (string) $order->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+    }
+
+    private function pickupLabel(Order $order): string
+    {
+        return trim((string) (
+            $order->cityFrom
+            ?: $order->booking_from
+            ?: 'N/A'
+        ));
+    }
+
+    private function dropLabel(Order $order): string
+    {
+        return trim((string) (
+            $order->cityTo
+            ?: $order->booking_to
+            ?: $order->cityFrom
+            ?: 'N/A'
+        ));
+    }
+
+    private function travelDateLabel(Order $order): string
+    {
+        if (blank($order->date)) {
+            return 'N/A';
+        }
+
+        try {
+            return \Carbon\Carbon::parse($order->date)->format('d M Y');
+        } catch (Throwable) {
+            return trim((string) $order->date);
+        }
+    }
+
+    private function travelTimeLabel(Order $order): string
+    {
+        if (blank($order->time)) {
+            return 'N/A';
+        }
+
+        try {
+            return \Carbon\Carbon::parse($order->time)->format('h:i A');
+        } catch (Throwable) {
+            return trim((string) $order->time);
+        }
+    }
+
+    private function formattedAmount(mixed $amount): string
+    {
+        return number_format(
+            max(0, (float) $amount),
+            2,
+            '.',
+            ''
+        );
+    }
+
+    private function maskedMobile(string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', $number) ?? '';
+
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', strlen($digits) - 4)
+            . substr($digits, -4);
     }
 
     private function validatePaymentAgainstOrder(

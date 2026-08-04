@@ -387,8 +387,7 @@ class CheckoutPage extends Component
             $this->order_id = $order->id;
 
             /*
-             * WhatsApp failures must never block booking creation or payment.
-             * Both notifications use approved Meta templates.
+             * WhatsApp failure must never block booking creation or payment.
              */
             $this->sendBookingWhatsAppNotifications($order);
 
@@ -826,9 +825,10 @@ Address::query()->create([
         ));
 
         if ($adminNumber === '') {
-            Log::warning('Admin WhatsApp notification skipped: number missing.', [
-                'order_id' => $order->id,
-            ]);
+            Log::warning(
+                'Admin WhatsApp notification skipped because the number is missing.',
+                ['order_id' => $order->id]
+            );
 
             return;
         }
@@ -841,7 +841,7 @@ Address::query()->create([
                     'admin_new_booking_v1'
                 ),
                 languageCode: (string) config(
-                    'services.whatsapp.language',
+                    'services.whatsapp.default_language',
                     'en'
                 ),
                 bodyParameters: [
@@ -875,9 +875,10 @@ Address::query()->create([
         $customerNumber = $this->bookingCustomerMobile($order);
 
         if ($customerNumber === '') {
-            Log::warning('Customer WhatsApp notification skipped: number missing.', [
-                'order_id' => $order->id,
-            ]);
+            Log::warning(
+                'Customer WhatsApp notification skipped because the number is missing.',
+                ['order_id' => $order->id]
+            );
 
             return;
         }
@@ -920,7 +921,12 @@ Address::query()->create([
 
         return $bookingNumber !== ''
             ? $bookingNumber
-            : 'DC' . str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
+            : 'DC' . str_pad(
+                (string) $order->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
     }
 
     private function bookingCustomerName(Order $order): string
@@ -963,36 +969,34 @@ Address::query()->create([
         $from = trim((string) $order->cityFrom);
         $to = trim((string) $order->cityTo);
 
-        if ($from !== '' && $to !== '' && strcasecmp($from, $to) !== 0) {
+        if (
+            $from !== ''
+            && $to !== ''
+            && strcasecmp($from, $to) !== 0
+        ) {
             return $from . ' to ' . $to;
         }
 
-        if ($from !== '') {
-            return $from;
-        }
-
-        if ($to !== '') {
-            return $to;
-        }
-
-        return trim((string) (
-            $order->productName
-            ?: 'Dura Cabs Booking'
-        ));
+        return $from !== ''
+            ? $from
+            : ($to !== ''
+                ? $to
+                : trim((string) (
+                    $order->productName
+                    ?: 'Dura Cabs Booking'
+                )));
     }
 
     private function bookingTravelDateLabel(Order $order): string
     {
-        $date = $order->date;
-
-        if (blank($date)) {
+        if (blank($order->date)) {
             return now()->format('d M Y');
         }
 
         try {
-            return Carbon::parse($date)->format('d M Y');
+            return Carbon::parse($order->date)->format('d M Y');
         } catch (Throwable) {
-            return trim((string) $date);
+            return trim((string) $order->date);
         }
     }
 
@@ -1014,7 +1018,7 @@ Address::query()->create([
             return $digits;
         }
 
-        return str_repeat('*', max(0, strlen($digits) - 4))
+        return str_repeat('*', strlen($digits) - 4)
             . substr($digits, -4);
     }
 
