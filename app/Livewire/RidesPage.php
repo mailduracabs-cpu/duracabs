@@ -1541,15 +1541,36 @@ class RidesPage extends Component
                 }
             }
 
-            if ($this->price_range) {
-                $ridesQuery->whereBetween('hourly_price', [0, $this->price_range]);
+            /*
+             * The Self Drive cards display the complete rental amount:
+             *
+             * hourly_price × max(selected rental hours, minimum booking hours)
+             *
+             * The old filter compared the slider against hourly_price only, so
+             * changing the amount did not match what the customer saw on cards.
+             */
+            $selectedRentalHours = max(1, $this->calculateSelfDriveHours());
+
+            $displayedRentalExpression =
+                '(hourly_price * GREATEST(?, COALESCE(minimum_booking_hours, 1)))';
+
+            if (is_numeric($this->price_range) && (float) $this->price_range > 0) {
+                $ridesQuery->whereRaw(
+                    $displayedRentalExpression . ' <= ?',
+                    [$selectedRentalHours, (float) $this->price_range]
+                );
             }
 
             if ($this->sort === 'latest') {
-                $ridesQuery->latest();
+                $ridesQuery->latest('id');
             } else {
-                $ridesQuery->orderByRaw('CASE WHEN hourly_price IS NULL THEN 1 ELSE 0 END')
-                    ->orderBy('hourly_price');
+                $ridesQuery
+                    ->orderByRaw('CASE WHEN hourly_price IS NULL OR hourly_price <= 0 THEN 1 ELSE 0 END')
+                    ->orderByRaw(
+                        $displayedRentalExpression . ' ASC',
+                        [$selectedRentalHours]
+                    )
+                    ->orderBy('id');
             }
         } else {
             $ridesQuery = Product::query()->where('is_active', 1);
@@ -1611,8 +1632,50 @@ class RidesPage extends Component
         $returnCategories = Cache::remember('rides:return-categories', now()->addMinutes(30), fn () => Category::query()
             ->select(['id', 'name', 'slug', 'image', 'km_charge', 'driver_charge', 'range', 'new_vehicle', 'pet_friendly', 'roof_career'])
             ->where('in_return', 1)
-            ->orderBy('name')
             ->get());
+
+        /*
+         * Round Trip cards are rendered from Category records, not from
+         * $ridesQuery. Therefore the main Product sorting never affected these
+         * cards. Sort the exact displayed Normal Fare here.
+         */
+        if ($this->tab === 'return') {
+            $actualRouteKm = max(0, (float) $this->kmValue / 1000);
+            $tripDays = max(1, (int) $this->days);
+
+            $returnFare = static function (Category $category) use (
+                $actualRouteKm,
+                $tripDays
+            ): float {
+                $minimumBillableKm =
+                    $tripDays * max(0, (float) ($category->range ?? 0));
+
+                $billableKm = max(
+                    $actualRouteKm,
+                    $minimumBillableKm
+                );
+
+                $vehicleFare =
+                    $billableKm * max(0, (float) ($category->km_charge ?? 0));
+
+                $driverAllowance =
+                    $tripDays * max(0, (float) ($category->driver_charge ?? 0));
+
+                return round($vehicleFare + $driverAllowance, 2);
+            };
+
+            $returnCategories = $this->sort === 'latest'
+                ? $returnCategories
+                    ->sortByDesc(fn (Category $category): int => (int) $category->id)
+                    ->values()
+                : $returnCategories
+                    ->sortBy($returnFare, SORT_NUMERIC)
+                    ->values();
+        } else {
+            $returnCategories = $returnCategories
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values();
+        }
 
         return view('livewire.rides-page', [
             'rides' => $ridesQuery->paginate(perPage: 9),
