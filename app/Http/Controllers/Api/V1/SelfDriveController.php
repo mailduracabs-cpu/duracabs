@@ -47,6 +47,83 @@ class SelfDriveController extends BaseApiController
         return $this->success($vehicles, 'Self drive vehicles loaded');
     }
 
+    public function heroVehicles(Request $request)
+    {
+        $limit = max(1, min((int) $request->input('limit', 10), 20));
+
+        $pickupLat = $request->filled('pickup_lat')
+            ? (float) $request->input('pickup_lat')
+            : null;
+
+        $pickupLng = $request->filled('pickup_lng')
+            ? (float) $request->input('pickup_lng')
+            : null;
+
+        $vehicles = Vehicle::query()
+            ->with('transporter')
+            ->availableForCustomer()
+            ->whereNotNull('transporter_profile_id')
+            ->latest('id')
+            ->get()
+            ->map(function (Vehicle $vehicle) use ($pickupLat, $pickupLng) {
+                $distance = null;
+                $transporter = $vehicle->transporter;
+
+                if ($pickupLat !== null && $pickupLng !== null && $transporter) {
+                    $vendorLat = $transporter->pickup_latitude
+                        ?? $transporter->pickup_lat
+                        ?? null;
+
+                    $vendorLng = $transporter->pickup_longitude
+                        ?? $transporter->pickup_lng
+                        ?? null;
+
+                    if ($vendorLat !== null && $vendorLng !== null) {
+                        $distance = $this->distanceKm(
+                            $pickupLat,
+                            $pickupLng,
+                            (float) $vendorLat,
+                            (float) $vendorLng
+                        );
+
+                        $serviceRadius = (float) (
+                            $transporter->service_radius_km ?? 40
+                        );
+
+                        if ($distance > $serviceRadius) {
+                            return null;
+                        }
+                    }
+                }
+
+                $data = $this->vehicleData($vehicle, $distance);
+                $dailyPrice = $this->dailyVehiclePrice($vehicle);
+
+                return [
+                    ...$data,
+                    'title' => $data['vehicle_name'],
+                    'subtitle' => 'Self Drive Car',
+                    'image_url' => $this->publicImageUrl(
+                        $vehicle->front_image
+                            ?? $vehicle->image
+                            ?? null
+                    ),
+                    'daily_price' => $dailyPrice,
+                    'price_24_hours' => $dailyPrice,
+                    'banner_type' => 'vehicle',
+                    'vehicle_id' => $vehicle->id,
+                ];
+            })
+            ->filter()
+            ->take($limit)
+            ->values();
+
+        return $this->success(
+            $vehicles,
+            'Self drive hero vehicles loaded'
+        );
+    }
+
     public function search(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -1125,6 +1202,42 @@ class SelfDriveController extends BaseApiController
             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($lng / 2) ** 2;
 
         return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
+    private function dailyVehiclePrice(Vehicle $vehicle): float
+    {
+        $dailyPrice = (float) ($vehicle->daily_price ?? 0);
+
+        if ($dailyPrice > 0) {
+            return round($dailyPrice, 2);
+        }
+
+        return round(
+            (float) ($vehicle->hourly_price ?? 0) * 24,
+            2
+        );
+    }
+
+    private function publicImageUrl(?string $path): ?string
+    {
+        if (blank($path)) {
+            return null;
+        }
+
+        if (
+            str_starts_with($path, 'http://') ||
+            str_starts_with($path, 'https://')
+        ) {
+            return $path;
+        }
+
+        $path = ltrim($path, '/');
+
+        if (str_starts_with($path, 'storage/')) {
+            return url($path);
+        }
+
+        return Storage::disk('public')->url($path);
     }
 
     private function serviceResponse(array $result)
