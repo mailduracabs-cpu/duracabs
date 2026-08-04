@@ -389,6 +389,9 @@ class ServiceSearchPanel extends Component
             $this->mobileNumber
         );
 
+        // Keep a server-side copy for the following Livewire OTP verify request.
+        $this->mobileNumber = $this->rememberOtpCustomerMobile($this->mobileNumber);
+
         /*
          * Save the inquiry BEFORE sending SMS/WhatsApp. This guarantees that
          * the record reaches the admin panel even when a notification provider
@@ -578,15 +581,31 @@ class ServiceSearchPanel extends Component
             ? $this->dateto . ' ' . ($this->endTime ?: $this->time ?: '00:00:00')
             : null;
 
+        /*
+         * Resolve the mobile from the OTP component/session first and only then
+         * fall back to the currently authenticated account. This is important
+         * when an admin/vendor is already logged in while testing the homepage:
+         * that account may not have a customer mobile number.
+         */
         $mobile = CustomerSearchActivity::normalizeMobile(
-            auth()->user()->mobile ?? $this->mobileNumber
+            $this->resolveOtpCustomerMobile()
         );
 
         if (blank($mobile)) {
+            Log::warning('Customer inquiry skipped because mobile is unavailable.', [
+                'authenticated_user_id' => auth()->id(),
+                'authenticated_user_mobile' => auth()->user()?->mobile,
+                'component_mobile' => $this->mobileNumber,
+                'service_type' => $serviceType,
+            ]);
+
             throw new \RuntimeException(
                 'Customer inquiry cannot be saved without a mobile number.'
             );
         }
+
+        // Keep the resolved value hydrated for subsequent Livewire actions.
+        $this->mobileNumber = $mobile;
 
         $identity = [
             'mobile' => $mobile,

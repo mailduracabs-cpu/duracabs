@@ -82,7 +82,12 @@ trait HandlesOtpCustomerAuthentication
                 $this->mobileNumber = $mobile;
             }
 
-            request()->session()->forget('otp_customer_mobile');
+            /*
+             * Do not forget otp_customer_mobile here. The calling Livewire
+             * action still needs it immediately afterwards to persist the
+             * CustomerSearchActivity lead. It is overwritten on the next OTP
+             * request, so retaining it for the session is safe and reliable.
+             */
 
             Log::info('Homepage OTP customer authenticated', [
                 'user_id' => $user->getKey(),
