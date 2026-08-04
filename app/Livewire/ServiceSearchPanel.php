@@ -471,17 +471,28 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtp()
     {
+        $loggedInMobile = CustomerSearchActivity::normalizeMobile(
+            Auth::user()?->mobile
+        );
+
+        $alreadyLoggedInCustomer = Auth::check()
+            && filled($loggedInMobile);
+
         $otpVerified = filled($this->otp)
             && filled($this->verifyOtp)
             && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (! $otpVerified) {
+        if (! $alreadyLoggedInCustomer && ! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
 
             return null;
         }
 
-        $this->authenticateOtpCustomer($this->mobileNumber);
+        if ($alreadyLoggedInCustomer) {
+            $this->rememberLoggedInCustomerMobile($loggedInMobile);
+        } else {
+            $this->authenticateOtpCustomer($this->mobileNumber);
+        }
 
         $this->saveCustomerLead();
 
@@ -497,26 +508,21 @@ class ServiceSearchPanel extends Component
     }
 
 
+
     public function verifySubmitOtpSelfDrive()
     {
-        $enteredMobile = CustomerSearchActivity::normalizeMobile(
-            $this->resolveOtpCustomerMobile($this->mobileNumber)
-        );
-
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
             Auth::user()?->mobile
         );
 
-        $alreadyAuthenticatedAsCustomer = Auth::check()
-            && filled($enteredMobile)
-            && filled($loggedInMobile)
-            && hash_equals($enteredMobile, $loggedInMobile);
+        $alreadyLoggedInCustomer = Auth::check()
+            && filled($loggedInMobile);
 
         $otpVerified = filled($this->otp)
             && filled($this->verifyOtp)
             && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (! $alreadyAuthenticatedAsCustomer && ! $otpVerified) {
+        if (! $alreadyLoggedInCustomer && ! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
 
             return null;
@@ -543,8 +549,10 @@ class ServiceSearchPanel extends Component
             return null;
         }
 
-        if (! $alreadyAuthenticatedAsCustomer) {
-            $this->authenticateOtpCustomer($enteredMobile);
+        if ($alreadyLoggedInCustomer) {
+            $this->rememberLoggedInCustomerMobile($loggedInMobile);
+        } else {
+            $this->authenticateOtpCustomer($this->mobileNumber);
         }
 
         $rentalHours = max(
@@ -575,6 +583,30 @@ class ServiceSearchPanel extends Component
         );
     }
 
+
+
+    /**
+     * Reuse the authenticated customer's valid mobile without showing OTP.
+     */
+    private function rememberLoggedInCustomerMobile(string $mobile): void
+    {
+        $mobile = CustomerSearchActivity::normalizeMobile($mobile);
+
+        if (blank($mobile)) {
+            throw new \RuntimeException(
+                'The logged-in customer account does not have a valid mobile number.'
+            );
+        }
+
+        $this->mobileNumber = $mobile;
+
+        request()->session()->put([
+            'otp_customer_mobile' => $mobile,
+            'customer_search_mobile' => $mobile,
+            'rides_verified_mobile' => $mobile,
+            'otp_customer_user_id' => Auth::id(),
+        ]);
+    }
 
     private function saveCustomerLead(array $extra = []): CustomerSearchActivity
     {
@@ -942,11 +974,18 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtpReturn()
     {
+        $loggedInMobile = CustomerSearchActivity::normalizeMobile(
+            Auth::user()?->mobile
+        );
+
+        $alreadyLoggedInCustomer = Auth::check()
+            && filled($loggedInMobile);
+
         $otpVerified = filled($this->otp)
             && filled($this->verifyOtp)
             && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (! $otpVerified) {
+        if (! $alreadyLoggedInCustomer && ! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
 
             return null;
@@ -965,7 +1004,11 @@ class ServiceSearchPanel extends Component
 
         $dateDiff = $this->dateDiffInDays($this->date, $this->dateto);
 
-        $this->authenticateOtpCustomer($this->mobileNumber);
+        if ($alreadyLoggedInCustomer) {
+            $this->rememberLoggedInCustomerMobile($loggedInMobile);
+        } else {
+            $this->authenticateOtpCustomer($this->mobileNumber);
+        }
 
         $this->saveCustomerLead([
             'estimated_distance_km' => round(((float) $kmValue) / 1000, 2),
@@ -1007,19 +1050,31 @@ class ServiceSearchPanel extends Component
     }
 
 
+
     public function verifySubmitLocal()
     {
+        $loggedInMobile = CustomerSearchActivity::normalizeMobile(
+            Auth::user()?->mobile
+        );
+
+        $alreadyLoggedInCustomer = Auth::check()
+            && filled($loggedInMobile);
+
         $otpVerified = filled($this->otp)
             && filled($this->verifyOtp)
             && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (! $otpVerified) {
+        if (! $alreadyLoggedInCustomer && ! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
 
             return null;
         }
 
-        $this->authenticateOtpCustomer($this->mobileNumber);
+        if ($alreadyLoggedInCustomer) {
+            $this->rememberLoggedInCustomerMobile($loggedInMobile);
+        } else {
+            $this->authenticateOtpCustomer($this->mobileNumber);
+        }
 
         $this->saveCustomerLead([
             'package_name' => $this->plan,
@@ -1035,6 +1090,7 @@ class ServiceSearchPanel extends Component
             . '&cars=' . $this->car
         );
     }
+
 
 
 
