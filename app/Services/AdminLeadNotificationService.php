@@ -358,6 +358,11 @@ class AdminLeadNotificationService
                 trim((string) $lead->stage_label)
                 ?: 'Not available',
 
+            /*
+             * Existing admin_new_inquiry template expects inquiry_id.
+             * Keep lead_id too for future templates and internal tracking.
+             */
+            'inquiry_id' => (string) $lead->id,
             'lead_id' => (string) $lead->id,
 
             'lead_url' => $this->leadUrl($lead),
