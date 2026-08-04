@@ -389,9 +389,6 @@ class ServiceSearchPanel extends Component
             $this->mobileNumber
         );
 
-        // Keep a server-side copy for the following Livewire OTP verify request.
-        $this->mobileNumber = $this->rememberOtpCustomerMobile($this->mobileNumber);
-
         /*
          * Save the inquiry BEFORE sending SMS/WhatsApp. This guarantees that
          * the record reaches the admin panel even when a notification provider
