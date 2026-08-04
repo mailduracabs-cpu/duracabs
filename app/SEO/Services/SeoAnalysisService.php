@@ -373,15 +373,61 @@ class SeoAnalysisService
     {
         $explicitUrl = trim((string) (
             $data['page_url']
+            ?? $data['public_url']
+            ?? $data['seo_public_url']
             ?? $data['url']
             ?? ''
         ));
 
-        if ($explicitUrl !== '') {
-            return $this->normalizeUrl($explicitUrl);
-        }
+        $canonicalUrl = trim((string) (
+            $data['canonical_url']
+            ?? $data['canonical']
+            ?? ''
+        ));
 
         $slug = trim((string) ($data['slug'] ?? ''), '/');
+
+        /*
+         * Some existing Filament form records may temporarily provide an old
+         * root-level page URL while the saved canonical URL already contains
+         * the correct route prefix. In that case, prefer the canonical URL as
+         * the public page URL so the index-readiness card stays consistent.
+         */
+        if ($explicitUrl !== '') {
+            $normalizedExplicitUrl = $this->normalizeUrl($explicitUrl);
+
+            if (
+                $canonicalUrl !== ''
+                && $slug !== ''
+                && $this->urlHasRootLevelSlug(
+                    $normalizedExplicitUrl,
+                    $slug
+                )
+            ) {
+                $normalizedCanonicalUrl = $this->normalizeUrl($canonicalUrl);
+
+                if (
+                    $normalizedCanonicalUrl !== ''
+                    && $this->urlEndsWithSlug(
+                        $normalizedCanonicalUrl,
+                        $slug
+                    )
+                ) {
+                    return $normalizedCanonicalUrl;
+                }
+            }
+
+            return $normalizedExplicitUrl;
+        }
+
+        /*
+         * The canonical URL is a safe fallback for existing records because it
+         * already represents the preferred public URL for search engines.
+         */
+        if ($canonicalUrl !== '') {
+            return $this->normalizeUrl($canonicalUrl);
+        }
+
         $baseUrl = rtrim(
             (string) config(
                 'services.search_console.property',
@@ -394,7 +440,71 @@ class SeoAnalysisService
             return $baseUrl;
         }
 
-        return $this->normalizeUrl($baseUrl . '/' . $slug);
+        $prefix = $this->resolvePagePrefix($data);
+
+        return $this->normalizeUrl(
+            $baseUrl
+            . ($prefix !== '' ? '/' . $prefix : '')
+            . '/'
+            . $slug
+        );
+    }
+
+    private function resolvePagePrefix(array $data): string
+    {
+        $urlType = trim(strtolower((string) (
+            $data['url_type']
+            ?? ''
+        )));
+
+        if ($urlType !== '') {
+            return match ($urlType) {
+                'route' => 'route',
+                'self_drive', 'self-drive' => 'self-drive',
+                'bike_rental', 'bike-rental' => 'bike-rental',
+                'tour' => 'tour',
+                'page', 'pages' => 'pages',
+                'blog' => 'blog',
+                default => trim($urlType, '/'),
+            };
+        }
+
+        $rideType = trim(strtolower((string) (
+            $data['ride_type']
+            ?? ''
+        )));
+
+        return match ($rideType) {
+            'self_drive' => 'self-drive',
+            'bike_rental' => 'bike-rental',
+            'tour' => 'tour',
+            'one_way', 'return', 'local' => 'route',
+            default => (
+                ($data['content_type'] ?? null) === 'seo_page'
+                    ? 'route'
+                    : ''
+            ),
+        };
+    }
+
+    private function urlHasRootLevelSlug(
+        string $url,
+        string $slug
+    ): bool {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+
+        return $path === trim($slug, '/');
+    }
+
+    private function urlEndsWithSlug(
+        string $url,
+        string $slug
+    ): bool {
+        $path = trim((string) parse_url($url, PHP_URL_PATH), '/');
+        $slug = trim($slug, '/');
+
+        return $path === $slug
+            || Str::endsWith($path, '/' . $slug);
     }
 
     private function resolveCanonicalUrl(
