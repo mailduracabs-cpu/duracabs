@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\CustomerSearchActivity;
+use App\Models\FleetManagement\TransporterProfile;
+use App\Models\User;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -15,6 +17,195 @@ class AdminLeadNotificationService
     public const EVENT_PAYMENT_STARTED = 'payment_started';
     public const EVENT_PAYMENT_FAILED = 'payment_failed';
     public const EVENT_ABANDONED = 'abandoned';
+
+    public function sendNewCustomerRegistration(
+        User $user
+    ): void {
+        $user->loadMissing('roles');
+
+        /*
+         * Admin, moderator, driver and transporter accounts are not customer
+         * registrations. Company-based accounts are also left for the vendor
+         * registration notification.
+         */
+        if (
+            $user->hasAnyRole([
+                'Admin',
+                'Transporter',
+                'moderator',
+                'Driver',
+            ])
+            || filled($user->company_name)
+            || filled($user->gst_number)
+        ) {
+            return;
+        }
+
+        $numbers = $this->adminNumbers();
+
+        if ($numbers === []) {
+            Log::warning(
+                'New customer admin WhatsApp skipped because recipients are missing.',
+                ['customer_id' => $user->id]
+            );
+
+            return;
+        }
+
+        $parameters = [
+            (string) $user->id,
+            trim((string) $user->name) ?: 'Customer',
+            trim((string) $user->mobile) ?: 'Not available',
+            trim((string) $user->email) ?: 'Not available',
+            optional($user->created_at)
+                ?->timezone(
+                    (string) config('app.timezone', 'Asia/Kolkata')
+                )
+                ?->format('d F Y, h:i A')
+                ?? now()->format('d F Y, h:i A'),
+        ];
+
+        foreach ($numbers as $number) {
+            try {
+                $response = WhatsAppService::sendTemplate(
+                    number: $number,
+                    templateName: (string) config(
+                        'services.whatsapp.templates.admin_new_customer',
+                        'admin_new_customer_v1'
+                    ),
+                    languageCode: (string) config(
+                        'services.whatsapp.default_language',
+                        'en'
+                    ),
+                    bodyParameters: $parameters
+                );
+
+                $success = (bool) (
+                    $response['status']
+                    ?? $response['success']
+                    ?? false
+                );
+
+                if (! $success) {
+                    Log::warning(
+                        'New customer admin WhatsApp was not accepted.',
+                        [
+                            'customer_id' => $user->id,
+                            'number' => $this->maskMobile($number),
+                            'result' => $response,
+                        ]
+                    );
+                }
+            } catch (Throwable $exception) {
+                Log::error(
+                    'New customer admin WhatsApp failed.',
+                    [
+                        'customer_id' => $user->id,
+                        'number' => $this->maskMobile($number),
+                        'message' => $exception->getMessage(),
+                    ]
+                );
+            }
+        }
+    }
+
+    public function sendNewVendorRegistration(
+        TransporterProfile $profile
+    ): void {
+        $profile->loadMissing('user');
+
+        $numbers = $this->adminNumbers();
+
+        if ($numbers === []) {
+            Log::warning(
+                'New vendor admin WhatsApp skipped because recipients are missing.',
+                ['vendor_profile_id' => $profile->id]
+            );
+
+            return;
+        }
+
+        $vendorId = 'V' . str_pad(
+            (string) $profile->id,
+            4,
+            '0',
+            STR_PAD_LEFT
+        );
+
+        $vendorName = trim((string) (
+            $profile->contact_person
+            ?: $profile->user?->name
+            ?: 'Vendor'
+        ));
+
+        $vendorMobile = trim((string) (
+            $profile->mobile
+            ?: $profile->whatsapp_number
+            ?: $profile->user?->mobile
+            ?: 'Not available'
+        ));
+
+        $city = trim((string) (
+            $profile->city ?: 'Not available'
+        ));
+
+        $businessName = trim((string) (
+            $profile->company_name
+            ?: $profile->user?->company_name
+            ?: 'Not available'
+        ));
+
+        $parameters = [
+            $vendorId,
+            $vendorName,
+            $vendorMobile,
+            $city,
+            $businessName,
+        ];
+
+        foreach ($numbers as $number) {
+            try {
+                $response = WhatsAppService::sendTemplate(
+                    number: $number,
+                    templateName: (string) config(
+                        'services.whatsapp.templates.admin_new_vendor_registration',
+                        'admin_new_vendor_registration_v1'
+                    ),
+                    languageCode: (string) config(
+                        'services.whatsapp.default_language',
+                        'en'
+                    ),
+                    bodyParameters: $parameters
+                );
+
+                $success = (bool) (
+                    $response['status']
+                    ?? $response['success']
+                    ?? false
+                );
+
+                if (! $success) {
+                    Log::warning(
+                        'New vendor admin WhatsApp was not accepted.',
+                        [
+                            'vendor_profile_id' => $profile->id,
+                            'number' => $this->maskMobile($number),
+                            'result' => $response,
+                        ]
+                    );
+                }
+            } catch (Throwable $exception) {
+                Log::error(
+                    'New vendor admin WhatsApp failed.',
+                    [
+                        'vendor_profile_id' => $profile->id,
+                        'number' => $this->maskMobile($number),
+                        'message' => $exception->getMessage(),
+                    ]
+                );
+            }
+        }
+    }
 
     public function send(
         CustomerSearchActivity $lead,
@@ -38,15 +229,27 @@ class AdminLeadNotificationService
             return;
         }
 
-        $message = $this->message($lead, $event);
+        $templateParameters = $this->templateParameters(
+            $lead,
+            $event
+        );
+
         $allSuccessful = true;
         $responses = [];
 
         foreach ($numbers as $number) {
             try {
-                $response = WhatsAppService::sendMessage(
-                    $number,
-                    $message
+                $response = WhatsAppService::sendTemplate(
+                    number: $number,
+                    templateName: (string) config(
+                        'services.whatsapp.templates.admin_customer_enquiry',
+                        'admin_customer_enquiry_v1'
+                    ),
+                    languageCode: (string) config(
+                        'services.whatsapp.default_language',
+                        'en'
+                    ),
+                    bodyParameters: $templateParameters
                 );
 
                 $success = (bool) (
@@ -160,11 +363,11 @@ class AdminLeadNotificationService
             ->all();
     }
 
-    private function message(
+    private function eventTitle(
         CustomerSearchActivity $lead,
         string $event
     ): string {
-        $title = match ($event) {
+        return match ($event) {
             self::EVENT_SEARCHED => 'New Customer Search',
             self::EVENT_FARE_CHECKED => 'Fare Checked',
             self::EVENT_VEHICLE_SELECTED => 'Vehicle Selected',
@@ -178,51 +381,65 @@ class AdminLeadNotificationService
                     : 'Search Abandoned',
             default => 'Customer Lead Update',
         };
+    }
 
+    /**
+     * Exact variable order for admin_customer_enquiry_v1:
+     * 1 event, 2 customer, 3 mobile, 4 service, 5 route,
+     * 6 travel date, 7 vehicle, 8 amount, 9 stage,
+     * 10 lead ID, 11 lead URL.
+     *
+     * @return array<int, string>
+     */
+    private function templateParameters(
+        CustomerSearchActivity $lead,
+        string $event
+    ): array {
         $amount = $lead->grand_total
             ?? $lead->estimated_amount
-            ?? $lead->minimum_result_price;
+            ?? $lead->minimum_result_price
+            ?? 0;
 
-        $lines = [
-            "🔔 *{$title}*",
-            '',
-            '*Lead ID:* ' . $lead->id,
-            '*Customer:* ' . $lead->customer_display_name,
-            '*Mobile:* ' . ($lead->mobile ?: 'Not available'),
-            '*Service:* ' . $lead->service_label,
-            '*Route:* ' . $lead->route_summary,
-            '*Stage:* ' . $lead->stage_label,
+        $travelDate = $lead->start_datetime
+            ? $lead->start_datetime->format('d M Y, h:i A')
+            : 'Not available';
+
+        $vehicle = trim((string) (
+            $lead->vehicle_name
+            ?: $lead->vehicle_category_name
+            ?: 'Not selected'
+        ));
+
+        return [
+            $this->eventTitle($lead, $event),
+            trim((string) $lead->customer_display_name)
+                ?: 'Guest Customer',
+            trim((string) $lead->mobile)
+                ?: 'Not available',
+            trim((string) $lead->service_label)
+                ?: 'Not available',
+            trim((string) $lead->route_summary)
+                ?: 'Not available',
+            $travelDate,
+            $vehicle,
+            number_format((float) $amount, 2, '.', ''),
+            trim((string) $lead->stage_label)
+                ?: 'Not available',
+            (string) $lead->id,
+            $this->leadUrl($lead),
         ];
+    }
 
-        if (filled($lead->vehicle_name)) {
-            $lines[] = '*Vehicle:* ' . $lead->vehicle_name;
-        }
-
-        if ($amount !== null) {
-            $lines[] = '*Amount:* INR '
-                . number_format((float) $amount, 2);
-        }
-
-        if ($lead->start_datetime) {
-            $lines[] = '*Travel:* '
-                . $lead->start_datetime->format('d M Y, h:i A');
-        }
-
-        $lines[] = '*Source:* '
-            . ucfirst(str_replace('_', ' ', (string) $lead->source));
-
-        $adminBase = rtrim(
+    private function leadUrl(
+        CustomerSearchActivity $lead
+    ): string {
+        return rtrim(
             (string) config('app.url'),
             '/'
-        );
-
-        $lines[] = '';
-        $lines[] = 'Open Lead: '
-            . $adminBase
+        )
             . '/admin/customer-leads/'
-            . $lead->id;
-
-        return implode("\n", $lines);
+            . $lead->id
+            . '/edit';
     }
 
     /**

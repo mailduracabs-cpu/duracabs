@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Services\AdminLeadNotificationService;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -107,6 +110,36 @@ class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::created(function (self $user): void {
+            /*
+             * Run after the current database transaction commits. Notification
+             * failure must never roll back or interrupt account registration.
+             */
+            DB::afterCommit(function () use ($user): void {
+                try {
+                    $freshUser = self::query()->find($user->getKey());
+
+                    if (! $freshUser) {
+                        return;
+                    }
+
+                    app(AdminLeadNotificationService::class)
+                        ->sendNewCustomerRegistration($freshUser);
+                } catch (\Throwable $exception) {
+                    Log::error(
+                        'New customer registration admin notification failed.',
+                        [
+                            'customer_id' => $user->getKey(),
+                            'message' => $exception->getMessage(),
+                        ]
+                    );
+                }
+            });
+        });
     }
 
     /*

@@ -6,12 +6,15 @@ use App\Models\Order;
 use App\Models\SelfDriveBooking;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\AdminLeadNotificationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TransporterProfile extends Model
 {
@@ -82,6 +85,35 @@ class TransporterProfile extends Model
             }
 
             $profile->service_radius_km ??= 40;
+        });
+
+        static::created(function (self $profile): void {
+            /*
+             * Send only after the registration transaction commits.
+             * WhatsApp failure must never interrupt vendor registration.
+             */
+            DB::afterCommit(function () use ($profile): void {
+                try {
+                    $freshProfile = self::query()
+                        ->with('user')
+                        ->find($profile->getKey());
+
+                    if (! $freshProfile) {
+                        return;
+                    }
+
+                    app(AdminLeadNotificationService::class)
+                        ->sendNewVendorRegistration($freshProfile);
+                } catch (\Throwable $exception) {
+                    Log::error(
+                        'New vendor registration admin notification failed.',
+                        [
+                            'vendor_profile_id' => $profile->getKey(),
+                            'message' => $exception->getMessage(),
+                        ]
+                    );
+                }
+            });
         });
     }
 
