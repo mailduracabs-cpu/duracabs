@@ -471,41 +471,64 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtp()
     {
-        $result = $this->otp == $this->verifyOtp;
+        $otpVerified = filled($this->otp)
+            && filled($this->verifyOtp)
+            && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if ($result) {
-            if (!Auth::check()) {
-                $this->authenticateOtpCustomer();
-            }
+        if (! $otpVerified) {
+            $this->oneWayMsg = 'Invalid OTP. Please try again.';
 
-            
-            $this->saveCustomerLead();
-
-            redirect(route('rides') . '?cityFrom=' . $this->query_id . '&cityTo=' . $this->query2_id . '&date=' . $this->date . '&nameTo=' . $this->query . '&nameFrom=' . $this->query2 . '&tab=' . $this->selected_tab . '&time=' . $this->time);
+            return null;
         }
 
+        $this->authenticateOtpCustomer($this->mobileNumber);
 
+        $this->saveCustomerLead();
+
+        return redirect(
+            route('rides') . '?cityFrom=' . $this->query_id
+            . '&cityTo=' . $this->query2_id
+            . '&date=' . $this->date
+            . '&nameTo=' . $this->query
+            . '&nameFrom=' . $this->query2
+            . '&tab=' . $this->selected_tab
+            . '&time=' . $this->time
+        );
     }
+
 
     public function verifySubmitOtpSelfDrive()
     {
+        $enteredMobile = CustomerSearchActivity::normalizeMobile(
+            $this->resolveOtpCustomerMobile($this->mobileNumber)
+        );
+
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
             Auth::user()?->mobile
         );
 
-        $alreadyAuthenticated = Auth::check();
+        $alreadyAuthenticatedAsCustomer = Auth::check()
+            && filled($enteredMobile)
+            && filled($loggedInMobile)
+            && hash_equals($enteredMobile, $loggedInMobile);
 
         $otpVerified = filled($this->otp)
             && filled($this->verifyOtp)
             && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (!$alreadyAuthenticated && !$otpVerified) {
+        if (! $alreadyAuthenticatedAsCustomer && ! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
+
             return null;
         }
 
-        $startTimestamp = strtotime(trim((string) $this->date . ' ' . (string) $this->time));
-        $endTimestamp = strtotime(trim((string) $this->dateto . ' ' . (string) $this->endTime));
+        $startTimestamp = strtotime(
+            trim((string) $this->date . ' ' . (string) $this->time)
+        );
+
+        $endTimestamp = strtotime(
+            trim((string) $this->dateto . ' ' . (string) $this->endTime)
+        );
 
         if (
             $startTimestamp === false
@@ -516,11 +539,12 @@ class ServiceSearchPanel extends Component
                 'End date and time must be later than start date and time.';
             $this->showValidation = true;
             $this->oneWayMsg = 'Please select a valid rental period.';
+
             return null;
         }
 
-        if (!$alreadyAuthenticated) {
-            $this->authenticateOtpCustomer();
+        if (! $alreadyAuthenticatedAsCustomer) {
+            $this->authenticateOtpCustomer($enteredMobile);
         }
 
         $rentalHours = max(
@@ -550,6 +574,7 @@ class ServiceSearchPanel extends Component
             ])
         );
     }
+
 
     private function saveCustomerLead(array $extra = []): CustomerSearchActivity
     {
@@ -582,20 +607,47 @@ class ServiceSearchPanel extends Component
             : null;
 
         /*
-         * Resolve the mobile from the OTP component/session first and only then
-         * fall back to the currently authenticated account. This is important
-         * when an admin/vendor is already logged in while testing the homepage:
-         * that account may not have a customer mobile number.
+         * Resolve the verified customer mobile independently of any existing
+         * admin/vendor session.
          */
         $mobile = CustomerSearchActivity::normalizeMobile(
-            $this->resolveOtpCustomerMobile()
+            $this->resolveOtpCustomerMobile($this->mobileNumber)
         );
 
         if (blank($mobile)) {
-            Log::warning('Customer inquiry skipped because mobile is unavailable.', [
+            $mobile = CustomerSearchActivity::normalizeMobile(
+                request()->session()->get('customer_search_mobile')
+            );
+        }
+
+        if (blank($mobile)) {
+            $storedLeadId = request()->session()->get(
+                'customer_search_activity_id'
+            );
+
+            if ($storedLeadId) {
+                $mobile = CustomerSearchActivity::normalizeMobile(
+                    CustomerSearchActivity::query()
+                        ->whereKey($storedLeadId)
+                        ->value('mobile')
+                );
+            }
+        }
+
+        if (blank($mobile)) {
+            Log::warning('Customer inquiry mobile is unavailable.', [
                 'authenticated_user_id' => auth()->id(),
                 'authenticated_user_mobile' => auth()->user()?->mobile,
                 'component_mobile' => $this->mobileNumber,
+                'otp_customer_mobile' => request()->session()->get(
+                    'otp_customer_mobile'
+                ),
+                'customer_search_mobile' => request()->session()->get(
+                    'customer_search_mobile'
+                ),
+                'customer_search_activity_id' => request()->session()->get(
+                    'customer_search_activity_id'
+                ),
                 'service_type' => $serviceType,
             ]);
 
@@ -604,8 +656,12 @@ class ServiceSearchPanel extends Component
             );
         }
 
-        // Keep the resolved value hydrated for subsequent Livewire actions.
         $this->mobileNumber = $mobile;
+
+        request()->session()->put([
+            'otp_customer_mobile' => $mobile,
+            'customer_search_mobile' => $mobile,
+        ]);
 
         $identity = [
             'mobile' => $mobile,
@@ -712,6 +768,12 @@ class ServiceSearchPanel extends Component
                 'service_type' => $lead->service_type,
                 'stage' => $lead->stage,
                 'lead_status' => $lead->lead_status,
+            ]);
+
+            request()->session()->put([
+                'customer_search_activity_id' => $lead->getKey(),
+                'customer_search_mobile' => $mobile,
+                'otp_customer_mobile' => $mobile,
             ]);
 
             return $lead;
@@ -880,47 +942,36 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtpReturn()
     {
-        $result = $this->otp == $this->verifyOtp;
+        $otpVerified = filled($this->otp)
+            && filled($this->verifyOtp)
+            && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (!$result) {
+        if (! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
-            return;
+
+            return null;
         }
 
-        if (!$this->distanceData) {
-            $this->oneWayMsg = 'Unable to calculate route distance. Please select both places again.';
-            return;
+        if (! $this->distanceData) {
+            $this->oneWayMsg =
+                'Unable to calculate route distance. Please select both places again.';
+
+            return null;
         }
 
         $km = $this->distanceData['rows'][0]['elements'][0]['distance']['text'];
         $kmValue = $this->distanceData['rows'][0]['elements'][0]['distance']['value'];
-        //$time = $this->distanceData['rows'][0]['elements'][0]['duration']['text'];
         $timeValue = $this->distanceData['rows'][0]['elements'][0]['duration']['value'];
 
+        $dateDiff = $this->dateDiffInDays($this->date, $this->dateto);
 
-
-
-
-
-        $date1 = $this->date;
-
-        // End date
-        $date2 = $this->dateto;
-
-        // Function call to find date difference
-        $dateDiff = $this->dateDiffInDays($date1, $date2);
-
-       $this->authenticateOtpCustomer();
-
-        
-
-
-
-
+        $this->authenticateOtpCustomer($this->mobileNumber);
 
         $this->saveCustomerLead([
             'estimated_distance_km' => round(((float) $kmValue) / 1000, 2),
-            'estimated_duration_minutes' => (int) round(((float) $timeValue) / 60),
+            'estimated_duration_minutes' => (int) round(
+                ((float) $timeValue) / 60
+            ),
             'trip_days' => $dateDiff,
         ]);
 
@@ -934,46 +985,57 @@ class ServiceSearchPanel extends Component
             $this->selectedTripCities()
         );
 
-        return redirect(route('rides') . '?' . http_build_query([
-            'nameTo' => $this->queryFrom,
-            'date' => $this->date,
-            'dateto' => $this->dateto,
-            'cityFrom' => $this->queryTo,
-            'tab' => $this->selected_tab,
-            'km' => $km,
-            'kmValue' => $kmValue,
-            'time' => $this->time,
-            'timeValue' => $timeValue,
-            'days' => $dateDiff,
-            'tripCities' => json_encode($tripCities, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            'returnToPickup' => 1,
-        ]));
+        return redirect(
+            route('rides') . '?' . http_build_query([
+                'nameTo' => $this->queryFrom,
+                'date' => $this->date,
+                'dateto' => $this->dateto,
+                'cityFrom' => $this->queryTo,
+                'tab' => $this->selected_tab,
+                'km' => $km,
+                'kmValue' => $kmValue,
+                'time' => $this->time,
+                'timeValue' => $timeValue,
+                'days' => $dateDiff,
+                'tripCities' => json_encode(
+                    $tripCities,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                ),
+                'returnToPickup' => 1,
+            ])
+        );
     }
+
 
     public function verifySubmitLocal()
     {
-        $result = $this->otp == $this->verifyOtp;
+        $otpVerified = filled($this->otp)
+            && filled($this->verifyOtp)
+            && hash_equals((string) $this->otp, (string) $this->verifyOtp);
 
-        if (!$result) {
+        if (! $otpVerified) {
             $this->oneWayMsg = 'Invalid OTP. Please try again.';
-            return;
+
+            return null;
         }
 
+        $this->authenticateOtpCustomer($this->mobileNumber);
 
+        $this->saveCustomerLead([
+            'package_name' => $this->plan,
+        ]);
 
-      
-        $this->authenticateOtpCustomer();
-
-               
-
-             $this->saveCustomerLead([
-                 'package_name' => $this->plan,
-             ]);
-
-             if ($inquery) {
-                    redirect(route('rides') . '?cityFrom=' . $this->query_id . '&date=' . $this->date . '&nameTo=' . $this->query . '&tab=' . $this->selected_tab . '&time=' . $this->time . '&plan=' . $this->plan . '&cars=' . $this->car);
-             }
+        return redirect(
+            route('rides') . '?cityFrom=' . $this->query_id
+            . '&date=' . $this->date
+            . '&nameTo=' . $this->query
+            . '&tab=' . $this->selected_tab
+            . '&time=' . $this->time
+            . '&plan=' . $this->plan
+            . '&cars=' . $this->car
+        );
     }
+
 
 
 
