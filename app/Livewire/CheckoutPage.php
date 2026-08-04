@@ -8,11 +8,13 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Vehicle;
 use App\Services\SelfDrivePricingService;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -383,6 +385,12 @@ class CheckoutPage extends Component
         try {
             $order = $this->createOrder($grandTotal);
             $this->order_id = $order->id;
+
+            /*
+             * WhatsApp failures must never block booking creation or payment.
+             * Both notifications use approved Meta templates.
+             */
+            $this->sendBookingWhatsAppNotifications($order);
 
             if ($this->payment_method === 'RazorPay') {
                 return redirect(
@@ -800,6 +808,214 @@ Address::query()->create([
     private function nullIfEmpty(mixed $value): mixed
     {
         return blank($value) ? null : $value;
+    }
+
+    private function sendBookingWhatsAppNotifications(
+        Order $order
+    ): void {
+        $this->sendAdminBookingWhatsApp($order);
+        $this->sendCustomerBookingWhatsApp($order);
+    }
+
+    private function sendAdminBookingWhatsApp(
+        Order $order
+    ): void {
+        $adminNumber = trim((string) config(
+            'services.whatsapp.admin_number',
+            env('ADMIN_MOBILE', '7088873331')
+        ));
+
+        if ($adminNumber === '') {
+            Log::warning('Admin WhatsApp notification skipped: number missing.', [
+                'order_id' => $order->id,
+            ]);
+
+            return;
+        }
+
+        try {
+            $result = WhatsAppService::sendTemplate(
+                number: $adminNumber,
+                templateName: (string) config(
+                    'services.whatsapp.templates.admin_new_booking',
+                    'admin_new_booking_v1'
+                ),
+                languageCode: (string) config(
+                    'services.whatsapp.language',
+                    'en'
+                ),
+                bodyParameters: [
+                    $this->bookingReference($order),
+                    $this->bookingCustomerName($order),
+                    $this->bookingCustomerMobile($order),
+                    $this->bookingServiceLabel($order),
+                    $this->bookingRouteLabel($order),
+                    $this->bookingTravelDateLabel($order),
+                    $this->bookingAmountLabel($order),
+                ]
+            );
+
+            if (! (bool) ($result['status'] ?? $result['success'] ?? false)) {
+                Log::warning('Admin booking WhatsApp was not accepted.', [
+                    'order_id' => $order->id,
+                    'result' => $result,
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::error('Admin booking WhatsApp failed.', [
+                'order_id' => $order->id,
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function sendCustomerBookingWhatsApp(
+        Order $order
+    ): void {
+        $customerNumber = $this->bookingCustomerMobile($order);
+
+        if ($customerNumber === '') {
+            Log::warning('Customer WhatsApp notification skipped: number missing.', [
+                'order_id' => $order->id,
+            ]);
+
+            return;
+        }
+
+        try {
+            $sent = WhatsAppService::bookingReceived(
+                $customerNumber,
+                [
+                    'customer_name' => $this->bookingCustomerName($order),
+                    'booking_id' => $this->bookingReference($order),
+                    'service' => $this->bookingServiceLabel($order),
+                    'route' => $this->bookingRouteLabel($order),
+                    'travel_date' => $this->bookingTravelDateLabel($order),
+                    'total_amount' => $this->bookingAmountLabel($order),
+                ]
+            );
+
+            if (! $sent) {
+                Log::warning('Customer booking WhatsApp was not accepted.', [
+                    'order_id' => $order->id,
+                    'number' => $this->maskedMobile($customerNumber),
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::error('Customer booking WhatsApp failed.', [
+                'order_id' => $order->id,
+                'number' => $this->maskedMobile($customerNumber),
+                'error' => $exception->getMessage(),
+            ]);
+        }
+    }
+
+    private function bookingReference(Order $order): string
+    {
+        $bookingNumber = trim((string) (
+            $order->booking_no
+            ?? $order->order_no
+            ?? ''
+        ));
+
+        return $bookingNumber !== ''
+            ? $bookingNumber
+            : 'DC' . str_pad((string) $order->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    private function bookingCustomerName(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->full_name
+            ?: $this->full_name
+            ?: auth()->user()?->name
+            ?: 'Customer'
+        ));
+    }
+
+    private function bookingCustomerMobile(Order $order): string
+    {
+        return trim((string) (
+            $order->address?->phone
+            ?: $this->phone
+            ?: auth()->user()?->mobile
+            ?: ''
+        ));
+    }
+
+    private function bookingServiceLabel(Order $order): string
+    {
+        return match ((string) $order->ride_type) {
+            'one_way' => 'One Way Cab',
+            'return' => 'Round Trip Cab',
+            'local' => 'Local Cab',
+            'self_drive' => 'Self Drive Car',
+            'bike_rental' => 'Bike Rental',
+            default => trim((string) (
+                $order->productName
+                ?: 'Cab Booking'
+            )),
+        };
+    }
+
+    private function bookingRouteLabel(Order $order): string
+    {
+        $from = trim((string) $order->cityFrom);
+        $to = trim((string) $order->cityTo);
+
+        if ($from !== '' && $to !== '' && strcasecmp($from, $to) !== 0) {
+            return $from . ' to ' . $to;
+        }
+
+        if ($from !== '') {
+            return $from;
+        }
+
+        if ($to !== '') {
+            return $to;
+        }
+
+        return trim((string) (
+            $order->productName
+            ?: 'Dura Cabs Booking'
+        ));
+    }
+
+    private function bookingTravelDateLabel(Order $order): string
+    {
+        $date = $order->date;
+
+        if (blank($date)) {
+            return now()->format('d M Y');
+        }
+
+        try {
+            return Carbon::parse($date)->format('d M Y');
+        } catch (Throwable) {
+            return trim((string) $date);
+        }
+    }
+
+    private function bookingAmountLabel(Order $order): string
+    {
+        return number_format(
+            $this->money($order->grand_total),
+            2,
+            '.',
+            ''
+        );
+    }
+
+    private function maskedMobile(string $number): string
+    {
+        $digits = preg_replace('/\D+/', '', $number) ?? '';
+
+        if (strlen($digits) <= 4) {
+            return $digits;
+        }
+
+        return str_repeat('*', max(0, strlen($digits) - 4))
+            . substr($digits, -4);
     }
 
     private function sendAdminBookingSms(Order $order): void
