@@ -12,17 +12,28 @@ use Illuminate\Support\Str;
 trait HandlesOtpCustomerAuthentication
 {
     /**
-     * Authenticate the customer after Homepage OTP verification.
-     *
-     * The Homepage component already validates the entered OTP before calling
-     * this method. This method only resolves or creates the customer account,
-     * logs the customer in, and regenerates the session.
+     * Authenticate the customer after successful homepage OTP verification.
      */
     protected function authenticateOtpCustomer(?string $mobileNumber = null): User
     {
         $mobile = $this->resolveOtpCustomerMobile($mobileNumber);
 
         if ($mobile === '') {
+            Log::warning('OTP customer authentication mobile is missing.', [
+                'passed_mobile' => $mobileNumber,
+                'component_mobile' => property_exists($this, 'mobileNumber')
+                    ? $this->mobileNumber
+                    : null,
+                'otp_session_mobile' => request()
+                    ->session()
+                    ->get('otp_customer_mobile'),
+                'customer_search_mobile' => request()
+                    ->session()
+                    ->get('customer_search_mobile'),
+                'authenticated_user_id' => Auth::id(),
+                'authenticated_user_mobile' => Auth::user()?->mobile,
+            ]);
+
             throw new \RuntimeException(
                 'Customer authentication failed because the mobile number is missing.'
             );
@@ -38,6 +49,7 @@ trait HandlesOtpCustomerAuthentication
 
                 if ($existingUser) {
                     $this->ensureCustomerAccountType($existingUser);
+                    $this->assignCustomerRoleIfAvailable($existingUser);
 
                     return $existingUser;
                 }
@@ -59,35 +71,33 @@ trait HandlesOtpCustomerAuthentication
 
                 $user = User::query()->create($payload);
 
-                /*
-                 * The old project used Spatie roles in some authentication
-                 * flows. Assign the customer role only when the model supports
-                 * it and the role exists. Login must not fail if roles are not
-                 * configured.
-                 */
                 $this->assignCustomerRoleIfAvailable($user);
 
                 return $user;
             });
 
+            /*
+             * This intentionally replaces an existing admin/vendor login with
+             * the customer who successfully verified the public booking OTP.
+             */
             Auth::login($user, true);
-            request()->session()->regenerate();
 
             /*
-             * Keep the normalized mobile number in the Livewire component so
-             * CustomerSearchActivity and later booking logic receive the same
-             * 10-digit value.
+             * Regenerate the session ID after login, then restore the verified
+             * customer mobile explicitly for subsequent Livewire requests.
              */
+            request()->session()->regenerate();
+
+            request()->session()->put([
+                'otp_customer_mobile' => $mobile,
+                'customer_search_mobile' => $mobile,
+                'rides_verified_mobile' => $mobile,
+                'otp_customer_user_id' => $user->getKey(),
+            ]);
+
             if (property_exists($this, 'mobileNumber')) {
                 $this->mobileNumber = $mobile;
             }
-
-            /*
-             * Do not forget otp_customer_mobile here. The calling Livewire
-             * action still needs it immediately afterwards to persist the
-             * CustomerSearchActivity lead. It is overwritten on the next OTP
-             * request, so retaining it for the session is safe and reliable.
-             */
 
             Log::info('Homepage OTP customer authenticated', [
                 'user_id' => $user->getKey(),
@@ -106,33 +116,47 @@ trait HandlesOtpCustomerAuthentication
         }
     }
 
-
     /**
-     * Store the mobile number before the OTP verification request.
-     *
-     * Livewire can rehydrate public properties between requests, so the session
-     * copy provides a reliable fallback for all Homepage OTP flows.
+     * Store the mobile before the OTP verification Livewire request.
      */
     protected function rememberOtpCustomerMobile(mixed $mobile): string
     {
         $mobile = $this->normalizeOtpCustomerMobile($mobile);
 
-        if ($mobile !== '') {
-            request()->session()->put('otp_customer_mobile', $mobile);
+        if ($mobile === '') {
+            return '';
+        }
+
+        request()->session()->put([
+            'otp_customer_mobile' => $mobile,
+            'customer_search_mobile' => $mobile,
+        ]);
+
+        if (property_exists($this, 'mobileNumber')) {
+            $this->mobileNumber = $mobile;
         }
 
         return $mobile;
     }
 
     /**
-     * Resolve the OTP customer mobile from the safest available source.
+     * Resolve the customer mobile from every reliable OTP source.
      */
-    protected function resolveOtpCustomerMobile(?string $mobileNumber = null): string
-    {
+    protected function resolveOtpCustomerMobile(
+        ?string $mobileNumber = null
+    ): string {
+        $componentMobile = property_exists($this, 'mobileNumber')
+            ? $this->mobileNumber
+            : null;
+
         $candidates = [
             $mobileNumber,
-            property_exists($this, 'mobileNumber') ? $this->mobileNumber : null,
+            $componentMobile,
             request()->session()->get('otp_customer_mobile'),
+            request()->session()->get('customer_search_mobile'),
+            request()->session()->get('rides_verified_mobile'),
+            request()->input('mobileNumber'),
+            request()->input('mobile'),
             Auth::user()?->mobile,
         ];
 
@@ -147,12 +171,19 @@ trait HandlesOtpCustomerAuthentication
         return '';
     }
 
+    /**
+     * Return a valid normalized 10-digit Indian mobile number.
+     */
     protected function normalizeOtpCustomerMobile(mixed $mobile): string
     {
-        $mobile = preg_replace('/[^0-9]/', '', (string) $mobile) ?? '';
+        $mobile = preg_replace('/\D+/', '', (string) $mobile) ?? '';
 
         if (strlen($mobile) > 10) {
             $mobile = substr($mobile, -10);
+        }
+
+        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+            return '';
         }
 
         return $mobile;
@@ -166,17 +197,22 @@ trait HandlesOtpCustomerAuthentication
             return $email;
         }
 
-        return $mobile . '-' . Str::lower(Str::random(6)) . '@duracabs.local';
+        return $mobile
+            . '-'
+            . Str::lower(Str::random(6))
+            . '@duracabs.local';
     }
 
     protected function appendCustomerAccountType(array &$payload): void
     {
         foreach (['account_type', 'user_type', 'type', 'role'] as $column) {
-            if (Schema::hasColumn('users', $column)) {
-                $payload[$column] = 'customer';
-
-                return;
+            if (!Schema::hasColumn('users', $column)) {
+                continue;
             }
+
+            $payload[$column] = 'customer';
+
+            return;
         }
     }
 
@@ -190,7 +226,9 @@ trait HandlesOtpCustomerAuthentication
             $value = Str::lower(trim((string) $user->{$column}));
 
             if ($value === '') {
-                $user->forceFill([$column => 'customer'])->save();
+                $user->forceFill([
+                    $column => 'customer',
+                ])->save();
             }
 
             return;
@@ -205,8 +243,7 @@ trait HandlesOtpCustomerAuthentication
 
         try {
             /*
-             * The legacy Register component assigned role ID 5. Using the same
-             * value preserves compatibility with the existing project.
+             * Legacy project customer role ID.
              */
             $user->assignRole(5);
         } catch (\Throwable $exception) {
