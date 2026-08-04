@@ -10,6 +10,8 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Throwable;
@@ -467,52 +469,138 @@ TextInput::make('meta_title')
             ? $analysis['indexing']
             : [];
 
-        $pageUrl = (string) ($indexing['page_url'] ?? '');
-        $appUrl = rtrim((string) config('app.url'), '/');
+        $pageUrl = trim((string) ($indexing['page_url'] ?? ''));
+        $property = trim((string) config(
+            'services.search_console.property',
+            config('app.url'),
+        ));
 
-        $liveUrl = e($pageUrl);
+        $connection = $this->searchConsoleConnectionData();
+        $connected = (bool) ($connection['connected'] ?? false);
+
+        $statusLabel = $connected
+            ? 'Connected'
+            : 'Connection Required';
+
+        $statusColor = $connected
+            ? '#166534'
+            : '#92400e';
+
+        $statusBackground = $connected
+            ? '#dcfce7'
+            : '#fef3c7';
+
+        $connectedAt = trim((string) ($connection['connected_at'] ?? ''));
+        $connectedMeta = $connectedAt !== ''
+            ? '<div style="margin-top: 3px; font-size: 10px; color: #64748b;">Connected: '
+                . e($connectedAt)
+                . '</div>'
+            : '';
+
+        $liveUrl = e($pageUrl !== '' ? $pageUrl : rtrim((string) config('app.url'), '/'));
+        $connectUrl = e(route('search-console.connect'));
+        $disconnectUrl = e(route('search-console.disconnect'));
+        $csrf = e(csrf_token());
+
         $searchConsoleUrl = e(
-            'https://search.google.com/search-console/inspect'
-            . '?resource_id=' . urlencode($appUrl)
-            . '&id=' . urlencode($pageUrl)
+            'https://search.google.com/search-console'
+            . '?resource_id=' . urlencode($property)
         );
 
-        $connectUrl = e(
-            route('search-console.connect')
-        );
+        $safeProperty = e($property);
+        $copyPageUrl = e($pageUrl);
 
-        $html = <<<HTML
-        <div style="height: 100%; min-height: 230px; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; background: rgba(255, 255, 255, 0.02);">
-            <div style="font-size: 14px; font-weight: 800;">Google Search Console</div>
-            <div style="margin-top: 4px; color: #64748b; font-size: 11px; line-height: 1.5;">
-                Connect the verified Google account to load Search Console data inside Dura SEO.
-            </div>
-
-            <div style="margin-top: 14px; padding: 10px; border-radius: 9px; background: #f1f5f9;">
-                <div style="font-size: 10px; color: #64748b;">CURRENT STATUS</div>
-                <div style="margin-top: 4px; font-size: 13px; font-weight: 700; color: #475569;">Connection Required</div>
-            </div>
-
-            <div style="display: grid; gap: 8px; margin-top: 14px;">
+        $primaryAction = $connected
+            ? <<<HTML
+                <form method="POST" action="{$disconnectUrl}" style="margin: 0;">
+                    <input type="hidden" name="_token" value="{$csrf}">
+                    <button type="submit"
+                        style="width: 100%; border: 0; cursor: pointer; padding: 9px 11px; border-radius: 8px; background: #dc2626; color: white; text-align: center; font-size: 12px; font-weight: 700;">
+                        Disconnect Search Console
+                    </button>
+                </form>
+            HTML
+            : <<<HTML
                 <a href="{$connectUrl}"
                     style="display: block; padding: 9px 11px; border-radius: 8px; background: #2563eb; color: white; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
                     Connect Google Search Console
                 </a>
+            HTML;
+
+        $html = <<<HTML
+        <div style="height: 100%; min-height: 260px; padding: 16px; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 14px; background: rgba(255, 255, 255, 0.02);">
+            <div style="font-size: 14px; font-weight: 800;">Google Search Console</div>
+            <div style="margin-top: 4px; color: #64748b; font-size: 11px; line-height: 1.5;">
+                Connect the verified Google account once. Uske baad connection status admin panel me yahin dikhega.
+            </div>
+
+            <div style="margin-top: 14px; padding: 10px; border-radius: 9px; background: {$statusBackground};">
+                <div style="font-size: 10px; color: #64748b;">CURRENT STATUS</div>
+                <div style="margin-top: 4px; font-size: 13px; font-weight: 800; color: {$statusColor};">{$statusLabel}</div>
+                {$connectedMeta}
+                <div style="margin-top: 5px; font-size: 10px; color: #64748b; overflow-wrap: anywhere;">{$safeProperty}</div>
+            </div>
+
+            <div style="display: grid; gap: 8px; margin-top: 14px;">
+                {$primaryAction}
 
                 <a href="{$liveUrl}" target="_blank" rel="noopener noreferrer"
                     style="display: block; padding: 9px 11px; border-radius: 8px; background: #0f172a; color: white; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
                     Open Live Page
                 </a>
 
+                <button type="button"
+                    onclick="navigator.clipboard.writeText('{$copyPageUrl}').then(() => { this.innerText = 'Page URL Copied'; setTimeout(() => this.innerText = 'Copy Page URL', 1600); })"
+                    style="width: 100%; cursor: pointer; padding: 9px 11px; border-radius: 8px; border: 1px solid #cbd5e1; background: white; color: #0f172a; text-align: center; font-size: 12px; font-weight: 700;">
+                    Copy Page URL
+                </button>
+
                 <a href="{$searchConsoleUrl}" target="_blank" rel="noopener noreferrer"
                     style="display: block; padding: 9px 11px; border-radius: 8px; border: 1px solid #cbd5e1; color: #0f172a; text-decoration: none; text-align: center; font-size: 12px; font-weight: 700;">
-                    Inspect in Search Console
+                    Open Search Console
                 </a>
             </div>
         </div>
         HTML;
 
         return new HtmlString($html);
+    }
+
+    /**
+     * @return array{connected: bool, connected_at?: string}
+     */
+    private function searchConsoleConnectionData(): array
+    {
+        $encrypted = Cache::get('google.search_console.oauth_tokens');
+
+        if (! is_string($encrypted) || $encrypted === '') {
+            return ['connected' => false];
+        }
+
+        try {
+            $decoded = json_decode(
+                Crypt::decryptString($encrypted),
+                true,
+                512,
+                JSON_THROW_ON_ERROR,
+            );
+
+            if (! is_array($decoded)) {
+                return ['connected' => false];
+            }
+
+            $hasToken = filled($decoded['access_token'] ?? null)
+                || filled($decoded['refresh_token'] ?? null);
+
+            return [
+                'connected' => $hasToken,
+                'connected_at' => (string) ($decoded['connected_at'] ?? ''),
+            ];
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return ['connected' => false];
+        }
     }
 
     /**
