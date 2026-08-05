@@ -16,6 +16,9 @@
         <script type="application/ld+json">
             {!! json_encode($faqSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
         </script>
+        <script type="application/ld+json">
+            {!! json_encode($breadcrumbSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
+        </script>
     @endpush
 
     <nav class="product-breadcrumb mb-3 mt-2 text-sm text-slate-600" aria-label="Breadcrumb">

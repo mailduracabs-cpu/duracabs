@@ -6,7 +6,6 @@ use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\RideInquiry;
-use App\SEO\Services\SeoSchemaService;
 use Jantinnerezo\LivewireAlert\LivewireAlert;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -542,8 +541,11 @@ public function tabValue($val){
         $contentType = (string) ($ride->content_type ?: 'route');
         $urlType = (string) ($ride->url_type ?: 'route');
 
-        $pickupName = trim((string) ($ride->brand?->name ?: $ride->name ?: 'Dura Cabs'));
-        $dropName = trim((string) ($cityTo?->name ?: ''));
+        $pickupName = $this->cleanCityName(
+            $ride->brand?->name ?: $ride->name ?: 'Dura Cabs'
+        );
+
+        $dropName = $this->cleanCityName($cityTo?->name);
 
         $tripLabel = match ($ride->ride_type) {
             'local' => 'Local Cab',
@@ -589,7 +591,7 @@ public function tabValue($val){
 
         $faqs = $this->buildFaqs($ride, $routeName, $tripLabel, $lowestFare);
 
-        $automaticSchema = $this->buildServiceSchema(
+        $serviceSchema = $this->buildServiceSchema(
             $ride,
             $canonicalUrl,
             $seoTitle,
@@ -603,12 +605,6 @@ public function tabValue($val){
             $contentType
         );
 
-        $serviceSchema = app(SeoSchemaService::class)
-            ->resolveProductSchema(
-                product: $ride,
-                automaticSchema: $automaticSchema
-            );
-
         $faqSchema = [
             '@context' => 'https://schema.org',
             '@type' => 'FAQPage',
@@ -621,6 +617,32 @@ public function tabValue($val){
                     'text' => $faq['answer'],
                 ],
             ])->values()->all(),
+        ];
+
+        $breadcrumbSchema = [
+            '@context' => 'https://schema.org',
+            '@type' => 'BreadcrumbList',
+            '@id' => $canonicalUrl . '#breadcrumb',
+            'itemListElement' => [
+                [
+                    '@type' => 'ListItem',
+                    'position' => 1,
+                    'name' => 'Home',
+                    'item' => url('/'),
+                ],
+                [
+                    '@type' => 'ListItem',
+                    'position' => 2,
+                    'name' => 'Cab Routes',
+                    'item' => url('/routes'),
+                ],
+                [
+                    '@type' => 'ListItem',
+                    'position' => 3,
+                    'name' => $routeName,
+                    'item' => $canonicalUrl,
+                ],
+            ],
         ];
 
         return view('livewire.product-detailed-page', [
@@ -643,10 +665,23 @@ public function tabValue($val){
             'faqs' => $faqs,
             'serviceSchema' => $serviceSchema,
             'faqSchema' => $faqSchema,
+            'breadcrumbSchema' => $breadcrumbSchema,
             'contentLinks' => collect($ride->content_links ?? [])->filter()->values(),
             'fareCards' => collect($ride->fare_cards ?? [])->filter()->values(),
             'linkedProducts' => collect($ride->link_products ?? [])->filter()->values(),
         ]);
+    }
+
+
+    private function cleanCityName(mixed $value): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        return trim(explode(',', $value, 2)[0]);
     }
 
     private function buildFallbackSeoTitle(Product $ride, string $routeName, string $tripLabel, string $contentType): string
@@ -779,6 +814,7 @@ public function tabValue($val){
             ],
         ];
     }
+
     private function buildServiceSchema(
         Product $ride,
         string $canonicalUrl,
