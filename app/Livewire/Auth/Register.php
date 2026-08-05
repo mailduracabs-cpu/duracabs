@@ -27,20 +27,21 @@ class Register extends Component
 
         // save user 
     $user = User::create([
-        'name' => $this->name,
-        'email' => $this->email,
-        'password' => Hash::make($this->password),
-        
-    ]);
+    'name'       => $this->name,
+    'email'      => $this->email,
+    'password'   => Hash::make($this->password),
+    'is_active'  => true,
+]);
 
-    $user->assignRole( 5 );
+    $user->assignRole(User::ROLE_CUSTOMER);
 
     
 
    
 
     // login user
-        auth()->login($user);
+       Auth::guard('customer')->login($user, true);
+request()->session()->regenerate();
 
         Mail::to(request()->user())->send(new UserRegister($user));
 
