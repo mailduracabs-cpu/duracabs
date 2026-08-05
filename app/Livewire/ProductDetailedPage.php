@@ -828,53 +828,125 @@ public function tabValue($val){
         int $offerCount,
         string $contentType
     ): array {
+        $homeUrl = rtrim(url('/'), '/') . '/';
+        $organizationId = $homeUrl . '#organization';
+        $websiteId = $homeUrl . '#website';
+        $isProduct = $contentType === 'product'
+            || in_array(
+                (string) $ride->ride_type,
+                ['self_drive', 'bike_rental'],
+                true
+            );
+
         if ($contentType === 'blog') {
-            return [
+            return array_filter([
                 '@context' => 'https://schema.org',
                 '@type' => 'Article',
                 '@id' => $canonicalUrl . '#article',
                 'headline' => $seoTitle,
                 'description' => $seoDescription,
                 'url' => $canonicalUrl,
-                'image' => [$imageMeta],
+                'mainEntityOfPage' => [
+                    '@id' => $canonicalUrl . '#article',
+                ],
+                'isPartOf' => [
+                    '@id' => $websiteId,
+                ],
+                'image' => filled($imageMeta)
+                    ? [
+                        '@type' => 'ImageObject',
+                        '@id' => $canonicalUrl . '#primaryimage',
+                        'url' => $imageMeta,
+                    ]
+                    : null,
                 'datePublished' => optional($ride->created_at)?->toAtomString(),
                 'dateModified' => optional($ride->updated_at)?->toAtomString(),
                 'author' => [
-                    '@type' => 'Organization',
-                    'name' => 'Dura Cabs',
+                    '@id' => $organizationId,
                 ],
                 'publisher' => [
-                    '@type' => 'Organization',
-                    'name' => 'Dura Cabs',
-                    'url' => url('/'),
+                    '@id' => $organizationId,
                 ],
-            ];
+            ], static fn (mixed $value): bool =>
+                $value !== null && $value !== '' && $value !== []
+            );
         }
+
+        $offers = $lowestFare
+            ? array_filter([
+                '@type' => $offerCount > 1
+                    ? 'AggregateOffer'
+                    : 'Offer',
+                'priceCurrency' => 'INR',
+                $offerCount > 1
+                    ? 'lowPrice'
+                    : 'price' => (float) $lowestFare,
+                'offerCount' => $offerCount > 1
+                    ? $offerCount
+                    : null,
+                'availability' => 'https://schema.org/InStock',
+                'url' => $canonicalUrl,
+                'seller' => $isProduct
+                    ? [
+                        '@id' => $organizationId,
+                    ]
+                    : null,
+            ], static fn (mixed $value): bool =>
+                $value !== null && $value !== '' && $value !== []
+            )
+            : null;
 
         return array_filter([
             '@context' => 'https://schema.org',
-            '@type' => $contentType === 'product' ? 'Product' : 'Service',
-            '@id' => $canonicalUrl . '#service',
+            '@type' => $isProduct ? 'Product' : 'Service',
+            '@id' => $canonicalUrl . ($isProduct ? '#product' : '#service'),
             'name' => $seoTitle,
             'description' => $seoDescription,
             'url' => $canonicalUrl,
-            'image' => $imageMeta,
-            'serviceType' => $contentType === 'product' ? null : $tripLabel,
-            'provider' => [
-                '@id' => url('/') . '#business',
+            'mainEntityOfPage' => [
+                '@id' => $canonicalUrl . ($isProduct ? '#product' : '#service'),
             ],
-            'areaServed' => $contentType === 'product' ? null : array_values(array_filter([
-                ['@type' => 'City', 'name' => $pickupName],
-                $ride->ride_type === 'one_way' && $dropName !== '' ? ['@type' => 'City', 'name' => $dropName] : null,
-            ])),
-            'offers' => $lowestFare ? [
-                '@type' => $offerCount > 1 ? 'AggregateOffer' : 'Offer',
-                'priceCurrency' => 'INR',
-                $offerCount > 1 ? 'lowPrice' : 'price' => (float) $lowestFare,
-                'offerCount' => $offerCount > 1 ? $offerCount : null,
-                'availability' => 'https://schema.org/InStock',
-                'url' => $canonicalUrl,
-            ] : null,
-        ], static fn ($value) => $value !== null && $value !== '' && $value !== []);
+            'isPartOf' => [
+                '@id' => $websiteId,
+            ],
+            'image' => filled($imageMeta)
+                ? [
+                    '@type' => 'ImageObject',
+                    '@id' => $canonicalUrl . '#primaryimage',
+                    'url' => $imageMeta,
+                ]
+                : null,
+            'category' => $isProduct ? $tripLabel : null,
+            'serviceType' => $isProduct ? null : $tripLabel,
+            'provider' => $isProduct
+                ? null
+                : [
+                    '@id' => $organizationId,
+                ],
+            'brand' => $isProduct
+                ? [
+                    '@type' => 'Brand',
+                    'name' => 'Dura Cabs',
+                ]
+                : null,
+            'areaServed' => $isProduct
+                ? null
+                : array_values(array_filter([
+                    [
+                        '@type' => 'City',
+                        'name' => $pickupName,
+                    ],
+                    $ride->ride_type === 'one_way'
+                        && $dropName !== ''
+                            ? [
+                                '@type' => 'City',
+                                'name' => $dropName,
+                            ]
+                            : null,
+                ])),
+            'offers' => $offers,
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
     }
 }

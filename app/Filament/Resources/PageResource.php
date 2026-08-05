@@ -386,6 +386,155 @@ class PageResource extends Resource
                             ->default(true),
                     ]),
 
+
+                Section::make('Schema Manager')
+                    ->description(
+                        'Existing Page model ke Primary, FAQ, Breadcrumb aur Custom JSON-LD fields ko manage karein. Blank fields automatic schema ko use karenge.',
+                    )
+                    ->icon('heroicon-o-code-bracket')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Select::make('schema_type')
+                            ->label('Primary Schema Type')
+                            ->options([
+                                'WebPage' => 'Web Page',
+                                'AboutPage' => 'About Page',
+                                'ContactPage' => 'Contact Page',
+                                'CollectionPage' => 'Collection Page',
+                                'Article' => 'Article',
+                                'BlogPosting' => 'Blog Posting',
+                                'Service' => 'Service',
+                                'Product' => 'Product',
+                                'TouristTrip' => 'Tourist Trip',
+                            ])
+                            ->default('WebPage')
+                            ->required()
+                            ->native(false)
+                            ->helperText(
+                                'Page type ke hisaab se select karein. FAQ aur Breadcrumb schemas alag se automatically output honge.',
+                            ),
+
+                        Repeater::make('faq_schema')
+                            ->label('Page FAQs')
+                            ->addActionLabel('Add FAQ')
+                            ->reorderable()
+                            ->collapsible()
+                            ->itemLabel(
+                                fn (array $state): ?string =>
+                                    filled($state['question'] ?? null)
+                                        ? (string) $state['question']
+                                        : 'New FAQ',
+                            )
+                            ->schema([
+                                TextInput::make('question')
+                                    ->label('Question')
+                                    ->required()
+                                    ->maxLength(500),
+
+                                Textarea::make('answer')
+                                    ->label('Answer')
+                                    ->required()
+                                    ->rows(4)
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(1)
+                            ->columnSpanFull()
+                            ->helperText(
+                                'FAQPage schema tabhi generate hoga jab question aur answer dono filled hon.',
+                            ),
+
+                        Repeater::make('breadcrumb_schema')
+                            ->label('Custom Breadcrumbs')
+                            ->addActionLabel('Add Breadcrumb')
+                            ->reorderable()
+                            ->collapsible()
+                            ->itemLabel(
+                                fn (array $state): ?string =>
+                                    filled($state['name'] ?? null)
+                                        ? (string) $state['name']
+                                        : 'New Breadcrumb',
+                            )
+                            ->schema([
+                                TextInput::make('name')
+                                    ->label('Name')
+                                    ->required()
+                                    ->maxLength(255),
+
+                                TextInput::make('url')
+                                    ->label('Absolute URL')
+                                    ->required()
+                                    ->url()
+                                    ->maxLength(1000),
+                            ])
+                            ->columns(2)
+                            ->columnSpanFull()
+                            ->helperText(
+                                'Blank chhodne par Home → Current Page breadcrumb automatically generate hoga.',
+                            ),
+
+                        Textarea::make('custom_schema')
+                            ->label('Custom JSON-LD')
+                            ->rows(18)
+                            ->extraAttributes([
+                                'class' => 'font-mono text-sm',
+                                'spellcheck' => 'false',
+                            ])
+                            ->formatStateUsing(
+                                fn (mixed $state): string =>
+                                    is_array($state) && $state !== []
+                                        ? (string) json_encode(
+                                            $state,
+                                            JSON_UNESCAPED_SLASHES
+                                            | JSON_UNESCAPED_UNICODE
+                                            | JSON_PRETTY_PRINT,
+                                        )
+                                        : '',
+                            )
+                            ->dehydrateStateUsing(
+                                function (?string $state): ?array {
+                                    $state = trim((string) $state);
+
+                                    if ($state === '') {
+                                        return null;
+                                    }
+
+                                    $decoded = json_decode($state, true);
+
+                                    return is_array($decoded)
+                                        ? $decoded
+                                        : null;
+                                },
+                            )
+                            ->rules([
+                                function (): \Closure {
+                                    return function (
+                                        string $attribute,
+                                        mixed $value,
+                                        \Closure $fail,
+                                    ): void {
+                                        $value = trim((string) $value);
+
+                                        if ($value === '') {
+                                            return;
+                                        }
+
+                                        json_decode($value, true);
+
+                                        if (json_last_error() !== JSON_ERROR_NONE) {
+                                            $fail(
+                                                'Custom JSON-LD valid JSON hona chahiye.',
+                                            );
+                                        }
+                                    };
+                                },
+                            ])
+                            ->helperText(
+                                'Optional. Sirf valid JSON object ya array paste karein. <script> tags paste na karein.',
+                            )
+                            ->columnSpanFull(),
+                    ]),
+
                 ContentWriter::make('content_writer')
                     ->contentField('description')
                     ->columnSpanFull(),

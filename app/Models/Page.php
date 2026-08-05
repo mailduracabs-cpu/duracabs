@@ -443,24 +443,68 @@ class Page extends Model
             ? (string) $this->schema_type
             : 'WebPage';
 
-        $schema = [
+        $canonicalUrl = $this->resolved_canonical_url;
+        $homeUrl = rtrim(url('/'), '/') . '/';
+        $organizationId = $homeUrl . '#organization';
+        $websiteId = $homeUrl . '#website';
+        $pageId = $canonicalUrl . '#webpage';
+
+        $schema = array_filter([
             '@context' => 'https://schema.org',
             '@type' => $schemaType,
+            '@id' => $pageId,
+            'url' => $canonicalUrl,
             'name' => $this->seo_title,
-            'headline' => $this->seo_title,
             'description' => $this->seo_description,
-            'url' => $this->resolved_canonical_url,
-            'inLanguage' => app()->getLocale(),
-        ];
+            'inLanguage' => str_replace('_', '-', app()->getLocale()),
+            'isPartOf' => [
+                '@id' => $websiteId,
+            ],
+            'mainEntityOfPage' => [
+                '@id' => $pageId,
+            ],
+            'publisher' => [
+                '@id' => $organizationId,
+            ],
+            'about' => filled($this->brand?->name)
+                ? [
+                    '@type' => 'Place',
+                    'name' => $this->brand->name,
+                ]
+                : [
+                    '@type' => 'Thing',
+                    'name' => $this->name,
+                ],
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
+
+        if (in_array($schemaType, ['Article', 'BlogPosting', 'NewsArticle'], true)) {
+            $schema['headline'] = $this->seo_title;
+        }
 
         if (filled($this->resolved_image_url)) {
-            $schema['image'] = $this->resolved_image_url;
+            $imageId = $canonicalUrl . '#primaryimage';
+
+            $schema['image'] = [
+                '@type' => 'ImageObject',
+                '@id' => $imageId,
+                'url' => $this->resolved_image_url,
+            ];
+
+            $schema['primaryImageOfPage'] = [
+                '@id' => $imageId,
+            ];
         }
 
         if (filled($this->author_name)) {
             $schema['author'] = [
                 '@type' => 'Person',
                 'name' => $this->author_name,
+            ];
+        } elseif (in_array($schemaType, ['Article', 'BlogPosting', 'NewsArticle'], true)) {
+            $schema['author'] = [
+                '@id' => $organizationId,
             ];
         }
 
