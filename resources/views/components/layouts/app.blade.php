@@ -237,7 +237,7 @@
                         ? 'India'
                         : strtoupper((string) $settings->country_code),
             ],
-            'aggregateRating' => $aggregateRating,
+            
         ], static fn (mixed $value): bool =>
             $value !== null && $value !== '' && $value !== []
         );
