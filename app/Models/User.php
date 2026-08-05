@@ -23,6 +23,31 @@ class User extends Authenticatable implements FilamentUser
 
     /*
     |--------------------------------------------------------------------------
+    | Account Roles
+    |--------------------------------------------------------------------------
+    |
+    | All account types remain in the same users table. Laravel session guards
+    | are separate, while existing Spatie roles continue using guard_name=web.
+    |
+    */
+
+    public const ROLE_CUSTOMER = 'Customer';
+
+    public const ROLE_ADMIN = 'Admin';
+
+    public const ROLE_TRANSPORTER = 'Transporter';
+
+    public const ROLE_DRIVER = 'Driver';
+
+    public const ROLE_MODERATOR = 'Moderator';
+
+    /**
+     * Keep compatibility with the existing Spatie roles/permissions records.
+     */
+    protected string $guard_name = 'web';
+
+    /*
+    |--------------------------------------------------------------------------
     | KYC Status Constants
     |--------------------------------------------------------------------------
     */
@@ -339,20 +364,92 @@ class User extends Authenticatable implements FilamentUser
 
     /*
     |--------------------------------------------------------------------------
+    | Account Type Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public function isActiveAccount(): bool
+    {
+        return (bool) $this->is_active;
+    }
+
+    public function isCustomer(): bool
+    {
+        return $this->hasRole(self::ROLE_CUSTOMER);
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->hasRole(self::ROLE_ADMIN);
+    }
+
+    public function isModerator(): bool
+    {
+        return $this->hasAnyRole([
+            self::ROLE_MODERATOR,
+            strtolower(self::ROLE_MODERATOR),
+        ]);
+    }
+
+    public function isTransporter(): bool
+    {
+        return $this->hasRole(self::ROLE_TRANSPORTER);
+    }
+
+    public function isDriver(): bool
+    {
+        return $this->hasRole(self::ROLE_DRIVER);
+    }
+
+    public function canUseCustomerLogin(): bool
+    {
+        return $this->isActiveAccount()
+            && $this->isCustomer();
+    }
+
+    public function canUseAdminLogin(): bool
+    {
+        return $this->isActiveAccount()
+            && ($this->isAdmin() || $this->isModerator());
+    }
+
+    public function canUseTransporterLogin(): bool
+    {
+        return $this->isActiveAccount()
+            && $this->isTransporter();
+    }
+
+    public function canUseDriverLogin(): bool
+    {
+        return $this->isActiveAccount()
+            && $this->isDriver();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
     | Filament Access
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Filament panel access.
+     * Restrict each Filament panel to its own account type.
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return $this->hasRole([
-            'Admin',
-            'Transporter',
-            'moderator',
-            'Driver',
-        ]);
+        if (! $this->isActiveAccount()) {
+            return false;
+        }
+
+        return match ($panel->getId()) {
+            'admin' => $this->canUseAdminLogin(),
+
+            'transporter',
+            'vendor',
+            'partner' => $this->canUseTransporterLogin(),
+
+            'driver' => $this->canUseDriverLogin(),
+
+            default => false,
+        };
     }
 }

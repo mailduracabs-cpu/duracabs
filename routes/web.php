@@ -39,6 +39,7 @@ use App\Livewire\PartnerLogin;
 
 
 
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::permanentRedirect('/page/self-drive-service-in-agra', '/pages/self-drive-service-in-agra');
@@ -99,15 +100,15 @@ Route::get('/partner/register', VendorRegistration::class)
 Route::get('/vendor-register', VendorRegistration::class)
     ->name('vendor-register');
 
-Route::get('/partner/login', PartnerLogin::class)
-    ->name('partner.login');
+Route::middleware('guest:vendor')->group(function () {
+    Route::get('/partner/login', PartnerLogin::class)
+        ->name('partner.login');
+});
 
-Route::middleware('auth')->group(function () {
-
-Route::get('/partner/dashboard', function () {
-    return redirect('/transporter');
-		})->name('partner.dashboard');
-
+Route::middleware('auth:vendor')->group(function () {
+    Route::get('/partner/dashboard', function () {
+        return redirect('/transporter');
+    })->name('partner.dashboard');
 });
 
 /*
@@ -116,43 +117,42 @@ Route::get('/partner/dashboard', function () {
 |--------------------------------------------------------------------------
 */
 
-Route::get('/my-account', MyAccount::class)->name('my-account');
-
-Route::middleware('guest')->group(function () {
-
+Route::middleware('guest:customer')->group(function () {
     Route::get('/login', Login::class)->name('login');
 
     Route::get('/register', Register::class)->name('register');
 
-    Route::get('/forgot', ForgotPassword::class)->name('password.request');
+    Route::get('/forgot', ForgotPassword::class)
+        ->name('password.request');
 
-    Route::get('/reset/{token}', ResetPassword::class)->name('password.reset');
-
+    Route::get('/reset/{token}', ResetPassword::class)
+        ->name('password.reset');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware('auth:customer')->group(function () {
+    Route::get('/my-account', MyAccount::class)
+        ->name('my-account');
 
     Route::get('/logout', function () {
-
-        auth()->logout();
+        Auth::guard('customer')->logout();
 
         request()->session()->invalidate();
-
         request()->session()->regenerateToken();
 
         return redirect('/');
-
     })->name('logout');
 
-    Route::get('/checkout', CheckoutPage::class)->name('checkout');
+    Route::get('/checkout', CheckoutPage::class)
+        ->name('checkout');
 
-    Route::get('/my-orders', MyOrdersPage::class)->name('my-orders');
+    Route::get('/my-orders', MyOrdersPage::class)
+        ->name('my-orders');
 
     Route::get('/my-orders/{order_id}', MyOrderDetailPage::class)
         ->name('my-orders.show');
 
-    Route::get('/success', SuccessPage::class)->name('success');
-
+    Route::get('/success', SuccessPage::class)
+        ->name('success');
 
     Route::get(
         '/booking/{booking}',
@@ -164,8 +164,8 @@ Route::middleware('auth')->group(function () {
         [InvoiceController::class, 'download']
     )->name('orders.invoice');
 
-    Route::get('/cancel', CancelPage::class)->name('cancel');
-
+    Route::get('/cancel', CancelPage::class)
+        ->name('cancel');
 });
 
 /*
@@ -174,11 +174,17 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 
-Route::get('/auth/google', [SocialController::class, 'redirectToGoogle'])
-    ->name('auth.google');
+Route::middleware('guest:customer')->group(function () {
+    Route::get(
+        '/auth/google',
+        [SocialController::class, 'redirectToGoogle']
+    )->name('auth.google');
 
-Route::get('/auth/google/callback', [SocialController::class, 'handleGoogleCallback'])
-    ->name('auth.google.callback');
+    Route::get(
+        '/auth/google/callback',
+        [SocialController::class, 'handleGoogleCallback']
+    )->name('auth.google.callback');
+});
 
 
 /*
@@ -191,7 +197,7 @@ Route::get('/auth/google/callback', [SocialController::class, 'handleGoogleCallb
 |
 */
 
-Route::middleware('auth')->group(function () {
+Route::middleware('auth:admin')->group(function () {
 
     Route::get(
         '/auth/google/search-console/connect',

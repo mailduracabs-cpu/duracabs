@@ -471,11 +471,12 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtp()
     {
+        $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
-            Auth::user()?->mobile
+            $customer?->mobile
         );
 
-        $alreadyLoggedInCustomer = Auth::check()
+        $alreadyLoggedInCustomer = $customer !== null
             && filled($loggedInMobile);
 
         $otpVerified = filled($this->otp)
@@ -491,7 +492,7 @@ class ServiceSearchPanel extends Component
         if ($alreadyLoggedInCustomer) {
             $this->rememberLoggedInCustomerMobile($loggedInMobile);
         } else {
-            $this->authenticateOtpCustomer($this->mobileNumber);
+            $this->authenticateGuestCustomer();
         }
 
         $this->saveCustomerLead();
@@ -511,11 +512,12 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtpSelfDrive()
     {
+        $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
-            Auth::user()?->mobile
+            $customer?->mobile
         );
 
-        $alreadyLoggedInCustomer = Auth::check()
+        $alreadyLoggedInCustomer = $customer !== null
             && filled($loggedInMobile);
 
         $otpVerified = filled($this->otp)
@@ -552,7 +554,7 @@ class ServiceSearchPanel extends Component
         if ($alreadyLoggedInCustomer) {
             $this->rememberLoggedInCustomerMobile($loggedInMobile);
         } else {
-            $this->authenticateOtpCustomer($this->mobileNumber);
+            $this->authenticateGuestCustomer();
         }
 
         $rentalHours = max(
@@ -586,6 +588,94 @@ class ServiceSearchPanel extends Component
 
 
     /**
+     * Return only an active Customer-role user from the dedicated guard.
+     *
+     * Admin, Moderator, Transporter and Driver sessions are intentionally
+     * ignored, even when those sessions are active in the same browser.
+     */
+    private function authenticatedCustomer(): ?User
+    {
+        $user = Auth::guard('customer')->user();
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        return $user->canUseCustomerLogin()
+            ? $user
+            : null;
+    }
+
+    /**
+     * Complete the existing OTP flow and move the authenticated user to the
+     * dedicated customer guard.
+     */
+    private function authenticateGuestCustomer(): void
+    {
+        $mobile = CustomerSearchActivity::normalizeMobile(
+            $this->mobileNumber
+        );
+
+        if (blank($mobile)) {
+            throw new \RuntimeException(
+                'A valid customer mobile number is required.'
+            );
+        }
+
+        /*
+         * Preserve the existing concern's registration/authentication work.
+         * It may create the customer or authenticate through the legacy web
+         * guard, depending on the existing project implementation.
+         */
+        $this->authenticateOtpCustomer($mobile);
+
+        $user = User::query()
+            ->where('mobile', $mobile)
+            ->first();
+
+        if (! $user) {
+            throw new \RuntimeException(
+                'Customer account could not be loaded after OTP verification.'
+            );
+        }
+
+        if (! $user->isActiveAccount()) {
+            throw new \RuntimeException(
+                'This customer account is inactive.'
+            );
+        }
+
+        if (
+            $user->isAdmin()
+            || $user->isModerator()
+            || $user->isTransporter()
+            || $user->isDriver()
+        ) {
+            throw new \RuntimeException(
+                'This account cannot be used as a customer.'
+            );
+        }
+
+        if (! $user->isCustomer()) {
+            $user->syncRoles([
+                User::ROLE_CUSTOMER,
+            ]);
+        }
+
+        /*
+         * Clear only the legacy customer-compatible web session. Admin and
+         * transporter Filament sessions use their own guards and remain
+         * isolated.
+         */
+        Auth::guard('web')->logout();
+        Auth::guard('customer')->login($user, true);
+
+        request()->session()->regenerate();
+
+        $this->rememberLoggedInCustomerMobile($mobile);
+    }
+
+    /**
      * Reuse the authenticated customer's valid mobile without showing OTP.
      */
     private function rememberLoggedInCustomerMobile(string $mobile): void
@@ -604,7 +694,7 @@ class ServiceSearchPanel extends Component
             'otp_customer_mobile' => $mobile,
             'customer_search_mobile' => $mobile,
             'rides_verified_mobile' => $mobile,
-            'otp_customer_user_id' => Auth::id(),
+            'otp_customer_user_id' => Auth::guard('customer')->id(),
         ]);
     }
 
@@ -668,8 +758,10 @@ class ServiceSearchPanel extends Component
 
         if (blank($mobile)) {
             Log::warning('Customer inquiry mobile is unavailable.', [
-                'authenticated_user_id' => auth()->id(),
-                'authenticated_user_mobile' => auth()->user()?->mobile,
+                'authenticated_user_id' =>
+                    Auth::guard('customer')->id(),
+                'authenticated_user_mobile' =>
+                    Auth::guard('customer')->user()?->mobile,
                 'component_mobile' => $this->mobileNumber,
                 'otp_customer_mobile' => request()->session()->get(
                     'otp_customer_mobile'
@@ -704,9 +796,11 @@ class ServiceSearchPanel extends Component
         ];
 
         $data = array_merge([
-            'user_id' => auth()->id(),
-            'customer_name' => auth()->user()?->name ?: $mobile,
-            'customer_email' => auth()->user()?->email,
+            'user_id' => Auth::guard('customer')->id(),
+            'customer_name' =>
+                Auth::guard('customer')->user()?->name ?: $mobile,
+            'customer_email' =>
+                Auth::guard('customer')->user()?->email,
             'source' => CustomerSearchActivity::SOURCE_WEBSITE,
             'platform' => 'website',
             'ip_address' => request()->ip(),
@@ -974,11 +1068,12 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtpReturn()
     {
+        $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
-            Auth::user()?->mobile
+            $customer?->mobile
         );
 
-        $alreadyLoggedInCustomer = Auth::check()
+        $alreadyLoggedInCustomer = $customer !== null
             && filled($loggedInMobile);
 
         $otpVerified = filled($this->otp)
@@ -1007,7 +1102,7 @@ class ServiceSearchPanel extends Component
         if ($alreadyLoggedInCustomer) {
             $this->rememberLoggedInCustomerMobile($loggedInMobile);
         } else {
-            $this->authenticateOtpCustomer($this->mobileNumber);
+            $this->authenticateGuestCustomer();
         }
 
         $this->saveCustomerLead([
@@ -1053,11 +1148,12 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitLocal()
     {
+        $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
-            Auth::user()?->mobile
+            $customer?->mobile
         );
 
-        $alreadyLoggedInCustomer = Auth::check()
+        $alreadyLoggedInCustomer = $customer !== null
             && filled($loggedInMobile);
 
         $otpVerified = filled($this->otp)
@@ -1073,7 +1169,7 @@ class ServiceSearchPanel extends Component
         if ($alreadyLoggedInCustomer) {
             $this->rememberLoggedInCustomerMobile($loggedInMobile);
         } else {
-            $this->authenticateOtpCustomer($this->mobileNumber);
+            $this->authenticateGuestCustomer();
         }
 
         $this->saveCustomerLead([
@@ -1916,11 +2012,12 @@ class ServiceSearchPanel extends Component
         $this->showValidation = false;
         $this->oneWayMsg = '';
 
+        $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
-            Auth::user()?->mobile
+            $customer?->mobile
         );
 
-        if (!Auth::check()) {
+        if ($customer === null || blank($loggedInMobile)) {
             $this->mobileNumber = null;
             $this->verifyOtp = null;
             $this->otp = false;
@@ -1929,6 +2026,8 @@ class ServiceSearchPanel extends Component
 
             return null;
         }
+
+        $this->rememberLoggedInCustomerMobile($loggedInMobile);
 
         return match ($this->selected_tab) {
             'local' => $this->verifySubmitLocal(),
@@ -1948,8 +2047,25 @@ class ServiceSearchPanel extends Component
 
     public function searchPackageSelf()
     {
+        $customer = $this->authenticatedCustomer();
 
-        $this->sendOtp = true;
+        if ($customer === null) {
+            $this->sendOtp = true;
+            return;
+        }
+
+        $mobile = CustomerSearchActivity::normalizeMobile(
+            $customer->mobile
+        );
+
+        if (blank($mobile)) {
+            $this->sendOtp = true;
+            return;
+        }
+
+        $this->rememberLoggedInCustomerMobile($mobile);
+
+        $this->verifySubmitOtpSelfDrive();
     }
 
 

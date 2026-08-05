@@ -48,8 +48,17 @@ class Login extends Component
 
     public function mount(): void
     {
-        if (Auth::check()) {
-            $this->redirectAfterLogin(Auth::user());
+        $customer = Auth::guard('customer')->user();
+
+        if ($customer instanceof User) {
+            $this->redirectAfterLogin($customer);
+            return;
+        }
+
+        $vendor = Auth::guard('vendor')->user();
+
+        if ($vendor instanceof User) {
+            $this->redirectAfterLogin($vendor);
         }
     }
 
@@ -210,8 +219,7 @@ class Login extends Component
                 return false;
             }
 
-            Auth::login($user, true);
-            session()->regenerate();
+            $this->loginUsingSelectedGuard($user);
             $this->clearOtpSession();
 
             return $this->redirectAfterLogin($user);
@@ -301,8 +309,11 @@ class Login extends Component
                 return false;
             }
 
-            Auth::login($user, true);
-            session()->regenerate();
+            if ($result['created']) {
+                $this->assignSelectedRole($user);
+            }
+
+            $this->loginUsingSelectedGuard($user);
             $this->clearOtpSession();
 
             if ($result['created']) {
@@ -346,21 +357,115 @@ class Login extends Component
 
     private function existingUserCanContinue(User $user): bool
     {
-        $storedType = $this->readUserAccountType($user);
-
-        if ($storedType === null) {
-            return true;
+        if (! $user->isActiveAccount()) {
+            $this->otpError = 'This account is inactive. Please contact Dura Cabs support.';
+            return false;
         }
 
-        if ($storedType !== $this->accountType) {
-            $selectedLabel = ucfirst($this->accountType);
-            $actualLabel = ucfirst($storedType);
-            $this->otpError = "This mobile number is registered as {$actualLabel}. Please choose {$actualLabel} login instead of {$selectedLabel}.";
+        if (
+            $user->isAdmin()
+            || $user->isModerator()
+            || $user->isDriver()
+        ) {
+            $this->otpError =
+                'This mobile number cannot be used on the customer/vendor login page.';
 
             return false;
         }
 
+        if ($this->accountType === 'customer') {
+            if ($user->isCustomer()) {
+                return true;
+            }
+
+            if ($user->isTransporter()) {
+                $this->otpError =
+                    'This mobile number is registered as Transporter. Please use Partner Login.';
+
+                return false;
+            }
+        }
+
+        if ($this->accountType === 'vendor') {
+            if ($user->isTransporter()) {
+                return true;
+            }
+
+            if ($user->isCustomer()) {
+                $this->otpError =
+                    'This mobile number is registered as Customer. Please choose Customer Login.';
+
+                return false;
+            }
+        }
+
+        /*
+         * Backward compatibility for older users that were created before
+         * Spatie roles were assigned.
+         */
+        $storedType = $this->readUserAccountType($user);
+
+        if ($storedType === null) {
+            $this->otpError =
+                'This account has no login role assigned. Please contact Dura Cabs support.';
+
+            return false;
+        }
+
+        if ($storedType !== $this->accountType) {
+            $selectedLabel = ucfirst($this->accountType);
+            $actualLabel = $storedType === 'vendor'
+                ? 'Transporter'
+                : 'Customer';
+
+            $this->otpError =
+                "This mobile number is registered as {$actualLabel}. "
+                . "Please choose {$actualLabel} login instead of {$selectedLabel}.";
+
+            return false;
+        }
+
+        $this->assignSelectedRole($user);
+
         return true;
+    }
+
+    private function selectedGuard(): string
+    {
+        return $this->accountType === 'vendor'
+            ? 'vendor'
+            : 'customer';
+    }
+
+    private function loginUsingSelectedGuard(User $user): void
+    {
+        $guard = $this->selectedGuard();
+
+        /*
+         * Prevent one browser session from carrying both customer and vendor
+         * identities at the same time.
+         */
+        $otherGuard = $guard === 'customer'
+            ? 'vendor'
+            : 'customer';
+
+        Auth::guard($otherGuard)->logout();
+        Auth::guard('web')->logout();
+
+        Auth::guard($guard)->login($user, true);
+
+        request()->session()->regenerate();
+    }
+
+    private function assignSelectedRole(User $user): void
+    {
+        $role = $this->accountType === 'vendor'
+            ? User::ROLE_TRANSPORTER
+            : User::ROLE_CUSTOMER;
+
+        if (! $user->hasRole($role)) {
+            $user->syncRoles([$role]);
+        }
     }
 
     private function readUserAccountType(User $user): ?string
@@ -414,14 +519,22 @@ class Login extends Component
 
     private function redirectAfterLogin(User $user): \Illuminate\Http\RedirectResponse
     {
-        $type = $this->readUserAccountType($user) ?? $this->accountType;
-
-        if ($type === 'vendor') {
-            foreach (['vendor.dashboard', 'transporter.dashboard', 'vendor.home', 'transporter.home'] as $routeName) {
+        if ($user->isTransporter()) {
+            foreach (
+                [
+                    'partner.dashboard',
+                    'vendor.dashboard',
+                    'transporter.dashboard',
+                    'vendor.home',
+                    'transporter.home',
+                ] as $routeName
+            ) {
                 if (Route::has($routeName)) {
                     return redirect()->route($routeName);
                 }
             }
+
+            return redirect('/transporter');
         }
 
         return redirect()->intended('/');

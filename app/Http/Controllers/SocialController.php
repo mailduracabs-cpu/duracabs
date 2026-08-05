@@ -64,7 +64,13 @@ class SocialController extends Controller
                 ])->save();
             }
 
-            Auth::login($user, true);
+            if (! $user->canUseCustomerLogin()) {
+                return redirect()->route('login')
+                    ->with('error','This account cannot use customer Google login.');
+            }
+
+            Auth::guard('web')->logout();
+            Auth::guard('customer')->login($user, true);
 
             request()->session()->regenerate();
 
@@ -100,7 +106,7 @@ class SocialController extends Controller
         Request $request
     ): RedirectResponse {
         abort_unless(
-            Auth::check(),
+            Auth::guard('admin')->check(),
             403,
             'Please sign in before connecting Google Search Console.'
         );
@@ -156,7 +162,7 @@ class SocialController extends Controller
         Request $request
     ): RedirectResponse {
         abort_unless(
-            Auth::check(),
+            Auth::guard('admin')->check(),
             403,
             'Please sign in before connecting Google Search Console.'
         );
@@ -278,7 +284,7 @@ class SocialController extends Controller
                 'services.search_console.property'
             );
 
-            $tokens['connected_by_user_id'] = Auth::id();
+            $tokens['connected_by_user_id'] = Auth::guard('admin')->id();
             $tokens['connected_at'] = now()->toIso8601String();
 
             $this->storeSearchConsoleTokens($tokens);
@@ -319,7 +325,7 @@ class SocialController extends Controller
     public function disconnectSearchConsole(): RedirectResponse
     {
         abort_unless(
-            Auth::check(),
+            Auth::guard('admin')->check(),
             403,
             'Please sign in before disconnecting Google Search Console.'
         );

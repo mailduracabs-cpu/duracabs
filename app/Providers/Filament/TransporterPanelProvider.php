@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\SelfDriveBookingResource;
 use App\Filament\Resources\TransporterProfileResource;
 use App\Filament\Resources\VehicleResource;
 use Filament\Http\Middleware\Authenticate;
@@ -19,8 +20,6 @@ use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
-use App\Filament\Resources\SelfDriveBookingResource;
-
 
 class TransporterPanelProvider extends PanelProvider
 {
@@ -30,19 +29,18 @@ class TransporterPanelProvider extends PanelProvider
             ->id('transporter')
             ->path('transporter')
             ->login()
+            ->authGuard('vendor')
             ->colors([
                 'primary' => Color::Amber,
             ])
             ->pages([
                 Pages\Dashboard::class,
             ])
-            
-			
-			->resources([
-				TransporterProfileResource::class,
-				VehicleResource::class,
-				SelfDriveBookingResource::class,
-			])
+            ->resources([
+                TransporterProfileResource::class,
+                VehicleResource::class,
+                SelfDriveBookingResource::class,
+            ])
             ->discoverWidgets(
                 in: app_path('Filament/Transporter/Widgets'),
                 for: 'App\\Filament\\Transporter\\Widgets'

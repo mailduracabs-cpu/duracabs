@@ -69,14 +69,23 @@ class PartnerLogin extends Component
             return;
         }
 
-        Auth::login($user);
+        if (! $user->canUseTransporterLogin()) {
+            $this->addError('mobile', 'This account is not allowed to access the Partner Portal.');
+            return;
+        }
+
+        Auth::guard('customer')->logout();
+        Auth::guard('web')->logout();
+        Auth::guard('vendor')->login($user, true);
+
+        session()->regenerate();
 
         session()->forget([
             'partner_login_mobile',
             'partner_login_otp',
         ]);
 
-        return redirect('/partner/dashboard');
+        return redirect('/transporter');
     }
 
     public function backToMobile()

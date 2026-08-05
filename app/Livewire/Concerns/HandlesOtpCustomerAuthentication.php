@@ -30,8 +30,8 @@ trait HandlesOtpCustomerAuthentication
                 'customer_search_mobile' => request()
                     ->session()
                     ->get('customer_search_mobile'),
-                'authenticated_user_id' => Auth::id(),
-                'authenticated_user_mobile' => Auth::user()?->mobile,
+                'authenticated_user_id' => Auth::guard('customer')->id(),
+                'authenticated_user_mobile' => Auth::guard('customer')->user()?->mobile,
             ]);
 
             throw new \RuntimeException(
@@ -80,7 +80,8 @@ trait HandlesOtpCustomerAuthentication
              * This intentionally replaces an existing admin/vendor login with
              * the customer who successfully verified the public booking OTP.
              */
-            Auth::login($user, true);
+            Auth::guard('web')->logout();
+            Auth::guard('customer')->login($user, true);
 
             /*
              * Regenerate the session ID after login, then restore the verified
@@ -157,7 +158,7 @@ trait HandlesOtpCustomerAuthentication
             request()->session()->get('rides_verified_mobile'),
             request()->input('mobileNumber'),
             request()->input('mobile'),
-            Auth::user()?->mobile,
+            Auth::guard('customer')->user()?->mobile,
         ];
 
         foreach ($candidates as $candidate) {
