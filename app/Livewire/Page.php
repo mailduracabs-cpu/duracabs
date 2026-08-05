@@ -2188,17 +2188,21 @@ public ?string $query2_search = '';
         return [
             '@context' => 'https://schema.org',
             '@type' => 'BreadcrumbList',
+            '@id' => $this->canonicalUrl . '#breadcrumb',
             'itemListElement' => [
                 [
                     '@type' => 'ListItem',
                     'position' => 1,
                     'name' => 'Home',
-                    'item' => url('/'),
+                    'item' => rtrim(url('/'), '/'),
                 ],
                 [
                     '@type' => 'ListItem',
                     'position' => 2,
-                    'name' => (string) ($this->firstFilled($page, ['title', 'name']) ?: $this->seoTitle),
+                    'name' => (string) (
+                        $this->firstFilled($page, ['title', 'name'])
+                        ?: $this->seoTitle
+                    ),
                     'item' => $this->canonicalUrl,
                 ],
             ],
@@ -2232,9 +2236,18 @@ public ?string $query2_search = '';
             ];
         }
 
+        if ($entities === []) {
+            return [];
+        }
+
         return [
             '@context' => 'https://schema.org',
             '@type' => 'FAQPage',
+            '@id' => $this->canonicalUrl . '#faq',
+            'url' => $this->canonicalUrl,
+            'isPartOf' => [
+                '@id' => $this->canonicalUrl . '#webpage',
+            ],
             'mainEntity' => $entities,
         ];
     }
@@ -2248,29 +2261,79 @@ public ?string $query2_search = '';
             default => 'WebPage',
         };
 
-        $schema = [
+        $homeUrl = rtrim(url('/'), '/') . '/';
+        $organizationId = $homeUrl . '#organization';
+        $websiteId = $homeUrl . '#website';
+        $pageId = $this->canonicalUrl . '#webpage';
+        $imageId = $this->canonicalUrl . '#primaryimage';
+
+        $aboutName = trim((string) (
+            data_get($page, 'brand.name')
+            ?: $this->firstFilled($page, ['name', 'title'])
+            ?: $this->seoTitle
+        ));
+
+        $schema = array_filter([
             '@context' => 'https://schema.org',
             '@type' => $schemaType,
+            '@id' => $pageId,
+            'url' => $this->canonicalUrl,
             'name' => $this->seoTitle,
             'description' => $this->seoDescription,
-            'url' => $this->canonicalUrl,
-            'image' => [$this->imageMeta],
-            'isPartOf' => [
-                '@type' => 'WebSite',
-                'name' => 'Dura Cabs',
-                'url' => url('/'),
+            'inLanguage' => str_replace('_', '-', app()->getLocale()),
+            'mainEntityOfPage' => [
+                '@id' => $pageId,
             ],
-        ];
+            'isPartOf' => [
+                '@id' => $websiteId,
+            ],
+            'publisher' => [
+                '@id' => $organizationId,
+            ],
+            'about' => $aboutName !== ''
+                ? [
+                    '@type' => filled(data_get($page, 'brand.name'))
+                        ? 'Place'
+                        : 'Thing',
+                    'name' => $aboutName,
+                ]
+                : null,
+            'image' => filled($this->imageMeta)
+                ? [
+                    '@type' => 'ImageObject',
+                    '@id' => $imageId,
+                    'url' => $this->imageMeta,
+                    'contentUrl' => $this->imageMeta,
+                    'caption' => $this->seoTitle,
+                ]
+                : null,
+            'primaryImageOfPage' => filled($this->imageMeta)
+                ? [
+                    '@id' => $imageId,
+                ]
+                : null,
+            'dateModified' => $this->normaliseSchemaDate(
+                $this->attributeValue($page, 'updated_at')
+            ),
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
 
         if ($schemaType === 'Article') {
             $schema['headline'] = $this->seoTitle;
-            $schema['datePublished'] = $this->normaliseSchemaDate($this->attributeValue($page, 'created_at'));
-            $schema['dateModified'] = $this->normaliseSchemaDate($this->attributeValue($page, 'updated_at'));
-            $schema['author'] = ['@type' => 'Organization', 'name' => 'Dura Cabs'];
-            $schema['publisher'] = ['@type' => 'Organization', 'name' => 'Dura Cabs'];
+            $schema['datePublished'] = $this->normaliseSchemaDate(
+                $this->attributeValue($page, 'created_at')
+            );
+            $schema['author'] = [
+                '@id' => $organizationId,
+            ];
         }
 
-        return array_filter($schema, fn ($value) => $value !== null && $value !== '');
+        return array_filter(
+            $schema,
+            static fn (mixed $value): bool =>
+                $value !== null && $value !== '' && $value !== []
+        );
     }
 
     private function normaliseSchemaDate(mixed $value): ?string

@@ -256,12 +256,49 @@
             'inLanguage' => str_replace('_', '-', app()->getLocale()),
         ];
 
+        $homepageSchema = request()->is('/')
+            ? array_filter([
+                '@type' => 'WebPage',
+                '@id' => $homeUrl . '#webpage',
+                'url' => $homeUrl,
+                'name' => $metaTitle,
+                'description' => $metaDescription,
+                'inLanguage' => str_replace('_', '-', app()->getLocale()),
+                'isPartOf' => [
+                    '@id' => $websiteId,
+                ],
+                'about' => [
+                    '@id' => $organizationId,
+                ],
+                'publisher' => [
+                    '@id' => $organizationId,
+                ],
+                'primaryImageOfPage' => filled($ogImage)
+                    ? [
+                        '@id' => $homeUrl . '#primaryimage',
+                    ]
+                    : null,
+                'image' => filled($ogImage)
+                    ? [
+                        '@type' => 'ImageObject',
+                        '@id' => $homeUrl . '#primaryimage',
+                        'url' => $ogImage,
+                        'contentUrl' => $ogImage,
+                        'caption' => $metaTitle,
+                    ]
+                    : null,
+            ], static fn (mixed $value): bool =>
+                $value !== null && $value !== '' && $value !== []
+            )
+            : null;
+
         $globalSchema = [
             '@context' => 'https://schema.org',
-            '@graph' => [
+            '@graph' => array_values(array_filter([
                 $organizationSchema,
                 $websiteSchema,
-            ],
+                $homepageSchema,
+            ])),
         ];
 
     @endphp

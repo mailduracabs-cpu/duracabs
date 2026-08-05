@@ -884,7 +884,9 @@ public function tabValue($val){
                 'offerCount' => $offerCount > 1
                     ? $offerCount
                     : null,
-                'availability' => 'https://schema.org/InStock',
+                'availability' => (bool) $ride->in_stock
+                    ? 'https://schema.org/InStock'
+                    : 'https://schema.org/OutOfStock',
                 'url' => $canonicalUrl,
                 'seller' => $isProduct
                     ? [
@@ -914,10 +916,27 @@ public function tabValue($val){
                     '@type' => 'ImageObject',
                     '@id' => $canonicalUrl . '#primaryimage',
                     'url' => $imageMeta,
+                    'contentUrl' => $imageMeta,
+                    'caption' => $seoTitle,
+                ]
+                : null,
+            'primaryImageOfPage' => filled($imageMeta)
+                ? [
+                    '@id' => $canonicalUrl . '#primaryimage',
                 ]
                 : null,
             'category' => $isProduct ? $tripLabel : null,
             'serviceType' => $isProduct ? null : $tripLabel,
+            'availableChannel' => $isProduct
+                ? null
+                : [
+                    '@type' => 'ServiceChannel',
+                    'serviceUrl' => $canonicalUrl,
+                    'availableLanguage' => [
+                        'English',
+                        'Hindi',
+                    ],
+                ],
             'provider' => $isProduct
                 ? null
                 : [
@@ -932,10 +951,12 @@ public function tabValue($val){
             'areaServed' => $isProduct
                 ? null
                 : array_values(array_filter([
-                    [
-                        '@type' => 'City',
-                        'name' => $pickupName,
-                    ],
+                    $pickupName !== ''
+                        ? [
+                            '@type' => 'City',
+                            'name' => $pickupName,
+                        ]
+                        : null,
                     $ride->ride_type === 'one_way'
                         && $dropName !== ''
                             ? [
