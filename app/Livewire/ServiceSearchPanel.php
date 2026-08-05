@@ -639,12 +639,6 @@ class ServiceSearchPanel extends Component
             );
         }
 
-        if (! $user->isActiveAccount()) {
-            throw new \RuntimeException(
-                'This customer account is inactive.'
-            );
-        }
-
         if (
             $user->isAdmin()
             || $user->isModerator()
@@ -654,6 +648,17 @@ class ServiceSearchPanel extends Component
             throw new \RuntimeException(
                 'This account cannot be used as a customer.'
             );
+        }
+
+        /*
+         * Customer accounts do not require manual approval. Existing inactive
+         * or legacy customer records are activated automatically after a valid
+         * OTP. New OTP-created customers are also made active immediately.
+         */
+        if (! $user->isActiveAccount()) {
+            $user->forceFill([
+                'is_active' => true,
+            ])->save();
         }
 
         if (! $user->isCustomer()) {

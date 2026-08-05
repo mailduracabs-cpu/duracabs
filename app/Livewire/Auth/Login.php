@@ -11,14 +11,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
-use Illuminate\Validation\Rule;
 use Livewire\Component;
 
 class Login extends Component
 {
-    public int $step = 1;
+    public int $step = 2;
 
-    public string $accountType = '';
+    public string $accountType = 'customer';
 
     public string $mobile = '';
 
@@ -48,30 +47,22 @@ class Login extends Component
 
     public function mount(): void
     {
+        $this->accountType = 'customer';
+        $this->step = 2;
+
         $customer = Auth::guard('customer')->user();
 
         if ($customer instanceof User) {
             $this->redirectAfterLogin($customer);
-            return;
-        }
-
-        $vendor = Auth::guard('vendor')->user();
-
-        if ($vendor instanceof User) {
-            $this->redirectAfterLogin($vendor);
         }
     }
 
     public function selectAccountType(string $type): void
     {
-        if (!in_array($type, ['customer', 'vendor'], true)) {
-            return;
-        }
-
         $this->resetValidation();
         $this->resetOtpState();
 
-        $this->accountType = $type;
+        $this->accountType = 'customer';
         $this->step = 2;
     }
 
@@ -80,7 +71,8 @@ class Login extends Component
         $this->resetValidation();
         $this->resetOtpState();
         $this->mobile = '';
-        $this->step = 1;
+        $this->accountType = 'customer';
+        $this->step = 2;
     }
 
     public function changeMobile(): void
@@ -92,12 +84,7 @@ class Login extends Component
 
     public function save(): bool
     {
-        if (!in_array($this->accountType, ['customer', 'vendor'], true)) {
-            $this->step = 1;
-            $this->addError('accountType', 'Please select Customer or Vendor.');
-
-            return false;
-        }
+        $this->accountType = 'customer';
 
         $this->mobile = $this->normalizeMobile($this->mobile);
 
@@ -212,89 +199,28 @@ class Login extends Component
         }
 
         $this->mobile = $this->normalizeMobile($this->mobile);
-        $user = User::query()->where('mobile', $this->mobile)->first();
-
-        if ($user) {
-            if (!$this->existingUserCanContinue($user)) {
-                return false;
-            }
-
-            $this->loginUsingSelectedGuard($user);
-            $this->clearOtpSession();
-
-            return $this->redirectAfterLogin($user);
-        }
-
-        $this->isNewAccount = true;
-        $this->step = 4;
-        $this->sendOtp = false;
-        $this->otpmessage = 0;
-        $this->otpError = null;
-        $this->dispatch('registration-step-ready');
-
-        return true;
-    }
-
-    public function completeRegistration(): bool|\Illuminate\Http\RedirectResponse
-    {
-        if (!$this->isNewAccount || $this->step !== 4) {
-            $this->step = 1;
-
-            return false;
-        }
-
-        $emailRules = ['nullable', 'email:rfc,dns', 'max:190'];
-        if ($this->email !== '') {
-            $emailRules[] = Rule::unique('users', 'email');
-        }
-
-        $rules = [
-            'name' => ['required', 'string', 'min:2', 'max:100'],
-            'email' => $emailRules,
-            'acceptTerms' => ['accepted'],
-        ];
-
-        if ($this->accountType === 'vendor') {
-            $rules['businessName'] = ['required', 'string', 'min:2', 'max:150'];
-        }
-
-        $this->validate($rules, [
-            'name.required' => $this->accountType === 'vendor'
-                ? 'Please enter owner name.'
-                : 'Please enter your name.',
-            'businessName.required' => 'Please enter business name.',
-            'email.email' => 'Please enter a valid email address.',
-            'email.unique' => 'This email is already registered.',
-            'acceptTerms.accepted' => 'Please accept the terms and privacy policy.',
-        ]);
 
         try {
-            $result = DB::transaction(function () {
-                $existingUser = User::query()
+            $result = DB::transaction(function (): array {
+                $user = User::query()
                     ->where('mobile', $this->mobile)
                     ->lockForUpdate()
                     ->first();
 
-                if ($existingUser) {
+                if ($user) {
                     return [
-                        'user' => $existingUser,
+                        'user' => $user,
                         'created' => false,
                     ];
                 }
 
-                $payload = [
-                    'name' => trim($this->name),
+                $user = User::query()->create([
+                    'name' => 'Customer ' . substr($this->mobile, -4),
                     'mobile' => $this->mobile,
-                    'email' => $this->email !== ''
-                        ? Str::lower(trim($this->email))
-                        : $this->generateUniqueEmail(),
+                    'email' => $this->generateUniqueEmail(),
                     'password' => bcrypt(Str::random(40)),
-                ];
-
-                $this->appendAccountTypeFields($payload);
-                $this->appendBusinessNameField($payload);
-
-                $user = User::query()->create($payload);
+                    'is_active' => true,
+                ]);
 
                 return [
                     'user' => $user,
@@ -305,14 +231,11 @@ class Login extends Component
             /** @var User $user */
             $user = $result['user'];
 
-            if (!$result['created'] && !$this->existingUserCanContinue($user)) {
+            if (! $this->existingUserCanContinue($user)) {
                 return false;
             }
 
-            if ($result['created']) {
-                $this->assignSelectedRole($user);
-            }
-
+            $this->assignSelectedRole($user);
             $this->loginUsingSelectedGuard($user);
             $this->clearOtpSession();
 
@@ -322,16 +245,24 @@ class Login extends Component
 
             return $this->redirectAfterLogin($user);
         } catch (\Throwable $e) {
-            Log::error('Login registration failed', [
+            Log::error('OTP customer auto-registration/login failed', [
                 'mobile' => $this->mobile,
-                'account_type' => $this->accountType,
                 'error' => $e->getMessage(),
             ]);
 
-            $this->addError('registration', 'Account create nahi ho paya. Please dobara try karein.');
+            $this->otpError =
+                'Login complete nahi ho paya. Please dobara try karein.';
 
             return false;
         }
+    }
+
+    public function completeRegistration(): bool|\Illuminate\Http\RedirectResponse
+    {
+        $this->step = 2;
+        $this->isNewAccount = false;
+
+        return false;
     }
 
     public function updateMessage(): void
@@ -357,114 +288,54 @@ class Login extends Component
 
     private function existingUserCanContinue(User $user): bool
     {
-        if (! $user->isActiveAccount()) {
-            $this->otpError = 'This account is inactive. Please contact Dura Cabs support.';
-            return false;
-        }
-
         if (
             $user->isAdmin()
             || $user->isModerator()
+            || $user->isTransporter()
             || $user->isDriver()
         ) {
             $this->otpError =
-                'This mobile number cannot be used on the customer/vendor login page.';
+                'This mobile number cannot be used for customer login.';
 
             return false;
         }
 
-        if ($this->accountType === 'customer') {
-            if ($user->isCustomer()) {
-                return true;
-            }
-
-            if ($user->isTransporter()) {
-                $this->otpError =
-                    'This mobile number is registered as Transporter. Please use Partner Login.';
-
-                return false;
-            }
+        if (! $user->is_active) {
+            $user->forceFill([
+                'is_active' => true,
+            ])->save();
         }
 
-        if ($this->accountType === 'vendor') {
-            if ($user->isTransporter()) {
-                return true;
-            }
-
-            if ($user->isCustomer()) {
-                $this->otpError =
-                    'This mobile number is registered as Customer. Please choose Customer Login.';
-
-                return false;
-            }
+        if (! $user->isCustomer()) {
+            $user->syncRoles([
+                User::ROLE_CUSTOMER,
+            ]);
         }
-
-        /*
-         * Backward compatibility for older users that were created before
-         * Spatie roles were assigned.
-         */
-        $storedType = $this->readUserAccountType($user);
-
-        if ($storedType === null) {
-            $this->otpError =
-                'This account has no login role assigned. Please contact Dura Cabs support.';
-
-            return false;
-        }
-
-        if ($storedType !== $this->accountType) {
-            $selectedLabel = ucfirst($this->accountType);
-            $actualLabel = $storedType === 'vendor'
-                ? 'Transporter'
-                : 'Customer';
-
-            $this->otpError =
-                "This mobile number is registered as {$actualLabel}. "
-                . "Please choose {$actualLabel} login instead of {$selectedLabel}.";
-
-            return false;
-        }
-
-        $this->assignSelectedRole($user);
 
         return true;
     }
 
     private function selectedGuard(): string
     {
-        return $this->accountType === 'vendor'
-            ? 'vendor'
-            : 'customer';
+        return 'customer';
     }
 
     private function loginUsingSelectedGuard(User $user): void
     {
-        $guard = $this->selectedGuard();
-
-        /*
-         * Prevent one browser session from carrying both customer and vendor
-         * identities at the same time.
-         */
-        $otherGuard = $guard === 'customer'
-            ? 'vendor'
-            : 'customer';
-
-        Auth::guard($otherGuard)->logout();
+        Auth::guard('vendor')->logout();
         Auth::guard('web')->logout();
 
-        Auth::guard($guard)->login($user, true);
+        Auth::guard('customer')->login($user, true);
 
         request()->session()->regenerate();
     }
 
     private function assignSelectedRole(User $user): void
     {
-        $role = $this->accountType === 'vendor'
-            ? User::ROLE_TRANSPORTER
-            : User::ROLE_CUSTOMER;
-
-        if (! $user->hasRole($role)) {
-            $user->syncRoles([$role]);
+        if (! $user->hasRole(User::ROLE_CUSTOMER)) {
+            $user->syncRoles([
+                User::ROLE_CUSTOMER,
+            ]);
         }
     }
 
@@ -519,24 +390,6 @@ class Login extends Component
 
     private function redirectAfterLogin(User $user): \Illuminate\Http\RedirectResponse
     {
-        if ($user->isTransporter()) {
-            foreach (
-                [
-                    'partner.dashboard',
-                    'vendor.dashboard',
-                    'transporter.dashboard',
-                    'vendor.home',
-                    'transporter.home',
-                ] as $routeName
-            ) {
-                if (Route::has($routeName)) {
-                    return redirect()->route($routeName);
-                }
-            }
-
-            return redirect('/transporter');
-        }
-
         return redirect()->intended('/');
     }
 
@@ -571,7 +424,7 @@ class Login extends Component
     private function sendNewAccountMessages(User $user): void
     {
         try {
-            $label = $this->accountType === 'vendor' ? 'vendor' : 'customer';
+            $label = 'customer';
             $message = "Dear {$user->name},\n\n";
             $message .= "Your Dura Cabs {$label} account has been created successfully.\n\n";
             $message .= "Mobile Number: {$user->mobile}\n\n";
@@ -597,10 +450,6 @@ class Login extends Component
             $message .= "Name: {$user->name}\n";
             $message .= "Mobile: {$user->mobile}\n";
             $message .= "User ID: {$user->id}\n";
-
-            if ($this->accountType === 'vendor') {
-                $message .= "Business: {$this->businessName}\n";
-            }
 
             WhatsAppService::send($adminMobile, $message);
         } catch (\Throwable $e) {
@@ -629,6 +478,7 @@ class Login extends Component
         $this->name = '';
         $this->email = '';
         $this->businessName = '';
+        $this->accountType = 'customer';
         $this->resetOtpInputs();
         $this->clearOtpSession();
     }

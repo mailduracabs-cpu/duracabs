@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Models\Vehicle;
 use App\Models\SelfDriveBooking;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -192,12 +193,14 @@ class RidesPage extends Component
             env('GOOGLE_MAPS_API_KEY', '')
         );
 
+        $customer = $this->authenticatedCustomer();
+
         $this->fareUnlocked =
             (bool) session('rides_fare_unlocked', false)
-            || Auth::check();
+            || $customer !== null;
 
-        $this->mobileNumber =
-            (string) session('rides_verified_mobile', '');
+        $this->mobileNumber = $customer?->mobile
+            ?: (string) session('rides_verified_mobile', '');
 
         if ($this->tab === 'return') {
             $this->normaliseMultiCityRoundTrip();
@@ -497,7 +500,7 @@ class RidesPage extends Component
                     'product_id' => null,
                     'vehicle_id' => (int) $vehicle->getKey(),
                     'customer' => [
-                        'user_id' => Auth::id(),
+                        'user_id' => Auth::guard('customer')->id(),
                         'mobile' => $this->mobileNumber ?: session('rides_verified_mobile'),
                     ],
                     'trip' => [
@@ -555,7 +558,7 @@ class RidesPage extends Component
                     'product_id' => (int) $product->getKey(),
                     'vehicle_id' => null,
                     'customer' => [
-                        'user_id' => Auth::id(),
+                        'user_id' => Auth::guard('customer')->id(),
                         'mobile' => $this->mobileNumber ?: session('rides_verified_mobile'),
                     ],
                     'trip' => [
@@ -822,38 +825,161 @@ class RidesPage extends Component
         );
 
         if (! ($result['success'] ?? false)) {
-            $this->otpError = (string) ($result['message'] ?? 'OTP verify nahi ho saka.');
+            $this->otpError = (string) (
+                $result['message']
+                ?? 'OTP verify nahi ho saka.'
+            );
+
             return;
         }
 
-        $mobile = (string) $result['mobile'];
-        $user = $result['user'] ?? null;
+        $mobile = $this->normalizeCustomerMobile(
+            (string) ($result['mobile'] ?? $this->mobileNumber)
+        );
 
-        session([
-            'rides_fare_unlocked' => true,
-            'rides_verified_mobile' => $mobile,
-        ]);
-
-        $this->fareUnlocked = true;
-        $this->showOtpModal = false;
-        $this->otpStage = 'mobile';
-        $this->otpCode = '';
-
-        $this->createOrUpdateRideInquiry($mobile, $user?->getKey());
-        $this->alert('success', 'Mobile verified. Exact fares are now unlocked.', [
-            'position' => 'center-end',
-            'timer' => 3000,
-            'toast' => true,
-        ]);
-
-        $action = $this->pendingBookingAction;
-        $payload = $this->pendingBookingPayload;
-        $this->pendingBookingAction = null;
-        $this->pendingBookingPayload = null;
-
-        if ($action && method_exists($this, $action)) {
-            $this->{$action}($payload);
+        if ($mobile === '') {
+            $this->otpError = 'Verified mobile number is invalid.';
+            return;
         }
+
+        try {
+            $user = DB::transaction(function () use ($mobile): User {
+                $user = User::query()
+                    ->where('mobile', $mobile)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $user) {
+                    $user = User::query()->create([
+                        'name' => 'Customer ' . substr($mobile, -4),
+                        'mobile' => $mobile,
+                        'email' => $this->generateCustomerEmail($mobile),
+                        'password' => bcrypt(Str::random(40)),
+                        'is_active' => true,
+                    ]);
+                }
+
+                if (
+                    $user->isAdmin()
+                    || $user->isModerator()
+                    || $user->isTransporter()
+                    || $user->isDriver()
+                ) {
+                    throw new \RuntimeException(
+                        'STAFF_ACCOUNT_CANNOT_USE_CUSTOMER_LOGIN'
+                    );
+                }
+
+                if (! $user->is_active) {
+                    $user->forceFill([
+                        'is_active' => true,
+                    ])->save();
+                }
+
+                if (! $user->isCustomer()) {
+                    $user->syncRoles([
+                        User::ROLE_CUSTOMER,
+                    ]);
+                }
+
+                return $user->fresh();
+            });
+
+            Auth::guard('web')->logout();
+            Auth::guard('vendor')->logout();
+            Auth::guard('customer')->login($user, true);
+
+            request()->session()->regenerate();
+
+            session([
+                'rides_fare_unlocked' => true,
+                'rides_verified_mobile' => $mobile,
+                'otp_customer_mobile' => $mobile,
+                'customer_search_mobile' => $mobile,
+                'otp_customer_user_id' => $user->getKey(),
+            ]);
+
+            $this->mobileNumber = $mobile;
+            $this->fareUnlocked = true;
+            $this->showOtpModal = false;
+            $this->otpStage = 'mobile';
+            $this->otpCode = '';
+
+            $this->createOrUpdateRideInquiry(
+                $mobile,
+                $user->getKey()
+            );
+
+            $this->alert(
+                'success',
+                'Mobile verified. Exact fares are now unlocked.',
+                [
+                    'position' => 'center-end',
+                    'timer' => 3000,
+                    'toast' => true,
+                ]
+            );
+
+            $action = $this->pendingBookingAction;
+            $payload = $this->pendingBookingPayload;
+
+            $this->pendingBookingAction = null;
+            $this->pendingBookingPayload = null;
+
+            if ($action && method_exists($this, $action)) {
+                $this->{$action}($payload);
+            }
+        } catch (\Throwable $exception) {
+            Log::error('Rides OTP customer login failed.', [
+                'mobile' => $mobile,
+                'message' => $exception->getMessage(),
+            ]);
+
+            $this->otpError = $exception->getMessage()
+                === 'STAFF_ACCOUNT_CANNOT_USE_CUSTOMER_LOGIN'
+                ? 'This mobile number cannot be used for customer login.'
+                : 'Login complete nahi ho paya. Please dobara try karein.';
+        }
+    }
+
+    private function authenticatedCustomer(): ?User
+    {
+        $user = Auth::guard('customer')->user();
+
+        if (! $user instanceof User) {
+            return null;
+        }
+
+        return $user->canUseCustomerLogin()
+            ? $user
+            : null;
+    }
+
+    private function normalizeCustomerMobile(mixed $mobile): string
+    {
+        $mobile = preg_replace('/\D+/', '', (string) $mobile) ?? '';
+
+        if (strlen($mobile) > 10) {
+            $mobile = substr($mobile, -10);
+        }
+
+        return preg_match('/^[6-9]\d{9}$/', $mobile)
+            ? $mobile
+            : '';
+    }
+
+    private function generateCustomerEmail(string $mobile): string
+    {
+        $email = $mobile . '@duracabs.local';
+
+        if (! User::query()->where('email', $email)->exists()) {
+            return $email;
+        }
+
+        return $mobile
+            . '-'
+            . Str::lower(Str::random(6))
+            . '@duracabs.local';
     }
 
     private function createOrUpdateRideInquiry(string $mobile, mixed $userId = null): void
