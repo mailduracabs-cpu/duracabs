@@ -12,6 +12,27 @@
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
     @section('og_type', 'website')
 
+
+    @php
+        $pageSchemas = app(\App\SEO\Services\SeoSchemaService::class)
+            ->pageSchemas($page);
+    @endphp
+
+    @if ($pageSchemas !== [])
+        @push('schema')
+            @foreach ($pageSchemas as $pageSchema)
+                <script type="application/ld+json">
+                    {!! json_encode(
+                        $pageSchema,
+                        JSON_UNESCAPED_SLASHES
+                        | JSON_UNESCAPED_UNICODE
+                        | JSON_PRETTY_PRINT
+                    ) !!}
+                </script>
+            @endforeach
+        @endpush
+    @endif
+
     @php
         $pageName = filled($page->name) ? $page->name : 'your city';
         $brandName = data_get($page, 'brand.name', $pageName);

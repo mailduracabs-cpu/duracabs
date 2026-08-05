@@ -6,6 +6,7 @@ use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\RideInquiry;
+use App\SEO\Services\SeoSchemaService;
 use Jantinnerezo\LivewireAlert\LivewireAlert;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -588,7 +589,7 @@ public function tabValue($val){
 
         $faqs = $this->buildFaqs($ride, $routeName, $tripLabel, $lowestFare);
 
-        $serviceSchema = $this->buildServiceSchema(
+        $automaticSchema = $this->buildServiceSchema(
             $ride,
             $canonicalUrl,
             $seoTitle,
@@ -601,6 +602,12 @@ public function tabValue($val){
             $prices->count(),
             $contentType
         );
+
+        $serviceSchema = app(SeoSchemaService::class)
+            ->resolveProductSchema(
+                product: $ride,
+                automaticSchema: $automaticSchema
+            );
 
         $faqSchema = [
             '@context' => 'https://schema.org',
@@ -772,7 +779,6 @@ public function tabValue($val){
             ],
         ];
     }
-
     private function buildServiceSchema(
         Product $ride,
         string $canonicalUrl,

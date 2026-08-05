@@ -8,6 +8,9 @@ use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Get;
 use Illuminate\Support\Facades\Cache;
@@ -140,6 +143,135 @@ TextInput::make('meta_title')
                         ),
                     )
                     ->columnSpanFull(),
+
+
+                Section::make('Manual JSON-LD Schema')
+                    ->description(
+                        'Migration ke bina schema aur FAQs existing seo_analysis JSON field me save honge. Manual JSON blank ho to frontend automatic schema use karega.'
+                    )
+                    ->icon('heroicon-o-code-bracket-square')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])
+                            ->schema([
+                                Toggle::make('seo_analysis.schema.enabled')
+                                    ->label('Enable Manual Schema')
+                                    ->default(false)
+                                    ->live(),
+
+                                Select::make('seo_analysis.schema.type')
+                                    ->label('Schema Type')
+                                    ->options([
+                                        'auto' => 'Auto',
+                                        'Organization' => 'Organization',
+                                        'WebSite' => 'WebSite',
+                                        'LocalBusiness' => 'Local Business',
+                                        'Service' => 'Service',
+                                        'Product' => 'Product',
+                                        'Article' => 'Article',
+                                        'FAQPage' => 'FAQ Page',
+                                        'BreadcrumbList' => 'Breadcrumb',
+                                        'Review' => 'Review',
+                                        'HowTo' => 'HowTo',
+                                        'Event' => 'Event',
+                                        'Custom' => 'Custom',
+                                    ])
+                                    ->default('auto')
+                                    ->native(false)
+                                    ->searchable()
+                                    ->live(),
+                            ]),
+
+                        Textarea::make('seo_analysis.schema.json')
+                            ->label('Manual JSON-LD')
+                            ->placeholder(
+                                "{\n  \"@context\": \"https://schema.org\",\n  \"@type\": \"Service\",\n  \"name\": \"Example Service\"\n}"
+                            )
+                            ->helperText(
+                                'Sirf valid JSON object ya JSON array enter karein. <script> tag paste na karein.'
+                            )
+                            ->rows(16)
+                            ->extraAttributes([
+                                'class' => 'font-mono text-sm',
+                                'spellcheck' => 'false',
+                            ])
+                            ->live(debounce: 900)
+                            ->rules([
+                                function (Get $get): Closure {
+                                    return static function (
+                                        string $attribute,
+                                        mixed $value,
+                                        Closure $fail
+                                    ) use ($get): void {
+                                        if (! (bool) $get('seo_analysis.schema.enabled')) {
+                                            return;
+                                        }
+
+                                        $json = trim((string) $value);
+
+                                        if ($json === '') {
+                                            return;
+                                        }
+
+                                        try {
+                                            $decoded = json_decode(
+                                                $json,
+                                                true,
+                                                512,
+                                                JSON_THROW_ON_ERROR
+                                            );
+
+                                            if (! is_array($decoded)) {
+                                                $fail('Schema JSON object ya array hona chahiye.');
+                                            }
+                                        } catch (\JsonException $exception) {
+                                            $fail(
+                                                'Invalid JSON: ' . $exception->getMessage()
+                                            );
+                                        }
+                                    };
+                                },
+                            ])
+                            ->columnSpanFull(),
+
+                        Repeater::make('seo_analysis.faqs')
+                            ->label('FAQ Builder')
+                            ->helperText(
+                                'FAQs yahan save honge. Frontend inhe FAQPage schema me convert kar sakta hai.'
+                            )
+                            ->schema([
+                                TextInput::make('question')
+                                    ->label('Question')
+                                    ->required()
+                                    ->maxLength(500)
+                                    ->columnSpanFull(),
+
+                                Textarea::make('answer')
+                                    ->label('Answer')
+                                    ->required()
+                                    ->rows(4)
+                                    ->maxLength(3000)
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(1)
+                            ->defaultItems(0)
+                            ->addActionLabel('Add FAQ')
+                            ->reorderable()
+                            ->collapsible()
+                            ->columnSpanFull(),
+
+                        Placeholder::make('dura_schema_preview')
+                            ->label('Schema Validation Preview')
+                            ->content(
+                                fn (Get $get): HtmlString =>
+                                    $this->renderSchemaPreview($get)
+                            )
+                            ->columnSpanFull(),
+                    ]),
 
                 Placeholder::make('dura_google_preview')
                     ->label('Google Search Preview')
@@ -962,6 +1094,91 @@ TextInput::make('meta_title')
             {$safeLabel}: {$count}
         </span>
         HTML;
+    }
+
+
+    private function renderSchemaPreview(Get $get): HtmlString
+    {
+        $enabled = (bool) $get('seo_analysis.schema.enabled');
+        $type = trim((string) (
+            $get('seo_analysis.schema.type')
+            ?: 'auto'
+        ));
+        $json = trim((string) $get('seo_analysis.schema.json'));
+        $faqs = $get('seo_analysis.faqs');
+        $faqCount = is_array($faqs)
+            ? count(array_filter(
+                $faqs,
+                static fn (mixed $faq): bool =>
+                    is_array($faq)
+                    && filled($faq['question'] ?? null)
+                    && filled($faq['answer'] ?? null)
+            ))
+            : 0;
+
+        if (! $enabled) {
+            return new HtmlString(
+                '<div style="padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#475569;font-size:12px;">'
+                . 'Manual schema disabled hai. Frontend automatic page schema use karega.'
+                . ($faqCount > 0
+                    ? ' Saved FAQs: <strong>' . $faqCount . '</strong>.'
+                    : '')
+                . '</div>'
+            );
+        }
+
+        if ($json === '') {
+            return new HtmlString(
+                '<div style="padding:12px;border:1px solid #fde68a;border-radius:10px;background:#fffbeb;color:#92400e;font-size:12px;">'
+                . 'Manual schema enabled hai, lekin JSON blank hai. Type: <strong>'
+                . e($type)
+                . '</strong>. Blank rehne par automatic schema fallback use hoga.'
+                . '</div>'
+            );
+        }
+
+        try {
+            $decoded = json_decode(
+                $json,
+                true,
+                512,
+                JSON_THROW_ON_ERROR
+            );
+
+            if (! is_array($decoded)) {
+                throw new \JsonException('Root value object ya array nahi hai.');
+            }
+
+            $detectedType = data_get($decoded, '@type');
+
+            if ($detectedType === null && array_is_list($decoded)) {
+                $detectedType = collect($decoded)
+                    ->pluck('@type')
+                    ->filter()
+                    ->implode(', ');
+            }
+
+            $detectedType = filled($detectedType)
+                ? (string) $detectedType
+                : $type;
+
+            return new HtmlString(
+                '<div style="padding:12px;border:1px solid #bbf7d0;border-radius:10px;background:#f0fdf4;color:#166534;font-size:12px;">'
+                . '✓ Valid JSON-LD. Detected type: <strong>'
+                . e($detectedType)
+                . '</strong>. Saved FAQs: <strong>'
+                . $faqCount
+                . '</strong>.'
+                . '</div>'
+            );
+        } catch (\JsonException $exception) {
+            return new HtmlString(
+                '<div style="padding:12px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#991b1b;font-size:12px;">'
+                . '✕ Invalid JSON: '
+                . e($exception->getMessage())
+                . '</div>'
+            );
+        }
     }
 
     private function renderGooglePreview(Get $get): HtmlString
