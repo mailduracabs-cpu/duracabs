@@ -813,7 +813,7 @@ class RidesPage extends Component
         $this->sendFareOtp();
     }
 
-    public function verifyFareOtp(): void
+    public function verifyFareOtp(): mixed
     {
         $this->resetErrorBag();
         $this->otpError = null;
@@ -830,7 +830,7 @@ class RidesPage extends Component
                 ?? 'OTP verify nahi ho saka.'
             );
 
-            return;
+            return null;
         }
 
         $mobile = $this->normalizeCustomerMobile(
@@ -839,7 +839,8 @@ class RidesPage extends Component
 
         if ($mobile === '') {
             $this->otpError = 'Verified mobile number is invalid.';
-            return;
+
+            return null;
         }
 
         try {
@@ -927,8 +928,15 @@ class RidesPage extends Component
             $this->pendingBookingPayload = null;
 
             if ($action && method_exists($this, $action)) {
-                $this->{$action}($payload);
+                /*
+                 * The pending booking method may return a redirect response.
+                 * Return it to Livewire instead of discarding it, otherwise
+                 * the OTP modal closes but the page appears to be stuck.
+                 */
+                return $this->{$action}($payload);
             }
+
+            return null;
         } catch (\Throwable $exception) {
             Log::error('Rides OTP customer login failed.', [
                 'mobile' => $mobile,
@@ -939,6 +947,8 @@ class RidesPage extends Component
                 === 'STAFF_ACCOUNT_CANNOT_USE_CUSTOMER_LOGIN'
                 ? 'This mobile number cannot be used for customer login.'
                 : 'Login complete nahi ho paya. Please dobara try karein.';
+
+            return null;
         }
     }
 

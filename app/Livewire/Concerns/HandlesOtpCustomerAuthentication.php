@@ -12,27 +12,45 @@ use Illuminate\Support\Str;
 trait HandlesOtpCustomerAuthentication
 {
     /**
-     * Authenticate the customer after successful homepage OTP verification.
+     * Authenticate or automatically register a customer after successful OTP
+     * verification.
+     *
+     * Customer rules:
+     * - no password entry is required;
+     * - no name/email form is required;
+     * - new customer accounts are active immediately;
+     * - existing inactive customer accounts are activated after valid OTP;
+     * - Customer role is assigned automatically;
+     * - staff and transporter accounts can never become customers here.
      */
-    protected function authenticateOtpCustomer(?string $mobileNumber = null): User
-    {
+    protected function authenticateOtpCustomer(
+        ?string $mobileNumber = null
+    ): User {
         $mobile = $this->resolveOtpCustomerMobile($mobileNumber);
 
         if ($mobile === '') {
-            Log::warning('OTP customer authentication mobile is missing.', [
-                'passed_mobile' => $mobileNumber,
-                'component_mobile' => property_exists($this, 'mobileNumber')
-                    ? $this->mobileNumber
-                    : null,
-                'otp_session_mobile' => request()
-                    ->session()
-                    ->get('otp_customer_mobile'),
-                'customer_search_mobile' => request()
-                    ->session()
-                    ->get('customer_search_mobile'),
-                'authenticated_user_id' => Auth::guard('customer')->id(),
-                'authenticated_user_mobile' => Auth::guard('customer')->user()?->mobile,
-            ]);
+            Log::warning(
+                'OTP customer authentication mobile is missing.',
+                [
+                    'passed_mobile' => $mobileNumber,
+                    'component_mobile' => property_exists(
+                        $this,
+                        'mobileNumber'
+                    )
+                        ? $this->mobileNumber
+                        : null,
+                    'otp_session_mobile' => request()
+                        ->session()
+                        ->get('otp_customer_mobile'),
+                    'customer_search_mobile' => request()
+                        ->session()
+                        ->get('customer_search_mobile'),
+                    'authenticated_user_id' =>
+                        Auth::guard('customer')->id(),
+                    'authenticated_user_mobile' =>
+                        Auth::guard('customer')->user()?->mobile,
+                ]
+            );
 
             throw new \RuntimeException(
                 'Customer authentication failed because the mobile number is missing.'
@@ -42,51 +60,67 @@ trait HandlesOtpCustomerAuthentication
         try {
             /** @var User $user */
             $user = DB::transaction(function () use ($mobile): User {
-                $existingUser = User::query()
+                $user = User::query()
                     ->where('mobile', $mobile)
                     ->lockForUpdate()
                     ->first();
 
-                if ($existingUser) {
-                    $this->ensureCustomerAccountType($existingUser);
-                    $this->assignCustomerRoleIfAvailable($existingUser);
+                if (! $user) {
+                    $payload = [
+                        'name' => 'Customer ' . substr($mobile, -4),
+                        'mobile' => $mobile,
+                        'is_active' => true,
+                    ];
 
-                    return $existingUser;
+                    if (Schema::hasColumn('users', 'email')) {
+                        $payload['email'] =
+                            $this->generateOtpCustomerEmail($mobile);
+                    }
+
+                    if (Schema::hasColumn('users', 'password')) {
+                        $payload['password'] = bcrypt(
+                            Str::random(40)
+                        );
+                    }
+
+                    $this->appendCustomerAccountType($payload);
+
+                    $user = User::query()->create($payload);
                 }
 
-                $payload = [
-                    'name' => $mobile,
-                    'mobile' => $mobile,
-                ];
-
-                if (Schema::hasColumn('users', 'email')) {
-                    $payload['email'] = $this->generateOtpCustomerEmail($mobile);
+                if (
+                    $user->isAdmin()
+                    || $user->isModerator()
+                    || $user->isTransporter()
+                    || $user->isDriver()
+                ) {
+                    throw new \RuntimeException(
+                        'This mobile number cannot be used for customer login.'
+                    );
                 }
 
-                if (Schema::hasColumn('users', 'password')) {
-                    $payload['password'] = bcrypt(Str::random(40));
+                if (! $user->isActiveAccount()) {
+                    $user->forceFill([
+                        'is_active' => true,
+                    ])->save();
                 }
 
-                $this->appendCustomerAccountType($payload);
+                $this->ensureCustomerAccountType($user);
+                $this->assignCustomerRole($user);
 
-                $user = User::query()->create($payload);
-
-                $this->assignCustomerRoleIfAvailable($user);
-
-                return $user;
+                return $user->fresh();
             });
 
             /*
-             * This intentionally replaces an existing admin/vendor login with
-             * the customer who successfully verified the public booking OTP.
+             * Clear only customer-compatible legacy sessions. Admin panel uses
+             * its own guard and remains isolated.
              */
             Auth::guard('web')->logout();
+            Auth::guard('vendor')->logout();
+            Auth::guard('customer')->logout();
+
             Auth::guard('customer')->login($user, true);
 
-            /*
-             * Regenerate the session ID after login, then restore the verified
-             * customer mobile explicitly for subsequent Livewire requests.
-             */
             request()->session()->regenerate();
 
             request()->session()->put([
@@ -100,14 +134,18 @@ trait HandlesOtpCustomerAuthentication
                 $this->mobileNumber = $mobile;
             }
 
-            Log::info('Homepage OTP customer authenticated', [
+            Log::info('OTP customer authenticated successfully.', [
                 'user_id' => $user->getKey(),
                 'mobile' => $mobile,
+                'customer_guard_check' =>
+                    Auth::guard('customer')->check(),
+                'customer_guard_id' =>
+                    Auth::guard('customer')->id(),
             ]);
 
             return $user;
         } catch (\Throwable $exception) {
-            Log::error('Homepage OTP customer authentication failed', [
+            Log::error('OTP customer authentication failed.', [
                 'mobile' => $mobile,
                 'error' => $exception->getMessage(),
                 'exception' => get_class($exception),
@@ -177,24 +215,29 @@ trait HandlesOtpCustomerAuthentication
      */
     protected function normalizeOtpCustomerMobile(mixed $mobile): string
     {
-        $mobile = preg_replace('/\D+/', '', (string) $mobile) ?? '';
+        $mobile = preg_replace(
+            '/\D+/',
+            '',
+            (string) $mobile
+        ) ?? '';
 
         if (strlen($mobile) > 10) {
             $mobile = substr($mobile, -10);
         }
 
-        if (!preg_match('/^[6-9]\d{9}$/', $mobile)) {
+        if (! preg_match('/^[6-9]\d{9}$/', $mobile)) {
             return '';
         }
 
         return $mobile;
     }
 
-    protected function generateOtpCustomerEmail(string $mobile): string
-    {
+    protected function generateOtpCustomerEmail(
+        string $mobile
+    ): string {
         $email = $mobile . '@duracabs.local';
 
-        if (!User::query()->where('email', $email)->exists()) {
+        if (! User::query()->where('email', $email)->exists()) {
             return $email;
         }
 
@@ -204,10 +247,17 @@ trait HandlesOtpCustomerAuthentication
             . '@duracabs.local';
     }
 
-    protected function appendCustomerAccountType(array &$payload): void
-    {
-        foreach (['account_type', 'user_type', 'type', 'role'] as $column) {
-            if (!Schema::hasColumn('users', $column)) {
+    /**
+     * Add the legacy customer account type when such a column exists.
+     */
+    protected function appendCustomerAccountType(
+        array &$payload
+    ): void {
+        foreach (
+            ['account_type', 'user_type', 'type', 'role']
+            as $column
+        ) {
+            if (! Schema::hasColumn('users', $column)) {
                 continue;
             }
 
@@ -217,14 +267,23 @@ trait HandlesOtpCustomerAuthentication
         }
     }
 
-    protected function ensureCustomerAccountType(User $user): void
-    {
-        foreach (['account_type', 'user_type', 'type', 'role'] as $column) {
-            if (!Schema::hasColumn('users', $column)) {
+    /**
+     * Backfill the legacy customer account type for old customer records.
+     */
+    protected function ensureCustomerAccountType(
+        User $user
+    ): void {
+        foreach (
+            ['account_type', 'user_type', 'type', 'role']
+            as $column
+        ) {
+            if (! Schema::hasColumn('users', $column)) {
                 continue;
             }
 
-            $value = Str::lower(trim((string) $user->{$column}));
+            $value = Str::lower(
+                trim((string) $user->{$column})
+            );
 
             if ($value === '') {
                 $user->forceFill([
@@ -236,22 +295,17 @@ trait HandlesOtpCustomerAuthentication
         }
     }
 
-    protected function assignCustomerRoleIfAvailable(User $user): void
+    /**
+     * Assign the Customer role by its stable name, never by a database ID.
+     */
+    protected function assignCustomerRole(User $user): void
     {
-        if (!method_exists($user, 'assignRole')) {
+        if ($user->hasRole(User::ROLE_CUSTOMER)) {
             return;
         }
 
-        try {
-            /*
-             * Legacy project customer role ID.
-             */
-            $user->assignRole(5);
-        } catch (\Throwable $exception) {
-            Log::warning('Customer role assignment skipped', [
-                'user_id' => $user->getKey(),
-                'error' => $exception->getMessage(),
-            ]);
-        }
+        $user->syncRoles([
+            User::ROLE_CUSTOMER,
+        ]);
     }
 }
