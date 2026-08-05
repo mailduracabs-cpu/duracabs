@@ -1,3 +1,4 @@
+
 <header
     class="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/95 text-sm shadow-sm backdrop-blur"
     data-main-navbar
@@ -49,7 +50,7 @@
 
             {{-- Mobile bell icon --}}
             <a
-                href="{{ auth()->check() ? '/my-account' : '/login' }}"
+               href="{{ Auth::guard('customer')->check() ? '/my-account' : '/login' }}"
                 class="relative inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 md:hidden"
                 aria-label="Notifications"
             >
@@ -142,7 +143,7 @@
                         +91 70888 73331
                     </a>
 
-                    @guest
+                    @guest('customer')
                         {{-- Login --}}
                         <a
                             href="/login"
@@ -156,7 +157,7 @@
                         </a>
                     @endguest
 
-                    @auth
+                    @auth('customer')
                         {{-- User dropdown --}}
                         <div class="relative" data-user-dropdown>
                             <button
@@ -171,7 +172,7 @@
                                         class="fa-regular fa-circle-user mr-2"
                                         aria-hidden="true"
                                     ></i>
-                                    {{ auth()->user()->name }}
+                                    {{ Auth::guard('customer')->user()->name }}
                                 </span>
 
                                 <i
