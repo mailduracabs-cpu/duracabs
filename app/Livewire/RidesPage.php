@@ -39,37 +39,37 @@ class RidesPage extends Component
     public $selected_brands = [];
 
     #[Url(history: true)]
-    public $cityFrom ;
+    public $cityFrom;
     
 
     #[Url(history: true)]
-    public $cityTo ;
+    public $cityTo;
 
     #[Url(history: true)]
-    public $nameTo ;
+    public $nameTo;
 
     #[Url(history: true)]
-    public $tab = false ;
+    public $tab = false;
 
     #[Url(history: true)]
-    public $days ;
+    public $days;
 
     #[Url(history: true)]
-    public $nameFrom ;
+    public $nameFrom;
 
     #[Url(history: true)]
-    public $date ;
+    public $date;
 
  
 
     #[Url(history: true)]
-    public $dateto ;
+    public $dateto;
 
     #[Url(history: true)]
-    public $plan ;
+    public $plan;
 
     #[Url(history: true)]
-    public $cars ;
+    public $cars;
 
    
 
@@ -84,16 +84,16 @@ class RidesPage extends Component
     public $sort = 'price';
 
     #[Url(history: true)]
-    public $km ;
+    public $km;
 
     #[Url(history: true)]
-    public $kmValue ;
+    public $kmValue;
 
     #[Url(history: true)]
-    public $time ;
+    public $time;
 
     #[Url(history: true)]
-    public $endTime ;
+    public $endTime;
 
     /**
      * JSON-encoded additional destinations received from the homepage
@@ -137,7 +137,7 @@ class RidesPage extends Component
     public ?string $selfDriveAvailabilityMessage = null;
 
     #[Url(history: true)]
-    public $timeValue ;
+    public $timeValue;
 
     public $query2 = null;
     public $brandsData = [];
@@ -180,7 +180,6 @@ class RidesPage extends Component
     public string $mobileNumber = '';
     public string $otpCode = '';
     public ?string $otpError = null;
-    public int $otpResendSeconds = 0;
     public ?string $pendingBookingAction = null;
     public mixed $pendingBookingPayload = null;
 
@@ -754,7 +753,7 @@ class RidesPage extends Component
 
 
     public function updatedQuery(){
-        $this-> query = Product::query()->where('is_active',1);
+        $this->query = Product::query()->where('is_active',1);
     }
 
     public function updatedQuery2($query2): void
@@ -908,13 +907,7 @@ class RidesPage extends Component
         }
     }
 
-    public function priceCalculate(){
-       $day =  $this->days;
-       $km =  $this->kmValue / 1000;
-
-       return [];
-    }
- // Edit Query Popup Methods
+// Edit Query Popup Methods
     public function showEditQueryModal() {
         $this->showEditModal = true;
         $this->edit_ride_type = $this->tab ?: 'one_way';
@@ -954,15 +947,7 @@ class RidesPage extends Component
         $this->edit_ride_type = $value;
     }
 
-    private function resetEditSearchFields() {
-        // Clear dropdown data but keep search values
-        $this->edit_cities_from = [];
-        $this->edit_cities_to = [];
-        $this->edit_dataFrom = [];
-        $this->edit_dataTo = [];
-    }
-
-    /**
+/**
      * Sync search values when changing tabs in edit modal
      */
     private function syncEditSearchValuesOnTabChange($newTab) {
@@ -978,7 +963,6 @@ class RidesPage extends Component
         if ($fromValue) {
             if ($this->isValueCompatibleWithTab($fromValue, $newTab)) {
                 $this->setEditFromValueForTab($newTab, $fromValue);
-                $this->setEditFromSearchValueForTab($newTab, $fromValue);
             } else {
                 // Clear the search field if the value won't work in the new tab
                 $this->setEditFromSearchValueForTab($newTab, '');
@@ -986,7 +970,6 @@ class RidesPage extends Component
         }
         if ($toValue) {
             $this->setEditToValueForTab($newTab, $toValue);
-            $this->setEditToSearchValueForTab($newTab, $toValue);
         }
         if ($fromCityId && $this->isValueCompatibleWithTab($fromValue, $newTab)) {
             $this->setEditFromCityIdForTab($newTab, $fromCityId);
@@ -999,7 +982,8 @@ class RidesPage extends Component
     /**
      * Get current edit "from" value based on tab
      */
-    private function getCurrentEditFromValue($tab) {
+    private function getCurrentEditFromValue($tab): mixed
+    {
         switch ($tab) {
             case 'one_way':
                 return $this->edit_query_search;
@@ -1017,7 +1001,8 @@ class RidesPage extends Component
     /**
      * Get current edit "to" value based on tab
      */
-    private function getCurrentEditToValue($tab) {
+    private function getCurrentEditToValue($tab): mixed
+    {
         switch ($tab) {
             case 'one_way':
                 return $this->edit_query2_search;
@@ -1065,7 +1050,8 @@ class RidesPage extends Component
     /**
      * Get current edit "from" city ID based on tab
      */
-    private function getCurrentEditFromCityId($tab) {
+    private function getCurrentEditFromCityId($tab): mixed
+    {
         switch ($tab) {
             case 'one_way':
                 return $this->edit_cityFrom_id;
@@ -1081,7 +1067,8 @@ class RidesPage extends Component
     /**
      * Get current edit "to" city ID based on tab
      */
-    private function getCurrentEditToCityId($tab) {
+    private function getCurrentEditToCityId($tab): mixed
+    {
         switch ($tab) {
             case 'one_way':
                 return $this->edit_cityTo_id;
@@ -1155,7 +1142,8 @@ class RidesPage extends Component
     /**
      * Check if a search value is compatible with a specific tab
      */
-    private function isValueCompatibleWithTab($value, $tab) {
+    private function isValueCompatibleWithTab($value, $tab): bool
+    {
         if (empty($value)) {
             return true;
         }
@@ -1364,7 +1352,8 @@ class RidesPage extends Component
         }
     }
 
-    private function getEditValidationRules() {
+    private function getEditValidationRules(): array
+    {
         $baseRules = [
             'edit_date' => 'required|date|after_or_equal:today',
             'edit_time' => 'required',
@@ -1399,7 +1388,8 @@ class RidesPage extends Component
         }
     }
 
-    private function buildEditRedirectParams() {
+    private function buildEditRedirectParams(): array
+    {
         $params = [
             'tab' => $this->edit_ride_type,
             'date' => $this->edit_date,

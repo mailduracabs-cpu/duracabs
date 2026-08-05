@@ -120,9 +120,14 @@
     x-on:keydown.arrow-right.window="if (galleryOpen) nextGalleryImage()"
     x-on:keydown.arrow-left.window="if (galleryOpen) previousGalleryImage()"
 >
-    @section('title', $pageTitle)
-    @section('description', $pageDescription)
-    @section('image', $pageImage)
+    {{-- Search-result SEO is emitted once by resources/views/layouts/app.blade.php. --}}
+    @section('title', trim((string) ($pageTitle ?? 'Available Cabs | Dura Cabs')))
+    @section('description', trim((string) ($pageDescription ?? 'Compare available cabs and continue your booking with Dura Cabs.')))
+    @section('keywords', trim((string) ($pageKeywords ?? '')))
+    @section('image', $pageImage ?? '')
+    @section('canonical', url()->current())
+    @section('robots', 'noindex, follow')
+    @section('og_type', 'website')
 
     @php
         /*

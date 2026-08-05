@@ -3,10 +3,11 @@
 
     @section('title', $seoTitle)
     @section('description', $seoDescription)
+    @section('keywords', $metaKeywords)
     @section('image', $imageMeta)
     @section('canonical', $canonicalUrl)
-    @section('robots', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
-    @section('og_type', 'website')
+    @section('robots', $robots)
+    @section('og_type', $ogType)
 
     @push('schema')
         <script type="application/ld+json">

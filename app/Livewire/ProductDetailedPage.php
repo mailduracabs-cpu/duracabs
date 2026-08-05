@@ -580,22 +580,11 @@ public function tabValue($val){
         $imageMeta = $this->resolveSeoImage($ride, $firstImage);
 
         $metaKeywords = $this->normaliseKeywords($ride->meta_keywords ?? null, $ride->focus_keyword ?? null);
-        $robots = filled($ride->robots) ? trim((string) $ride->robots) : 'index,follow';
+        $robots = filled($ride->robots)
+            ? trim((string) $ride->robots)
+            : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
-        $openGraph = [
-            'title' => filled($ride->og_title) ? trim((string) $ride->og_title) : $seoTitle,
-            'description' => filled($ride->og_description) ? trim((string) $ride->og_description) : $seoDescription,
-            'image' => filled($ride->og_image) ? $this->normaliseAssetUrl((string) $ride->og_image) : $imageMeta,
-            'type' => $contentType === 'blog' ? 'article' : 'website',
-            'url' => $canonicalUrl,
-        ];
-
-        $twitter = [
-            'card' => 'summary_large_image',
-            'title' => filled($ride->twitter_title) ? trim((string) $ride->twitter_title) : $seoTitle,
-            'description' => filled($ride->twitter_description) ? trim((string) $ride->twitter_description) : $seoDescription,
-            'image' => filled($ride->twitter_image) ? $this->normaliseAssetUrl((string) $ride->twitter_image) : $imageMeta,
-        ];
+        $ogType = $contentType === 'blog' ? 'article' : 'website';
 
         $faqs = $this->buildFaqs($ride, $routeName, $tripLabel, $lowestFare);
 
@@ -627,28 +616,6 @@ public function tabValue($val){
             ])->values()->all(),
         ];
 
-        $breadcrumbSchema = [
-            '@context' => 'https://schema.org',
-            '@type' => 'BreadcrumbList',
-            '@id' => $canonicalUrl . '#breadcrumb',
-            'itemListElement' => [
-                [
-                    '@type' => 'ListItem',
-                    'position' => 1,
-                    'name' => 'Home',
-                    'item' => url('/'),
-                ],
-                [
-                    '@type' => 'ListItem',
-                    'position' => 2,
-                    'name' => $routeName,
-                    'item' => $canonicalUrl,
-                ],
-            ],
-        ];
-
-        $customSchema = $this->normaliseCustomSchema($ride->schema ?? null);
-
         return view('livewire.product-detailed-page', [
             'ride' => $ride,
             'rides' => $ridesQuery->paginate(9),
@@ -665,14 +632,10 @@ public function tabValue($val){
             'routeName' => $routeName,
             'tripLabel' => $tripLabel,
             'contentType' => $contentType,
-            'urlType' => $urlType,
-            'openGraph' => $openGraph,
-            'twitter' => $twitter,
+            'ogType' => $ogType,
             'faqs' => $faqs,
             'serviceSchema' => $serviceSchema,
             'faqSchema' => $faqSchema,
-            'breadcrumbSchema' => $breadcrumbSchema,
-            'customSchema' => $customSchema,
             'contentLinks' => collect($ride->content_links ?? [])->filter()->values(),
             'fareCards' => collect($ride->fare_cards ?? [])->filter()->values(),
             'linkedProducts' => collect($ride->link_products ?? [])->filter()->values(),
@@ -871,19 +834,5 @@ public function tabValue($val){
                 'url' => $canonicalUrl,
             ] : null,
         ], static fn ($value) => $value !== null && $value !== '' && $value !== []);
-    }
-
-    private function normaliseCustomSchema(mixed $schema): array
-    {
-        if (is_array($schema)) {
-            return $schema;
-        }
-
-        if (is_string($schema) && trim($schema) !== '') {
-            $decoded = json_decode($schema, true);
-            return is_array($decoded) ? $decoded : [];
-        }
-
-        return [];
     }
 }

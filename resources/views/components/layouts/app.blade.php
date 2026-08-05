@@ -60,142 +60,26 @@
         );
 
         $favicon = $settings->favicon_url ?: asset('img/logo/favicon_duracabs.ico');
-        $logo = $settings->logo_url ?: $ogImage;
-
         $twitterUsername = filled($settings->twitter_username)
             ? '@' . ltrim($settings->twitter_username, '@')
             : null;
 
-        $sameAs = $settings->socialProfiles();
-
-        $schemaType = in_array(
-            $settings->business_type,
-            ['TaxiService', 'LocalBusiness', 'TravelAgency', 'AutomotiveBusiness', 'Organization'],
-            true
-        ) ? $settings->business_type : 'TaxiService';
-
-        $businessSchema = [
-            '@context' => 'https://schema.org',
-            '@type' => $schemaType,
-            '@id' => url('/') . '#business',
-            'name' => $businessName,
-            'url' => url('/'),
-            'description' => $settings->business_description ?: $metaDescription,
-            'telephone' => $settings->phone,
-            'email' => $settings->email,
-            'priceRange' => $settings->price_range,
-            'image' => $logo,
-            'logo' => $logo,
-            'sameAs' => $sameAs,
-        ];
-
-        $address = array_filter([
-            '@type' => 'PostalAddress',
-            'streetAddress' => $settings->street_address,
-            'addressLocality' => $settings->city,
-            'addressRegion' => $settings->state,
-            'postalCode' => $settings->postal_code,
-            'addressCountry' => $settings->country_code ?: 'IN',
-        ]);
-
-        if (count($address) > 1) {
-            $businessSchema['address'] = $address;
-        }
-
-        if (filled($settings->latitude) && filled($settings->longitude)) {
-            $businessSchema['geo'] = [
-                '@type' => 'GeoCoordinates',
-                'latitude' => (float) $settings->latitude,
-                'longitude' => (float) $settings->longitude,
-            ];
-        }
-
-        if (filled($settings->google_map_url)) {
-            $businessSchema['hasMap'] = $settings->google_map_url;
-        }
-
-        
-
-        $days = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday',
-        ];
-
-        if ($settings->open_24_hours) {
-            $businessSchema['openingHoursSpecification'] = [[
-                '@type' => 'OpeningHoursSpecification',
-                'dayOfWeek' => $days,
-                'opens' => '00:00',
-                'closes' => '23:59',
-            ]];
-        } elseif (filled($settings->opening_time) && filled($settings->closing_time)) {
-            $businessSchema['openingHoursSpecification'] = [[
-                '@type' => 'OpeningHoursSpecification',
-                'dayOfWeek' => $days,
-                'opens' => substr((string) $settings->opening_time, 0, 5),
-                'closes' => substr((string) $settings->closing_time, 0, 5),
-            ]];
-        }
-
-        $businessSchema = array_filter(
-            $businessSchema,
-            static fn ($value) => !is_null($value) && $value !== '' && $value !== []
-        );
-
-        $websiteSchema = [
-            '@context' => 'https://schema.org',
-            '@type' => 'WebSite',
-            '@id' => url('/') . '#website',
-            'url' => url('/'),
-            'name' => $siteName,
-            'description' => $settings->default_meta_description,
-            'publisher' => [
-                '@id' => url('/') . '#business',
-            ],
-        ];
-
-        $breadcrumbSchema = [
-            '@context' => 'https://schema.org',
-            '@type' => 'BreadcrumbList',
-            'itemListElement' => [
-                [
-                    '@type' => 'ListItem',
-                    'position' => 1,
-                    'name' => 'Home',
-                    'item' => url('/'),
-                ],
-            ],
-        ];
-
-        if ($canonicalUrl !== url('/')) {
-            $breadcrumbSchema['itemListElement'][] = [
-                '@type' => 'ListItem',
-                'position' => 2,
-                'name' => $metaTitle,
-                'item' => $canonicalUrl,
-            ];
-        }
     @endphp
-<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
-<link rel="preload"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
-      as="style"
-      onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 
-<noscript>
-<link rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-</noscript>
+    <link rel="preload"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+          as="style"
+          onload="this.onload=null;this.rel='stylesheet'">
+
+
+    <noscript>
+        <link rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    </noscript>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-
     <title>{{ $metaTitle }}</title>
 
     <meta name="description" content="{{ $metaDescription }}">
@@ -249,7 +133,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
     @livewireStyles
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     @stack('styles')
-    @stack('meta')
 
     <script>
         window.dataLayer = window.dataLayer || [];
@@ -302,18 +185,6 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
                 config.gtagIds.forEach((id) => gtag('config', id));
             }
         });
-    </script>
-
-    <script type="application/ld+json">
-        {!! json_encode($businessSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
-    </script>
-
-    <script type="application/ld+json">
-        {!! json_encode($websiteSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
-    </script>
-
-    <script type="application/ld+json">
-        {!! json_encode($breadcrumbSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
     </script>
 
     @stack('schema')

@@ -1,7 +1,16 @@
 <div class="min-h-screen bg-slate-50 text-slate-900">
-    @section('title', $page->meta_title)
-    @section('description', $page->meta_description)
+    {{-- Page SEO is emitted once by resources/views/layouts/app.blade.php. --}}
+    @section('title', trim((string) data_get($page, 'meta_title', data_get($page, 'name', ''))))
+    @section('description', trim((string) data_get($page, 'meta_description', '')))
+    @section('keywords', trim((string) data_get($page, 'meta_keywords', '')))
     @section('image', $imageMeta)
+    @section('canonical', filled(data_get($page, 'canonical_url'))
+        ? trim((string) data_get($page, 'canonical_url'))
+        : url()->current())
+    @section('robots', filled(data_get($page, 'robots'))
+        ? trim((string) data_get($page, 'robots'))
+        : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
+    @section('og_type', 'website')
 
     @php
         $pageName = filled($page->name) ? $page->name : 'your city';
