@@ -731,7 +731,7 @@
                 <button
                     type="button"
                     wire:click="addTripCity"
-                    @disabled(count($tripCities ?? []) >= $maxTripCities)
+                    @disabled(count($tripCities ?? []) >= ($maxTripCities ?? 19))
                     class="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-5 text-sm font-extrabold text-sky-700 transition hover:border-sky-300 hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <i class="fa-solid fa-plus" aria-hidden="true"></i>
