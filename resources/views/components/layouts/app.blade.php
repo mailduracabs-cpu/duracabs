@@ -114,18 +114,7 @@
             $businessSchema['hasMap'] = $settings->google_map_url;
         }
 
-        if (
-            filled($settings->rating_value) &&
-            filled($settings->review_count) &&
-            (int) $settings->review_count > 0
-        ) {
-            $businessSchema['aggregateRating'] = [
-                '@type' => 'AggregateRating',
-                'ratingValue' => (float) $settings->rating_value,
-                'reviewCount' => (int) $settings->review_count,
-                'bestRating' => (float) ($settings->best_rating ?: 5),
-            ];
-        }
+        
 
         $days = [
             'Monday',
