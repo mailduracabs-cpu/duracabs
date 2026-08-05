@@ -64,6 +64,10 @@ class WebsiteSetting extends Model
         'yandex_verification',
         'pinterest_domain_verification',
 
+        // Global custom code rendered on every public page
+        'header_code',
+        'footer_code',
+
         'whatsapp_enabled',
         'whatsapp_default_country_code',
         'whatsapp_default_language',

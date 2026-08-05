@@ -187,6 +187,12 @@
         });
     </script>
 
+
+    {{-- Global custom header code from Website Settings. Trusted admins only. --}}
+    @if(filled($settings->header_code))
+        {!! $settings->header_code !!}
+    @endif
+
     @stack('schema')
 </head>
 
@@ -209,6 +215,12 @@
     @endif
 
     <x-cookie-consent />
+
+
+    {{-- Global custom footer code from Website Settings. Trusted admins only. --}}
+    @if(filled($settings->footer_code))
+        {!! $settings->footer_code !!}
+    @endif
 
     @livewireScripts
     @stack('scripts')

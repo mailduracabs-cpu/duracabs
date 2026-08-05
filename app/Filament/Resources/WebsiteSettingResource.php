@@ -397,6 +397,54 @@ class WebsiteSettingResource extends Resource
                                     ]),
                             ]),
 
+
+                        Forms\Components\Tabs\Tab::make('Custom Code')
+                            ->icon('heroicon-o-code-bracket-square')
+                            ->schema([
+                                Forms\Components\Section::make('Global Header & Footer Code')
+                                    ->description(
+                                        'Yahan save kiya gaya code website ke sabhi public pages par render hoga. Sirf trusted code paste karein.'
+                                    )
+                                    ->schema([
+                                        Forms\Components\Textarea::make('header_code')
+                                            ->label('Header Code')
+                                            ->placeholder(
+                                                '<script type="application/ld+json">{ ... }</script>'
+                                            )
+                                            ->helperText(
+                                                'Ye code </head> se turant pehle render hoga. JSON-LD, meta tags, custom CSS, verification aur trusted head scripts ke liye use karein.'
+                                            )
+                                            ->rows(18)
+                                            ->extraAttributes([
+                                                'class' => 'font-mono text-sm',
+                                                'spellcheck' => 'false',
+                                            ])
+                                            ->columnSpanFull(),
+
+                                        Forms\Components\Textarea::make('footer_code')
+                                            ->label('Footer Code')
+                                            ->placeholder(
+                                                '<script>console.log("Custom footer code");</script>'
+                                            )
+                                            ->helperText(
+                                                'Ye code </body> se turant pehle render hoga. Trusted JavaScript, chat widgets aur third-party integrations ke liye use karein.'
+                                            )
+                                            ->rows(18)
+                                            ->extraAttributes([
+                                                'class' => 'font-mono text-sm',
+                                                'spellcheck' => 'false',
+                                            ])
+                                            ->columnSpanFull(),
+
+                                        Forms\Components\Placeholder::make('custom_code_security_notice')
+                                            ->label('Security Notice')
+                                            ->content(
+                                                'Header aur footer code raw HTML ke roop me render hota hai. Galat ya untrusted script poori website ko affect kar sakti hai.'
+                                            )
+                                            ->columnSpanFull(),
+                                    ]),
+                            ]),
+
                         Forms\Components\Tabs\Tab::make('Analytics')
                             ->icon('heroicon-o-chart-bar')
                             ->schema([
