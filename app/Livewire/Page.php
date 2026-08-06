@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Services\SmartBannerService;
 use App\Services\WhatsAppService;
+use App\SEO\Services\SeoSchemaService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -136,6 +137,7 @@ public ?string $query2_search = '';
     public array $faqSchema = [];
     public array $pageSchema = [];
     public array $customSchemas = [];
+    public array $schemaGraph = [];
     public array $contentLinks = [];
     public array $fareCards = [];
 
@@ -2031,6 +2033,7 @@ public ?string $query2_search = '';
             'faqSchema' => $this->faqSchema,
             'pageSchema' => $this->pageSchema,
             'customSchemas' => $this->customSchemas,
+            'schemaGraph' => $this->schemaGraph,
             'contentLinks' => $this->contentLinks,
             'fareCards' => $this->fareCards,
             'contentType' => $this->contentType,
@@ -2087,6 +2090,7 @@ public ?string $query2_search = '';
         $this->faqSchema = $this->buildFaqSchema($page);
         $this->pageSchema = $this->buildPageSchema($page);
         $this->customSchemas = $this->normaliseCustomSchemas($this->attributeValue($page, 'custom_schema'));
+        $this->schemaGraph = app(SeoSchemaService::class)->pageModelGraph($page);
     }
 
     private function firstFilled(object $model, array $keys): mixed

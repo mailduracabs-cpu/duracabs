@@ -11,58 +11,27 @@
         ? trim((string) data_get($page, 'robots'))
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
     @section('og_type', 'website')
+    @push('schema')
+        @php
+            $resolvedSchemaGraph = isset($schemaGraph) && is_array($schemaGraph)
+                ? $schemaGraph
+                : app(\App\SEO\Services\SeoSchemaService::class)->pageModelGraph($page);
+        @endphp
 
-   
-       @push('schema')
-    @php
-        $renderedSchemas = [];
+        @if(
+            isset($resolvedSchemaGraph['@graph'])
+            && is_array($resolvedSchemaGraph['@graph'])
+            && $resolvedSchemaGraph['@graph'] !== []
+        )
+            <script type="application/ld+json">
+                {!! app(\App\SEO\Services\SeoSchemaService::class)->toJson(
+                    schemas: $resolvedSchemaGraph,
+                    pretty: app()->isLocal()
+                ) !!}
+            </script>
+        @endif
+    @endpush
 
-        $renderSchema = function ($schema) use (&$renderedSchemas) {
-            if (empty($schema) || !is_array($schema)) {
-                return;
-            }
-
-            $uniqueKey = md5(json_encode([
-    data_get($schema, '@id'),
-    data_get($schema, '@type'),
-    data_get($schema, 'url'),
-    data_get($schema, 'name'),
-]));
-
-            if (isset($renderedSchemas[$uniqueKey])) {
-                return;
-            }
-
-            $renderedSchemas[$uniqueKey] = true;
-
-            echo '<script type="application/ld+json">';
-            echo json_encode(
-                $schema,
-                JSON_UNESCAPED_UNICODE
-                | JSON_UNESCAPED_SLASHES
-                | JSON_PRETTY_PRINT
-            );
-            echo '</script>';
-        };
-    @endphp
-
-    {{-- Dynamic Page Schema --}}
-    @php($renderSchema($breadcrumbSchema))
-    @php($renderSchema($pageSchema))
-    @if(!empty($faqSchema['mainEntity']))
-    @php($renderSchema($faqSchema))
-@endif
-
-    {{-- Custom Schemas --}}
-    @foreach($customSchemas ?? [] as $schema)
-        @php($renderSchema($schema))
-    @endforeach
-
-    {{-- Legacy Database Schemas --}}
-    @foreach($page->all_json_ld ?? [] as $schema)
-        @php($renderSchema($schema))
-    @endforeach
-@endpush
 
     @php
         $pageName = filled($page->name) ? $page->name : 'your city';

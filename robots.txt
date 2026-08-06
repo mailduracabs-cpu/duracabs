@@ -1,2 +1,18 @@
 User-agent: *
+
+# Allow crawling
 Disallow:
+
+# Block internal/search URLs
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /password/*
+Disallow: /search
+Disallow: /*?*
+Allow: /*?page=
+
+# Sitemaps
+Sitemap: https://www.duracabs.com/sitemap.xml
+
+Host: https://www.duracabs.com

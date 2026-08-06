@@ -10,6 +10,7 @@ use App\Models\Category;
 use App\Models\Page as SeoPage;
 use App\Models\Reviews;
 use App\Models\Vehicle;
+use App\SEO\Services\SeoSchemaService;
 use App\Services\SmartBannerService;
 use Illuminate\Contracts\View\View;
 use Livewire\Component;
@@ -29,7 +30,7 @@ class Homepage extends Component
     public bool $showReview = false;
 
     /**
-     * Kept for the homepage banner component. Search-panel state now belongs
+     * Kept for the homepage banner component. Search-panel state belongs
      * exclusively to ServiceSearchPanel.
      *
      * @var array<int, mixed>
@@ -38,7 +39,12 @@ class Homepage extends Component
 
     public function changeBanner(string $value): void
     {
-        $allowedTabs = ['one_way', 'return', 'local', 'self_drive'];
+        $allowedTabs = [
+            'one_way',
+            'return',
+            'local',
+            'self_drive',
+        ];
 
         if (! in_array($value, $allowedTabs, true)) {
             return;
@@ -51,6 +57,7 @@ class Homepage extends Component
     public function changeStarValue($value): void
     {
         $value = (int) $value;
+
         $this->reviwerStar = max(1, min(5, $value));
     }
 
@@ -68,7 +75,9 @@ class Homepage extends Component
         $star = (int) $this->reviwerStar;
 
         if ($star > 3) {
-            return redirect()->away('https://g.page/r/CTGafymLAOMYEBM/review');
+            return redirect()->away(
+                'https://g.page/r/CTGafymLAOMYEBM/review'
+            );
         }
 
         $validated = $this->validate([
@@ -105,10 +114,15 @@ class Homepage extends Component
     }
 
     /**
-     * Homepage FAQs are defined once and reused by both the visible FAQ section
-     * and the FAQPage JSON-LD schema.
+     * Homepage FAQs are defined once and reused by the visible FAQ section
+     * and the centralized FAQPage schema.
      *
-     * @return array<int, array{question:string, answer:string, link_label:?string, link_url:?string}>
+     * @return array<int, array{
+     *     question:string,
+     *     answer:string,
+     *     link_label:?string,
+     *     link_url:?string
+     * }>
      */
     private function homepageFaqItems(): array
     {
@@ -165,43 +179,54 @@ class Homepage extends Component
     }
 
     /**
-     * Build homepage FAQPage schema from the same data displayed on the page.
+     * @param \Illuminate\Support\Collection<int, Vehicle> $products
+     * @return array<int, array<string, mixed>>
      */
-    private function homepageFaqSchema(array $faqItems): array
+    private function homepageItemListSchemas($products): array
     {
-        if ($faqItems === []) {
+        if ($products->isEmpty()) {
             return [];
         }
 
         $homeUrl = rtrim(url('/'), '/') . '/';
 
-        return [
-            '@context' => 'https://schema.org',
-            '@type' => 'FAQPage',
-            '@id' => $homeUrl . '#faq',
-            'url' => $homeUrl . '#frequently-asked-questions',
-            'mainEntity' => collect($faqItems)
-                ->map(static fn (array $faq): array => [
-                    '@type' => 'Question',
-                    'name' => $faq['question'],
-                    'acceptedAnswer' => [
-                        '@type' => 'Answer',
-                        'text' => $faq['answer'],
-                    ],
-                ])
-                ->values()
-                ->all(),
-        ];
+        $items = $products
+            ->values()
+            ->map(function (Vehicle $vehicle, int $index): array {
+                $vehicleUrl = filled($vehicle->slug ?? null)
+                    ? url('/self-drive/' . ltrim((string) $vehicle->slug, '/'))
+                    : url('/self-drive');
+
+                return [
+                    '@type' => 'ListItem',
+                    'position' => $index + 1,
+                    'url' => $vehicleUrl,
+                    'name' => trim((string) (
+                        $vehicle->name
+                        ?: $vehicle->vehicle_name
+                        ?: 'Self Drive Car'
+                    )),
+                ];
+            })
+            ->all();
+
+        return [[
+            '@type' => 'ItemList',
+            '@id' => $homeUrl . '#featured-self-drive-vehicles',
+            'name' => 'Featured Self Drive Vehicles',
+            'itemListOrder' => 'https://schema.org/ItemListOrderAscending',
+            'numberOfItems' => count($items),
+            'itemListElement' => $items,
+        ]];
     }
 
-    public function render(): View
+    public function render(SeoSchemaService $seoSchemaService): View
     {
         $seoPage = SeoPage::query()
             ->whereIn('slug', ['home', 'homepage'])
             ->first();
 
         $faqItems = $this->homepageFaqItems();
-        $faqSchema = $this->homepageFaqSchema($faqItems);
 
         $brands = Brand::query()
             ->where('is_active', 1)
@@ -229,11 +254,50 @@ class Homepage extends Component
             ->where('ride_type', 'tour')
             ->get();
 
-        $reviews = Reviews::query()->get();
+        $reviews = Reviews::query()
+            ->latest('id')
+            ->get();
 
         $categories = Category::query()
             ->where('in_return', 1)
             ->get();
+
+        $homeUrl = rtrim(url('/'), '/') . '/';
+
+        $seoTitle = filled($seoPage?->meta_title)
+            ? trim((string) $seoPage->meta_title)
+            : 'Home Page - Duracabs';
+
+        $seoDescription = filled($seoPage?->meta_description)
+            ? trim((string) $seoPage->meta_description)
+            : 'Book reliable taxi, local cab, round trip and self-drive car services with Dura Cabs.';
+
+        $imageUrl = filled($seoPage?->resolved_image_url)
+            ? $seoPage->resolved_image_url
+            : null;
+
+        $schemaGraph = $seoSchemaService->pageGraph(
+            url: $homeUrl,
+            title: $seoTitle,
+            description: $seoDescription,
+            pageType: 'WebPage',
+            imageUrl: $imageUrl,
+            breadcrumbs: [
+                [
+                    'name' => 'Home',
+                    'url' => $homeUrl,
+                ],
+            ],
+            faqs: $faqItems,
+            additionalSchemas: $this->homepageItemListSchemas($products),
+            keywords: $this->normaliseKeywords(
+                $seoPage?->meta_keywords,
+                $seoPage?->focus_keyword,
+            ),
+            datePublished: optional($seoPage?->published_at)?->toIso8601String(),
+            dateModified: optional($seoPage?->updated_at)?->toIso8601String(),
+            homeUrl: $homeUrl,
+        );
 
         return view('livewire.homepage', [
             'brands' => $brands,
@@ -246,11 +310,36 @@ class Homepage extends Component
             'products' => $products,
             'seoPage' => $seoPage,
             'faqItems' => $faqItems,
-            'faqSchema' => $faqSchema,
-        ])->title(
-            filled($seoPage?->meta_title)
-                ? $seoPage->meta_title
-                : 'Home Page - Duracabs'
-        );
+            'schemaGraph' => $schemaGraph,
+        ])->title($seoTitle);
+    }
+
+    /**
+     * @return array<int, string>|null
+     */
+    private function normaliseKeywords(
+        mixed $keywords,
+        mixed $focusKeyword
+    ): ?array {
+        $items = [];
+
+        if (is_array($keywords)) {
+            $items = $keywords;
+        } elseif (is_string($keywords)) {
+            $items = preg_split('/[,\n]+/', $keywords) ?: [];
+        }
+
+        if (filled($focusKeyword)) {
+            array_unshift($items, (string) $focusKeyword);
+        }
+
+        $items = collect($items)
+            ->map(fn (mixed $item): string => trim((string) $item))
+            ->filter()
+            ->unique(fn (string $item): string => mb_strtolower($item))
+            ->values()
+            ->all();
+
+        return $items !== [] ? $items : null;
     }
 }

@@ -32,17 +32,21 @@
 
     {{-- Organization, WebSite and homepage WebPage are emitted globally by the main layout. --}}
     @push('schema')
-        @if (!empty($faqSchema) && !empty($faqSchema['mainEntity']))
-            <script type="application/ld+json">
-                {!! json_encode(
-                    $faqSchema,
-                    JSON_UNESCAPED_SLASHES
-                    | JSON_UNESCAPED_UNICODE
-                    | JSON_PRETTY_PRINT
-                ) !!}
-            </script>
-        @endif
-    @endpush
+    @php
+        $resolvedSchemaGraph = isset($schemaGraph) && is_array($schemaGraph)
+            ? $schemaGraph
+            : null;
+    @endphp
+
+    @if(isset($resolvedSchemaGraph['@graph']) && !empty($resolvedSchemaGraph['@graph']))
+        <script type="application/ld+json">
+            {!! app(\App\SEO\Services\SeoSchemaService::class)->toJson(
+                schemas: $resolvedSchemaGraph,
+                pretty: app()->isLocal()
+            ) !!}
+        </script>
+    @endif
+@endpush
 
     {{-- Hero + booking search --}}
     <section class="premium-home-hero premium-reveal premium-reveal-hero is-visible w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-10">

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use JsonException;
 
 class Page extends Model
 {
@@ -67,6 +68,7 @@ class Page extends Model
         'link_products' => 'array',
 
         'secondary_keywords' => 'array',
+        'schema' => 'array',
         'faq_schema' => 'array',
         'breadcrumb_schema' => 'array',
         'custom_schema' => 'array',
@@ -86,8 +88,8 @@ class Page extends Model
 
     protected $attributes = [
         'content_type' => 'page',
-        'self_drive_settings' => [],
-        'robots' => 'index,follow',
+        'self_drive_settings' => '[]',
+        'robots' => 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
         'schema_type' => 'WebPage',
         'seo_score' => 0,
         'readability_score' => 0,
@@ -103,7 +105,7 @@ class Page extends Model
     {
         static::saving(function (Page $page): void {
             if (blank($page->slug) && filled($page->name)) {
-                $page->slug = Str::slug($page->name);
+                $page->slug = Str::slug((string) $page->name);
             }
 
             if (filled($page->description)) {
@@ -238,32 +240,15 @@ class Page extends Model
     public function getResolvedCanonicalUrlAttribute(): string
     {
         if (filled($this->canonical_url)) {
-            return (string) $this->canonical_url;
+            return rtrim((string) $this->canonical_url, '/');
         }
 
-        return $this->public_url;
+        return rtrim($this->public_url, '/');
     }
 
     public function getResolvedImageUrlAttribute(): ?string
     {
-        $image = $this->image;
-
-        if (blank($image)) {
-            return null;
-        }
-
-        if (
-            Str::startsWith(
-                (string) $image,
-                ['http://', 'https://'],
-            )
-        ) {
-            return (string) $image;
-        }
-
-        return Storage::disk('public')->url(
-            ltrim((string) $image, '/'),
-        );
+        return $this->resolveMediaUrl($this->image);
     }
 
     public function getResolvedOgTitleAttribute(): string
@@ -325,6 +310,9 @@ class Page extends Model
         );
     }
 
+    /**
+     * @return array<int, array{question:string, answer:string}>
+     */
     public function getFaqItemsAttribute(): array
     {
         $faqs = $this->faq_schema;
@@ -341,27 +329,31 @@ class Page extends Model
             )
             ->map(
                 fn (array $faq): array => [
-                    'question' => trim(
-                        (string) $faq['question'],
-                    ),
-                    'answer' => trim(
-                        (string) $faq['answer'],
-                    ),
+                    'question' => trim((string) $faq['question']),
+                    'answer' => trim((string) $faq['answer']),
                 ],
             )
             ->values()
             ->all();
     }
 
+    /**
+     * One FAQPage node without an outer @context wrapper.
+     *
+     * @return array<string, mixed>|null
+     */
     public function getFaqJsonLdAttribute(): ?array
     {
-        if (empty($this->faq_items)) {
+        if ($this->faq_items === []) {
             return null;
         }
 
+        $canonicalUrl = $this->resolved_canonical_url;
+
         return [
-            '@context' => 'https://schema.org',
             '@type' => 'FAQPage',
+            '@id' => $canonicalUrl . '#faq',
+            'url' => $canonicalUrl . '#frequently-asked-questions',
             'mainEntity' => collect($this->faq_items)
                 ->map(
                     fn (array $faq): array => [
@@ -369,9 +361,7 @@ class Page extends Model
                         'name' => $faq['question'],
                         'acceptedAnswer' => [
                             '@type' => 'Answer',
-                            'text' => strip_tags(
-                                $faq['answer'],
-                            ),
+                            'text' => strip_tags($faq['answer']),
                         ],
                     ],
                 )
@@ -380,26 +370,32 @@ class Page extends Model
         ];
     }
 
+    /**
+     * One BreadcrumbList node without an outer @context wrapper.
+     *
+     * @return array<string, mixed>|null
+     */
     public function getBreadcrumbJsonLdAttribute(): ?array
     {
+        $canonicalUrl = $this->resolved_canonical_url;
         $breadcrumbs = $this->breadcrumb_schema;
 
-        if (! is_array($breadcrumbs) || empty($breadcrumbs)) {
+        if (! is_array($breadcrumbs) || $breadcrumbs === []) {
             return [
-                '@context' => 'https://schema.org',
                 '@type' => 'BreadcrumbList',
+                '@id' => $canonicalUrl . '#breadcrumb',
                 'itemListElement' => [
                     [
                         '@type' => 'ListItem',
                         'position' => 1,
                         'name' => 'Home',
-                        'item' => url('/'),
+                        'item' => rtrim(url('/'), '/') . '/',
                     ],
                     [
                         '@type' => 'ListItem',
                         'position' => 2,
                         'name' => $this->name,
-                        'item' => $this->resolved_canonical_url,
+                        'item' => $canonicalUrl,
                     ],
                 ],
             ];
@@ -409,54 +405,53 @@ class Page extends Model
             ->filter(
                 fn (mixed $item): bool => is_array($item)
                     && filled($item['name'] ?? null)
-                    && filled($item['url'] ?? null),
+                    && filled($item['url'] ?? $item['item'] ?? null),
             )
             ->values()
             ->map(
                 fn (array $item, int $index): array => [
                     '@type' => 'ListItem',
                     'position' => $index + 1,
-                    'name' => trim(
-                        (string) $item['name'],
-                    ),
-                    'item' => trim(
-                        (string) $item['url'],
-                    ),
+                    'name' => trim((string) $item['name']),
+                    'item' => trim((string) ($item['url'] ?? $item['item'])),
                 ],
             )
             ->all();
 
-        if (empty($items)) {
+        if ($items === []) {
             return null;
         }
 
         return [
-            '@context' => 'https://schema.org',
             '@type' => 'BreadcrumbList',
+            '@id' => $canonicalUrl . '#breadcrumb',
             'itemListElement' => $items,
         ];
     }
 
+    /**
+     * Primary WebPage/Article node without an outer @context wrapper.
+     *
+     * @return array<string, mixed>
+     */
     public function getPrimaryJsonLdAttribute(): array
     {
-        $schemaType = filled($this->schema_type)
-            ? (string) $this->schema_type
-            : 'WebPage';
-
+        $schemaType = $this->resolvedSchemaType();
         $canonicalUrl = $this->resolved_canonical_url;
         $homeUrl = rtrim(url('/'), '/') . '/';
         $organizationId = $homeUrl . '#organization';
         $websiteId = $homeUrl . '#website';
         $pageId = $canonicalUrl . '#webpage';
+        $imageId = $canonicalUrl . '#primaryimage';
 
-        $schema = array_filter([
-            '@context' => 'https://schema.org',
+        $schema = [
             '@type' => $schemaType,
             '@id' => $pageId,
             'url' => $canonicalUrl,
             'name' => $this->seo_title,
             'description' => $this->seo_description,
             'inLanguage' => str_replace('_', '-', app()->getLocale()),
+            'isAccessibleForFree' => true,
             'isPartOf' => [
                 '@id' => $websiteId,
             ],
@@ -465,6 +460,9 @@ class Page extends Model
             ],
             'publisher' => [
                 '@id' => $organizationId,
+            ],
+            'breadcrumb' => [
+                '@id' => $canonicalUrl . '#breadcrumb',
             ],
             'about' => filled($this->brand?->name)
                 ? [
@@ -475,21 +473,21 @@ class Page extends Model
                     '@type' => 'Thing',
                     'name' => $this->name,
                 ],
-        ], static fn (mixed $value): bool =>
-            $value !== null && $value !== '' && $value !== []
-        );
+        ];
+
+        if ($this->faq_items !== []) {
+            $schema['mainEntity'] = [
+                '@id' => $canonicalUrl . '#faq',
+            ];
+        }
 
         if (in_array($schemaType, ['Article', 'BlogPosting', 'NewsArticle'], true)) {
             $schema['headline'] = $this->seo_title;
         }
 
         if (filled($this->resolved_image_url)) {
-            $imageId = $canonicalUrl . '#primaryimage';
-
             $schema['image'] = [
-                '@type' => 'ImageObject',
                 '@id' => $imageId,
-                'url' => $this->resolved_image_url,
             ];
 
             $schema['primaryImageOfPage'] = [
@@ -516,31 +514,82 @@ class Page extends Model
             $schema['dateModified'] = $this->updated_at->toIso8601String();
         }
 
-        return $schema;
+        return $this->cleanSchema($schema);
     }
 
+    /**
+     * Standalone ImageObject node referenced by the primary page node.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function getImageJsonLdAttribute(): ?array
+    {
+        if (blank($this->resolved_image_url)) {
+            return null;
+        }
+
+        $canonicalUrl = $this->resolved_canonical_url;
+
+        return [
+            '@type' => 'ImageObject',
+            '@id' => $canonicalUrl . '#primaryimage',
+            'url' => $this->resolved_image_url,
+            'contentUrl' => $this->resolved_image_url,
+            'caption' => $this->seo_title,
+            'representativeOfPage' => true,
+        ];
+    }
+
+    /**
+     * Clean schema nodes ready for SchemaGraph/SeoSchemaService.
+     *
+     * @return array<int, array<string, mixed>>
+     */
     public function getAllJsonLdAttribute(): array
     {
         $schemas = [
             $this->primary_json_ld,
+            $this->image_json_ld,
             $this->breadcrumb_json_ld,
             $this->faq_json_ld,
         ];
 
-        if (
-            is_array($this->custom_schema)
-            && ! empty($this->custom_schema)
-        ) {
-            $schemas[] = $this->custom_schema;
+        foreach ($this->manualSchemaNodes() as $schema) {
+            $schemas[] = $schema;
         }
 
-        return array_values(
-            array_filter(
-                $schemas,
-                fn (mixed $schema): bool => is_array($schema)
-                    && ! empty($schema),
-            ),
-        );
+        $cleaned = [];
+        $seenIds = [];
+
+        foreach ($schemas as $schema) {
+            if (! is_array($schema) || $schema === []) {
+                continue;
+            }
+
+            unset($schema['@context']);
+
+            $schema = $this->cleanSchema($schema);
+
+            if (! filled($schema['@type'] ?? null)) {
+                continue;
+            }
+
+            $schemaId = is_string($schema['@id'] ?? null)
+                ? trim((string) $schema['@id'])
+                : '';
+
+            if ($schemaId !== '') {
+                if (isset($seenIds[$schemaId])) {
+                    continue;
+                }
+
+                $seenIds[$schemaId] = true;
+            }
+
+            $cleaned[] = $schema;
+        }
+
+        return array_values($cleaned);
     }
 
     public function isIndexable(): bool
@@ -557,22 +606,129 @@ class Page extends Model
             || $this->published_at->isPast();
     }
 
-    private function resolveMediaUrl(
-        mixed $path,
-    ): ?string {
+    private function resolvedSchemaType(): string
+    {
+        $type = trim((string) $this->schema_type);
+
+        if ($type !== '') {
+            return $type;
+        }
+
+        return match ((string) $this->content_type) {
+            'blog' => 'BlogPosting',
+            default => 'WebPage',
+        };
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function manualSchemaNodes(): array
+    {
+        $nodes = [];
+
+        foreach ([$this->schema, $this->custom_schema] as $value) {
+            foreach ($this->normaliseSchemaValue($value) as $schema) {
+                $nodes[] = $schema;
+            }
+        }
+
+        return $nodes;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function normaliseSchemaValue(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = trim($value);
+
+            if ($value === '') {
+                return [];
+            }
+
+            try {
+                $value = json_decode(
+                    $value,
+                    true,
+                    512,
+                    JSON_THROW_ON_ERROR,
+                );
+            } catch (JsonException) {
+                return [];
+            }
+        }
+
+        if (! is_array($value) || $value === []) {
+            return [];
+        }
+
+        if (isset($value['@graph']) && is_array($value['@graph'])) {
+            $value = $value['@graph'];
+        }
+
+        if (array_key_exists('@type', $value)) {
+            return [$value];
+        }
+
+        if (! array_is_list($value)) {
+            return [];
+        }
+
+        return array_values(
+            array_filter(
+                $value,
+                fn (mixed $schema): bool => is_array($schema)
+                    && filled($schema['@type'] ?? null),
+            ),
+        );
+    }
+
+    /**
+     * @param array<mixed> $values
+     * @return array<mixed>
+     */
+    private function cleanSchema(array $values): array
+    {
+        $isList = array_is_list($values);
+        $cleaned = [];
+
+        foreach ($values as $key => $value) {
+            if (is_array($value)) {
+                $value = $this->cleanSchema($value);
+            } elseif (is_string($value)) {
+                $value = trim($value);
+            }
+
+            if ($value === null || $value === '' || $value === []) {
+                continue;
+            }
+
+            if ($isList) {
+                $cleaned[] = $value;
+            } else {
+                $cleaned[$key] = $value;
+            }
+        }
+
+        return $cleaned;
+    }
+
+    private function resolveMediaUrl(mixed $path): ?string
+    {
         if (blank($path)) {
             return null;
         }
 
-        $path = (string) $path;
+        $path = trim((string) $path);
 
-        if (
-            Str::startsWith(
-                $path,
-                ['http://', 'https://'],
-            )
-        ) {
+        if (Str::startsWith($path, ['http://', 'https://'])) {
             return $path;
+        }
+
+        if (Str::startsWith($path, ['/storage/', 'storage/'])) {
+            return url('/' . ltrim($path, '/'));
         }
 
         return Storage::disk('public')->url(

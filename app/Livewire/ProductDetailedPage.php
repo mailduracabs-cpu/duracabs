@@ -7,6 +7,7 @@ use App\Models\Brand;
 use App\Models\Product;
 use App\Models\RideInquiry;
 use App\Models\WebsiteSetting;
+use App\SEO\Services\SeoSchemaService;
 use Jantinnerezo\LivewireAlert\LivewireAlert;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -606,6 +607,59 @@ public function tabValue($val){
             $contentType
         );
 
+        /** @var SeoSchemaService $schemaService */
+        $schemaService = app(SeoSchemaService::class);
+
+        $schemaType = (string) ($serviceSchema['@type'] ?? 'Service');
+
+        $schemaGraph = match ($schemaType) {
+            'Product' => $schemaService->productGraph(
+                product: $ride,
+                url: $canonicalUrl,
+                title: $seoTitle,
+                automaticProductSchema: $serviceSchema,
+                description: $seoDescription,
+                imageUrl: $imageMeta,
+                breadcrumbs: [
+                    ['name' => 'Home', 'url' => url('/')],
+                    ['name' => 'Products', 'url' => url('/products')],
+                    ['name' => $routeName, 'url' => $canonicalUrl],
+                ],
+                faqs: $faqs,
+                homeUrl: url('/'),
+            ),
+            'Article' => $schemaService->pageGraph(
+                url: $canonicalUrl,
+                title: $seoTitle,
+                description: $seoDescription,
+                pageType: 'WebPage',
+                imageUrl: $imageMeta,
+                breadcrumbs: [
+                    ['name' => 'Home', 'url' => url('/')],
+                    ['name' => 'Blog', 'url' => url('/blog')],
+                    ['name' => $routeName, 'url' => $canonicalUrl],
+                ],
+                faqs: $faqs,
+                additionalSchemas: [$serviceSchema],
+                datePublished: optional($ride->created_at)?->toAtomString(),
+                dateModified: optional($ride->updated_at)?->toAtomString(),
+                homeUrl: url('/'),
+            ),
+            default => $schemaService->routeGraph(
+                url: $canonicalUrl,
+                title: $seoTitle,
+                routeName: $routeName,
+                serviceSchema: $serviceSchema,
+                description: $seoDescription,
+                imageUrl: $imageMeta,
+                faqs: $faqs,
+                routesUrl: url('/routes'),
+                homeUrl: url('/'),
+                datePublished: optional($ride->created_at)?->toAtomString(),
+                dateModified: optional($ride->updated_at)?->toAtomString(),
+            ),
+        };
+
         $faqSchema = [
             '@context' => 'https://schema.org',
             '@type' => 'FAQPage',
@@ -667,6 +721,7 @@ public function tabValue($val){
             'serviceSchema' => $serviceSchema,
             'faqSchema' => $faqSchema,
             'breadcrumbSchema' => $breadcrumbSchema,
+            'schemaGraph' => $schemaGraph,
             'contentLinks' => collect($ride->content_links ?? [])->filter()->values(),
             'fareCards' => collect($ride->fare_cards ?? [])->filter()->values(),
             'linkedProducts' => collect($ride->link_products ?? [])->filter()->values(),

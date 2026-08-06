@@ -1,7 +1,32 @@
 <div class="min-h-screen w-full overflow-x-hidden bg-slate-50 text-slate-900">
-    @section('title', $page->meta_title)
-    @section('description', $page->meta_description)
+    @section('title', filled($page->meta_title) ? trim((string) $page->meta_title) : trim((string) ($page->name ?? 'Self Drive Cars')))
+    @section('description', filled($page->meta_description) ? trim((string) $page->meta_description) : trim((string) ($page->seo_description ?? '')))
+    @section('keywords', is_array($page->meta_keywords ?? null) ? implode(', ', $page->meta_keywords) : trim((string) ($page->meta_keywords ?? '')))
     @section('image', $imageMeta)
+    @section('canonical', filled($page->resolved_canonical_url ?? null) ? $page->resolved_canonical_url : url()->current())
+    @section('robots', filled($page->robots ?? null) ? trim((string) $page->robots) : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
+    @section('og_type', 'website')
+
+    @push('schema')
+        @php
+            $resolvedSchemaGraph = isset($schemaGraph) && is_array($schemaGraph)
+                ? $schemaGraph
+                : app(\App\SEO\Services\SeoSchemaService::class)->pageModelGraph($page);
+        @endphp
+
+        @if(
+            isset($resolvedSchemaGraph['@graph'])
+            && is_array($resolvedSchemaGraph['@graph'])
+            && $resolvedSchemaGraph['@graph'] !== []
+        )
+            <script type="application/ld+json">
+                {!! app(\App\SEO\Services\SeoSchemaService::class)->toJson(
+                    schemas: $resolvedSchemaGraph,
+                    pretty: app()->isLocal()
+                ) !!}
+            </script>
+        @endif
+    @endpush
 
     @php
         $settings = is_array($selfDriveSettings ?? null) ? $selfDriveSettings : [];

@@ -1,30 +1,29 @@
 {!! '<?xml version="1.0" encoding="UTF-8"?>' !!}
 
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-    @foreach ($staticUrls as $entry)
+<urlset
+    xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+    xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+>
+    @foreach ($entries as $entry)
         <url>
             <loc>{{ $entry['loc'] }}</loc>
             <lastmod>{{ $entry['lastmod'] }}</lastmod>
             <changefreq>{{ $entry['changefreq'] }}</changefreq>
             <priority>{{ $entry['priority'] }}</priority>
-        </url>
-    @endforeach
 
-    @foreach ($routes as $route)
-        <url>
-            <loc>{{ \App\Http\Controllers\SiteMapController::productUrl($route) }}</loc>
-            <lastmod>{{ optional($route->updated_at)->utc()->toAtomString() }}</lastmod>
-            <changefreq>{{ \App\Http\Controllers\SiteMapController::changeFrequencyForProduct($route) }}</changefreq>
-            <priority>{{ \App\Http\Controllers\SiteMapController::priorityForProduct($route) }}</priority>
-        </url>
-    @endforeach
+            @foreach ($entry['images'] ?? [] as $image)
+                <image:image>
+                    <image:loc>{{ $image['loc'] }}</image:loc>
 
-    @foreach ($pages as $page)
-        <url>
-            <loc>{{ \App\Http\Controllers\SiteMapController::pageUrl($page) }}</loc>
-            <lastmod>{{ optional($page->updated_at)->utc()->toAtomString() }}</lastmod>
-            <changefreq>{{ \App\Http\Controllers\SiteMapController::changeFrequencyForPage($page) }}</changefreq>
-            <priority>{{ \App\Http\Controllers\SiteMapController::priorityForPage($page) }}</priority>
+                    @if (filled($image['title'] ?? null))
+                        <image:title>{{ $image['title'] }}</image:title>
+                    @endif
+
+                    @if (filled($image['caption'] ?? null))
+                        <image:caption>{{ $image['caption'] }}</image:caption>
+                    @endif
+                </image:image>
+            @endforeach
         </url>
     @endforeach
 </urlset>
