@@ -971,10 +971,10 @@ public function tabValue($val){
                             ]
                             : null,
                 ])),
+            
             'offers' => $offers,
-            'aggregateRating' =>$settings->aggregateRatingSchema(),
-        ], static fn (mixed $value): bool =>
-            $value !== null && $value !== '' && $value !== []
-        );
+], static fn (mixed $value): bool =>
+    $value !== null && $value !== '' && $value !== []
+);
     }
 }
