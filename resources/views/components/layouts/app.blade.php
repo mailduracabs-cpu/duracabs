@@ -138,10 +138,7 @@
         $globalSchema = $schemaService->globalGraph(
             settings: $settings,
             homeUrl: $homeUrl,
-            includeHomepage: request()->routeIs('home') || request()->path() === '/',
-            pageTitle: $metaTitle,
-            pageDescription: $metaDescription,
-            pageImage: $ogImage,
+            includeHomepage: false,
 
             /*
              * SearchAction will remain disabled until the exact public
