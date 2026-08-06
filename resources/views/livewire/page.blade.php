@@ -12,18 +12,52 @@
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
     @section('og_type', 'website')
 
-    @push('schema')
-        @foreach ($page->all_json_ld as $pageSchema)
-            <script type="application/ld+json">
-                {!! json_encode(
-                    $pageSchema,
-                    JSON_UNESCAPED_SLASHES
-                    | JSON_UNESCAPED_UNICODE
-                    | JSON_PRETTY_PRINT
-                ) !!}
-            </script>
-        @endforeach
-    @endpush
+   
+       @push('schema')
+    @php
+        $renderedSchemas = [];
+
+        $renderSchema = function ($schema) use (&$renderedSchemas) {
+            if (empty($schema) || !is_array($schema)) {
+                return;
+            }
+
+            $uniqueKey = data_get($schema, '@id')
+                ?: data_get($schema, '@type')
+                ?: md5(json_encode($schema));
+
+            if (isset($renderedSchemas[$uniqueKey])) {
+                return;
+            }
+
+            $renderedSchemas[$uniqueKey] = true;
+
+            echo '<script type="application/ld+json">';
+            echo json_encode(
+                $schema,
+                JSON_UNESCAPED_UNICODE
+                | JSON_UNESCAPED_SLASHES
+                | JSON_PRETTY_PRINT
+            );
+            echo '</script>';
+        };
+    @endphp
+
+    {{-- Dynamic Page Schema --}}
+    @php($renderSchema($breadcrumbSchema))
+    @php($renderSchema($pageSchema))
+    @php($renderSchema($faqSchema))
+
+    {{-- Custom Schemas --}}
+    @foreach($customSchemas ?? [] as $schema)
+        @php($renderSchema($schema))
+    @endforeach
+
+    {{-- Legacy Database Schemas --}}
+    @foreach($page->all_json_ld ?? [] as $schema)
+        @php($renderSchema($schema))
+    @endforeach
+@endpush
 
     @php
         $pageName = filled($page->name) ? $page->name : 'your city';
