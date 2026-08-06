@@ -30,7 +30,8 @@
         : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
     @section('og_type', 'website')
 
-    {{-- Organization, WebSite and homepage WebPage are emitted globally by the main layout. --}}
+    {{-- Organization and WebSite are emitted by the layout.
+    Homepage WebPage is emitted from Homepage.php. --}}
     @push('schema')
     @php
         $resolvedSchemaGraph = isset($schemaGraph) && is_array($schemaGraph)

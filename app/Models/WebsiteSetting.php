@@ -433,7 +433,6 @@ class WebsiteSetting extends Model
                 '@type' => 'Country',
                 'name' => $countryCode === 'IN' ? 'India' : $countryCode,
             ],
-            'aggregateRating' => $this->aggregateRatingSchema(),
         ]);
     }
 
