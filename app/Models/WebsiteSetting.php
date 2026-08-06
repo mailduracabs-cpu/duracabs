@@ -209,6 +209,210 @@ class WebsiteSetting extends Model
             ->all();
     }
 
+
+    /**
+     * Build the global AggregateRating schema from Website Settings.
+     */
+    public function aggregateRatingSchema(): ?array
+    {
+        if (! filled($this->rating_value) || (int) $this->review_count <= 0) {
+            return null;
+        }
+
+        return [
+            '@type' => 'AggregateRating',
+            'ratingValue' => (float) $this->rating_value,
+            'reviewCount' => (int) $this->review_count,
+            'bestRating' => filled($this->best_rating)
+                ? (float) $this->best_rating
+                : 5,
+            'worstRating' => 1,
+        ];
+    }
+
+    /**
+     * Build PostalAddress schema from Website Settings.
+     */
+    public function postalAddressSchema(): ?array
+    {
+        $schema = array_filter([
+            '@type' => 'PostalAddress',
+            'streetAddress' => filled($this->street_address) ? $this->street_address : null,
+            'addressLocality' => filled($this->city) ? $this->city : null,
+            'addressRegion' => filled($this->state) ? $this->state : null,
+            'postalCode' => filled($this->postal_code) ? $this->postal_code : null,
+            'addressCountry' => filled($this->country_code)
+                ? strtoupper((string) $this->country_code)
+                : null,
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
+
+        return count($schema) > 1 ? $schema : null;
+    }
+
+    /**
+     * Build GeoCoordinates schema from Website Settings.
+     */
+    public function geoCoordinatesSchema(): ?array
+    {
+        if (! filled($this->latitude) || ! filled($this->longitude)) {
+            return null;
+        }
+
+        return [
+            '@type' => 'GeoCoordinates',
+            'latitude' => (float) $this->latitude,
+            'longitude' => (float) $this->longitude,
+        ];
+    }
+
+    /**
+     * Build opening-hours schema from Website Settings.
+     */
+    public function openingHoursSchema(): ?array
+    {
+        $days = [
+            'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+            'Friday', 'Saturday', 'Sunday',
+        ];
+
+        if ((bool) $this->open_24_hours) {
+            return [
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => $days,
+                'opens' => '00:00',
+                'closes' => '23:59',
+            ];
+        }
+
+        if (! filled($this->opening_time) || ! filled($this->closing_time)) {
+            return null;
+        }
+
+        return [
+            '@type' => 'OpeningHoursSpecification',
+            'dayOfWeek' => $days,
+            'opens' => substr((string) $this->opening_time, 0, 5),
+            'closes' => substr((string) $this->closing_time, 0, 5),
+        ];
+    }
+
+    /**
+     * Build ContactPoint schema entries from Website Settings.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function contactPointSchemas(): array
+    {
+        $country = filled($this->country_code)
+            ? strtoupper((string) $this->country_code)
+            : 'IN';
+
+        return collect([
+            filled($this->phone) ? [
+                '@type' => 'ContactPoint',
+                'telephone' => $this->phone,
+                'contactType' => 'customer service',
+                'areaServed' => $country,
+                'availableLanguage' => ['English', 'Hindi'],
+            ] : null,
+            filled($this->alternate_phone) ? [
+                '@type' => 'ContactPoint',
+                'telephone' => $this->alternate_phone,
+                'contactType' => 'customer service',
+                'areaServed' => $country,
+                'availableLanguage' => ['English', 'Hindi'],
+            ] : null,
+        ])->filter()->values()->all();
+    }
+
+    /**
+     * Return a safe Schema.org business type.
+     */
+    public function schemaBusinessType(): string
+    {
+        $allowed = [
+            'TaxiService',
+            'LocalBusiness',
+            'TravelAgency',
+            'AutomotiveBusiness',
+            'Organization',
+        ];
+
+        return in_array($this->business_type, $allowed, true)
+            ? $this->business_type
+            : 'Organization';
+    }
+
+    /**
+     * Build the global Organization / TaxiService schema.
+     */
+    public function organizationSchema(string $homeUrl, string $organizationId): array
+    {
+        $homeUrl = rtrim($homeUrl, '/') . '/';
+        $contactPoints = $this->contactPointSchemas();
+        $socialProfiles = $this->socialProfiles();
+
+        return array_filter([
+            '@type' => $this->schemaBusinessType(),
+            '@id' => $organizationId,
+            'name' => $this->business_name ?: $this->site_name ?: config('app.name', 'Dura Cabs'),
+            'url' => $homeUrl,
+            'description' => filled($this->business_description) ? $this->business_description : null,
+            'logo' => filled($this->logo_url) ? [
+                '@type' => 'ImageObject',
+                'url' => $this->logo_url,
+            ] : null,
+            'image' => filled($this->default_og_image_url)
+                ? $this->default_og_image_url
+                : $this->logo_url,
+            'telephone' => filled($this->phone) ? $this->phone : null,
+            'email' => filled($this->email) ? $this->email : null,
+            'priceRange' => filled($this->price_range) ? $this->price_range : null,
+            'address' => $this->postalAddressSchema(),
+            'geo' => $this->geoCoordinatesSchema(),
+            'hasMap' => filled($this->google_map_url) ? $this->google_map_url : null,
+            'openingHoursSpecification' => $this->openingHoursSchema(),
+            'contactPoint' => $contactPoints !== [] ? $contactPoints : null,
+            'sameAs' => $socialProfiles !== [] ? $socialProfiles : null,
+            'areaServed' => [
+                '@type' => 'Country',
+                'name' => strtoupper((string) $this->country_code) === 'IN'
+                    ? 'India'
+                    : strtoupper((string) $this->country_code),
+            ],
+            'aggregateRating' => $this->aggregateRatingSchema(),
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
+    }
+
+    /**
+     * Build the global WebSite schema.
+     */
+    public function websiteSchema(
+        string $homeUrl,
+        string $websiteId,
+        string $organizationId
+    ): array {
+        $homeUrl = rtrim($homeUrl, '/') . '/';
+
+        return array_filter([
+            '@type' => 'WebSite',
+            '@id' => $websiteId,
+            'url' => $homeUrl,
+            'name' => $this->site_name ?: config('app.name', 'Dura Cabs'),
+            'description' => filled($this->default_meta_description)
+                ? $this->default_meta_description
+                : $this->business_description,
+            'publisher' => ['@id' => $organizationId],
+            'inLanguage' => str_replace('_', '-', app()->getLocale()),
+        ], static fn (mixed $value): bool =>
+            $value !== null && $value !== '' && $value !== []
+        );
+    }
+
     private function mediaUrl(?string $path): ?string
     {
         if (blank($path)) {

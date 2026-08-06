@@ -6,6 +6,7 @@ use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\RideInquiry;
+use App\Models\WebsiteSetting;
 use Jantinnerezo\LivewireAlert\LivewireAlert;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -828,6 +829,9 @@ public function tabValue($val){
         int $offerCount,
         string $contentType
     ): array {
+        /** @var WebsiteSetting $settings */
+        $settings = \App\Support\SiteCache::settings();
+
         $homeUrl = rtrim(url('/'), '/') . '/';
         $organizationId = $homeUrl . '#organization';
         $websiteId = $homeUrl . '#website';
@@ -945,7 +949,9 @@ public function tabValue($val){
             'brand' => $isProduct
                 ? [
                     '@type' => 'Brand',
-                    'name' => 'Dura Cabs',
+                    'name' => $settings->business_name
+                        ?: $settings->site_name
+                        ?: config('app.name', 'Dura Cabs'),
                 ]
                 : null,
             'areaServed' => $isProduct
@@ -966,6 +972,8 @@ public function tabValue($val){
                             : null,
                 ])),
             'offers' => $offers,
+            'aggregateRating' =>
+                $settings->aggregateRatingSchema(),
         ], static fn (mixed $value): bool =>
             $value !== null && $value !== '' && $value !== []
         );

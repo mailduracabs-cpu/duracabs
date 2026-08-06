@@ -6,6 +6,7 @@ use App\Models\Banners;
 use App\Models\Product;
 use App\Models\Reviews;
 use App\Models\User;
+use App\Models\WebsiteSetting;
 use App\Services\SmartBannerService;
 use App\Services\WhatsAppService;
 use Illuminate\Support\Facades\Auth;
@@ -2257,9 +2258,11 @@ public ?string $query2_search = '';
         $schemaType = match ($this->contentType) {
             'blog', 'article' => 'Article',
             'product' => 'Product',
-            'landing_page', 'landing' => 'WebPage',
             default => 'WebPage',
         };
+
+        /** @var WebsiteSetting $settings */
+        $settings = \App\Support\SiteCache::settings();
 
         $homeUrl = rtrim(url('/'), '/') . '/';
         $organizationId = $homeUrl . '#organization';
@@ -2267,10 +2270,14 @@ public ?string $query2_search = '';
         $pageId = $this->canonicalUrl . '#webpage';
         $imageId = $this->canonicalUrl . '#primaryimage';
 
+        $pageName = trim((string) (
+            $this->firstFilled($page, ['title', 'name'])
+            ?: $this->seoTitle
+        ));
+
         $aboutName = trim((string) (
             data_get($page, 'brand.name')
-            ?: $this->firstFilled($page, ['name', 'title'])
-            ?: $this->seoTitle
+            ?: $pageName
         ));
 
         $schema = array_filter([
@@ -2280,7 +2287,11 @@ public ?string $query2_search = '';
             'url' => $this->canonicalUrl,
             'name' => $this->seoTitle,
             'description' => $this->seoDescription,
-            'inLanguage' => str_replace('_', '-', app()->getLocale()),
+            'inLanguage' => str_replace(
+                '_',
+                '-',
+                app()->getLocale()
+            ),
             'mainEntityOfPage' => [
                 '@id' => $pageId,
             ],
@@ -2289,6 +2300,9 @@ public ?string $query2_search = '';
             ],
             'publisher' => [
                 '@id' => $organizationId,
+            ],
+            'breadcrumb' => [
+                '@id' => $this->canonicalUrl . '#breadcrumb',
             ],
             'about' => $aboutName !== ''
                 ? [
@@ -2316,7 +2330,9 @@ public ?string $query2_search = '';
                 $this->attributeValue($page, 'updated_at')
             ),
         ], static fn (mixed $value): bool =>
-            $value !== null && $value !== '' && $value !== []
+            $value !== null
+            && $value !== ''
+            && $value !== []
         );
 
         if ($schemaType === 'Article') {
@@ -2327,13 +2343,145 @@ public ?string $query2_search = '';
             $schema['author'] = [
                 '@id' => $organizationId,
             ];
+
+            return array_filter(
+                $schema,
+                static fn (mixed $value): bool =>
+                    $value !== null
+                    && $value !== ''
+                    && $value !== []
+            );
         }
+
+        /*
+         * Keep one page-specific Service entity nested as the WebPage's
+         * mainEntity. Global business information remains in the single
+         * Organization/TaxiService entity rendered by the main layout.
+         */
+        $schema['mainEntity'] = array_filter([
+            '@type' => 'Service',
+            '@id' => $this->canonicalUrl . '#service',
+            'name' => $this->pageServiceName($page),
+            'url' => $this->canonicalUrl,
+            'description' => $this->seoDescription,
+            'serviceType' => $this->pageServiceType($page),
+            'provider' => [
+                '@id' => $organizationId,
+            ],
+            'areaServed' => $this->pageServiceAreas($page),
+            'image' => filled($this->imageMeta)
+                ? $this->imageMeta
+                : null,
+            'aggregateRating' =>
+                $settings->aggregateRatingSchema(),
+        ], static fn (mixed $value): bool =>
+            $value !== null
+            && $value !== ''
+            && $value !== []
+        );
 
         return array_filter(
             $schema,
             static fn (mixed $value): bool =>
-                $value !== null && $value !== '' && $value !== []
+                $value !== null
+                && $value !== ''
+                && $value !== []
         );
+    }
+
+    /**
+     * Build a page-specific service name.
+     */
+    private function pageServiceName(object $page): string
+    {
+        $name = trim((string) (
+            $this->firstFilled($page, ['title', 'name'])
+            ?: $this->seoTitle
+        ));
+
+        if ($name === '') {
+            $name = Str::headline($this->slug);
+        }
+
+        return Str::contains(
+            Str::lower($name),
+            ['service', 'taxi', 'cab', 'rental', 'tour']
+        )
+            ? $name
+            : $name . ' Taxi Service';
+    }
+
+    /**
+     * Resolve service category from the current page only.
+     */
+    private function pageServiceType(object $page): string
+    {
+        $source = Str::lower(implode(' ', array_filter([
+            (string) $this->contentType,
+            (string) $this->slug,
+            (string) $this->firstFilled($page, ['title', 'name']),
+        ])));
+
+        return match (true) {
+            Str::contains($source, ['self-drive', 'self drive']) =>
+                'Self Drive Car Rental',
+            Str::contains($source, ['airport']) =>
+                'Airport Taxi Service',
+            Str::contains($source, ['local']) =>
+                'Local Taxi Service',
+            Str::contains($source, ['tour']) =>
+                'Tour Taxi Service',
+            Str::contains($source, ['round-trip', 'round trip', 'return']) =>
+                'Round Trip Taxi Service',
+            default => 'One Way Taxi Service',
+        };
+    }
+
+    /**
+     * Build service areas from the current page title/brand only.
+     *
+     * @return array<int, array<string, string>>
+     */
+    private function pageServiceAreas(object $page): array
+    {
+        $title = trim((string) (
+            $this->firstFilled($page, ['title', 'name'])
+            ?: Str::headline($this->slug)
+        ));
+
+        $cleanTitle = Str::of($title)
+            ->replaceMatches(
+                '/\b(taxi|cab|service|booking|rental|one way|round trip)\b/i',
+                ' '
+            )
+            ->squish()
+            ->toString();
+
+        $areas = [];
+
+        if (preg_match('/^(.+?)\s+to\s+(.+?)$/i', $cleanTitle, $matches)) {
+            $areas = [
+                trim($matches[1]),
+                trim($matches[2]),
+            ];
+        } else {
+            $brandName = trim((string) data_get($page, 'brand.name'));
+
+            if ($brandName !== '') {
+                $areas[] = $brandName;
+            } elseif ($cleanTitle !== '') {
+                $areas[] = $cleanTitle;
+            }
+        }
+
+        return collect($areas)
+            ->map(static fn (string $area): array => [
+                '@type' => 'City',
+                'name' => $area,
+            ])
+            ->unique('name')
+            ->values()
+            ->all();
     }
 
     private function normaliseSchemaDate(mixed $value): ?string

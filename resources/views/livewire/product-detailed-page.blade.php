@@ -10,15 +10,38 @@
     @section('og_type', $ogType)
 
     @push('schema')
-        <script type="application/ld+json">
-            {!! json_encode($serviceSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
-        </script>
-        <script type="application/ld+json">
-            {!! json_encode($faqSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
-        </script>
-        <script type="application/ld+json">
-            {!! json_encode($breadcrumbSchema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) !!}
-        </script>
+        @if (!empty($serviceSchema))
+            <script type="application/ld+json">
+                {!! json_encode(
+                    $serviceSchema,
+                    JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRETTY_PRINT
+                ) !!}
+            </script>
+        @endif
+
+        @if (!empty($faqSchema) && !empty($faqSchema['mainEntity']))
+            <script type="application/ld+json">
+                {!! json_encode(
+                    $faqSchema,
+                    JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRETTY_PRINT
+                ) !!}
+            </script>
+        @endif
+
+        @if (!empty($breadcrumbSchema) && !empty($breadcrumbSchema['itemListElement']))
+            <script type="application/ld+json">
+                {!! json_encode(
+                    $breadcrumbSchema,
+                    JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRETTY_PRINT
+                ) !!}
+            </script>
+        @endif
     @endpush
 
     <nav class="product-breadcrumb mb-3 mt-2 text-sm text-slate-600" aria-label="Breadcrumb">
