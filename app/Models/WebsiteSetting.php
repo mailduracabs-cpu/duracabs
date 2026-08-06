@@ -382,7 +382,7 @@ class WebsiteSetting extends Model
                     ? 'India'
                     : strtoupper((string) $this->country_code),
             ],
-            'aggregateRating' => $this->aggregateRatingSchema(),
+            
         ], static fn (mixed $value): bool =>
             $value !== null && $value !== '' && $value !== []
         );
