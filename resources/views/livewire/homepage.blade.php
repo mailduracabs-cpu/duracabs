@@ -22,7 +22,27 @@
 
     @section('title', $homepageTitle)
     @section('description', $homepageDescription)
+    @section('keywords', trim((string) ($homepageSeo?->meta_keywords ?? '')))
     @section('image', $homepageImage)
+    @section('canonical', url('/'))
+    @section('robots', filled($homepageSeo?->robots)
+        ? trim((string) $homepageSeo->robots)
+        : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1')
+    @section('og_type', 'website')
+
+    {{-- Organization, WebSite and homepage WebPage are emitted globally by the main layout. --}}
+    @push('schema')
+        @if (!empty($faqSchema) && !empty($faqSchema['mainEntity']))
+            <script type="application/ld+json">
+                {!! json_encode(
+                    $faqSchema,
+                    JSON_UNESCAPED_SLASHES
+                    | JSON_UNESCAPED_UNICODE
+                    | JSON_PRETTY_PRINT
+                ) !!}
+            </script>
+        @endif
+    @endpush
 
     {{-- Hero + booking search --}}
     <section class="premium-home-hero premium-reveal premium-reveal-hero is-visible w-full px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
@@ -904,290 +924,51 @@
     aria-labelledby="faq-heading"
 >
     <div class="dura-container">
-
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
-
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
-                Need help?
-            </p>
-
-            <h2
-                id="faq-heading"
-                class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl"
-            >
-                Frequently Asked Questions
-            </h2>
-
-            <p class="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-                Find quick answers about cab booking, fares, payments,
-                self-drive rentals and vendor registration.
-            </p>
-
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">Need help?</p>
+            <h2 id="faq-heading" class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">Frequently Asked Questions</h2>
+            <p class="mt-3 text-sm leading-6 text-slate-600 sm:text-base">Find quick answers about cab booking, fares, payments, self-drive rentals and vendor registration.</p>
         </div>
 
         <div class="mx-auto max-w-4xl space-y-3">
+            @forelse ($faqItems ?? [] as $index => $faq)
+                <details wire:key="homepage-faq-{{ $index }}" class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
+                    <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-left font-bold text-slate-900 sm:px-6 sm:py-5">
+                        <span>{{ $faq['question'] }}</span>
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dura-50 text-dura-700 transition group-open:rotate-45" aria-hidden="true">
+                            <i class="fa-solid fa-plus text-sm"></i>
+                        </span>
+                    </summary>
 
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>What payment methods does DURA Cabs accept?</span>
+                    <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
+                        <p class="text-sm leading-6 text-slate-600 sm:text-base">{{ $faq['answer'] }}</p>
 
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        We accept credit cards, debit cards, net banking, UPI,
-                        supported wallets and cash at pickup where available.
-                        Payment options are shown during the booking process.
-                    </p>
+                        @if (filled($faq['link_url'] ?? null) && filled($faq['link_label'] ?? null))
+                            <a href="{{ $faq['link_url'] }}" class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-dura-700">
+                                {{ $faq['link_label'] }}
+                                <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
+                            </a>
+                        @endif
+                    </div>
+                </details>
+            @empty
+                <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-semibold text-slate-600">
+                    Frequently asked questions are currently unavailable.
                 </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>What is included in the cab fare?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        Fare details depend on the selected service and package.
-                        The booking summary displays the applicable rental fare,
-                        taxes and other included charges before confirmation.
-                    </p>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>Can I pay at the pickup location?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        Yes, when cash payment is available for the selected
-                        booking, you can choose that option and pay at pickup.
-                    </p>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>Who pays tolls, parking and state permit charges?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        These charges are generally paid by the customer unless
-                        they are specifically included in the selected package.
-                        Always check the fare summary before confirming.
-                    </p>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>Do DURA Cabs vehicles have FASTag?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        Availability may depend on the assigned vehicle.
-                        Toll amounts remain payable according to the booking
-                        terms and selected fare package.
-                    </p>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>How can I attach my car with DURA Cabs?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        Visit the vendor registration page, submit your business
-                        and vehicle details, and upload the requested documents
-                        for verification.
-                    </p>
-
-                    <a
-                        href="{{ url('/vendor-register') }}"
-                        class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-dura-700"
-                    >
-                        Register as a vendor
-                        <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
-                    </a>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>What is the minimum age for a self-drive booking?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        The customer must meet the applicable age requirement
-                        and hold a valid driving licence. Final eligibility can
-                        vary according to vehicle and booking terms.
-                    </p>
-                </div>
-            </details>
-
-            <details class="group rounded-2xl border border-slate-200 bg-white shadow-dura-sm">
-                <summary
-                    class="flex cursor-pointer list-none items-center justify-between gap-4
-                           px-5 py-4 text-left font-bold text-slate-900
-                           sm:px-6 sm:py-5"
-                >
-                    <span>How do I book a taxi with DURA Cabs?</span>
-
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center
-                               rounded-full bg-dura-50 text-dura-700 transition
-                               group-open:rotate-45"
-                        aria-hidden="true"
-                    >
-                        <i class="fa-solid fa-plus text-sm"></i>
-                    </span>
-                </summary>
-
-                <div class="border-t border-slate-100 px-5 py-4 sm:px-6">
-                    <p class="text-sm leading-6 text-slate-600 sm:text-base">
-                        Select the trip type, enter pickup and destination
-                        details, choose the date and time, then continue to view
-                        available vehicles and fares.
-                    </p>
-
-                    <a
-                        href="{{ url('/rides') }}"
-                        class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-dura-700"
-                    >
-                        Book a cab
-                        <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
-                    </a>
-                </div>
-            </details>
-
+            @endforelse
         </div>
 
-        <div
-            class="mx-auto mt-8 flex max-w-4xl flex-col items-center justify-between
-                   gap-4 rounded-2xl bg-dura-700 px-5 py-6 text-center
-                   sm:flex-row sm:px-7 sm:text-left"
-        >
+        <div class="mx-auto mt-8 flex max-w-4xl flex-col items-center justify-between gap-4 rounded-2xl bg-dura-700 px-5 py-6 text-center sm:flex-row sm:px-7 sm:text-left">
             <div>
-                <h3 class="text-lg font-bold text-white">
-                    Still have a question?
-                </h3>
-
-                <p class="mt-1 text-sm text-white/80">
-                    Contact our travel support team for booking assistance.
-                </p>
+                <h3 class="text-lg font-bold text-white">Still have a question?</h3>
+                <p class="mt-1 text-sm text-white/80">Contact our travel support team for booking assistance.</p>
             </div>
 
-            <a
-                href="https://api.whatsapp.com/send/?phone=917088873331&text=Hi%2C%20I%20need%20help%20with%20a%20Duracabs%20booking&type=phone_number&app_absent=0"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="inline-flex min-h-11 shrink-0 items-center justify-center
-                       gap-2 rounded-full bg-white px-6 py-3 text-sm
-                       font-bold text-dura-700 transition hover:bg-slate-100"
-            >
+            <a href="https://api.whatsapp.com/send/?phone=917088873331&text=Hi%2C%20I%20need%20help%20with%20a%20Duracabs%20booking&type=phone_number&app_absent=0" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-dura-700 transition hover:bg-slate-100">
                 <i class="fa-brands fa-whatsapp text-base" aria-hidden="true"></i>
                 Contact Support
             </a>
         </div>
-
     </div>
 </section>
 	

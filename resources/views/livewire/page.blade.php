@@ -22,9 +22,12 @@
                 return;
             }
 
-            $uniqueKey = data_get($schema, '@id')
-                ?: data_get($schema, '@type')
-                ?: md5(json_encode($schema));
+            $uniqueKey = md5(json_encode([
+    data_get($schema, '@id'),
+    data_get($schema, '@type'),
+    data_get($schema, 'url'),
+    data_get($schema, 'name'),
+]));
 
             if (isset($renderedSchemas[$uniqueKey])) {
                 return;
@@ -46,7 +49,9 @@
     {{-- Dynamic Page Schema --}}
     @php($renderSchema($breadcrumbSchema))
     @php($renderSchema($pageSchema))
+    @if(!empty($faqSchema['mainEntity']))
     @php($renderSchema($faqSchema))
+@endif
 
     {{-- Custom Schemas --}}
     @foreach($customSchemas ?? [] as $schema)
