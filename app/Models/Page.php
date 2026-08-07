@@ -156,9 +156,6 @@ class Page extends Model
                 $page->focus_keyword = $page->name;
             }
 
-            if (blank($page->canonical_url) && filled($page->slug)) {
-                $page->canonical_url = $page->public_url;
-            }
         });
     }
 
