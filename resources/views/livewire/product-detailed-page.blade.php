@@ -1,4 +1,3 @@
-<div wire:key="product-detailed-page-livewire-root">
 <div wire:key="product-detailed-page-root" class="premium-motion-page rides-premium-page product-ride-theme w-full max-w-[86rem] px-3 sm:px-5 lg:px-6 mx-auto">
 <div class="ride-shell rides-premium-shell font-poppins rounded-3xl py-3 sm:py-5">
 
@@ -1597,6 +1596,4 @@
             });
         });
     </script>
-</div>
-</div>
 </div>
