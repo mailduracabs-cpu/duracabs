@@ -36,6 +36,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 
 class ProductResource extends Resource
@@ -310,20 +311,24 @@ class ProductResource extends Resource
                                     'md' => 2,
                                 ])
                                     ->schema([
-                                        Placeholder::make('selected_vehicle_price')
-                                            ->label('Hourly Price')
+                                        Placeholder::make('selected_vehicle_image')
+                                            ->label('Vehicle Image')
                                             ->content(
-                                                function (Get $get): string {
+                                                function (Get $get): HtmlString|string {
                                                     $vehicle = static::findVehicle(
                                                         $get('vehicle_id'),
                                                     );
 
-                                                    return $vehicle
-                                                        ? '₹' . number_format(
-                                                            (float) $vehicle->hourly_price,
-                                                            2,
-                                                        ) . ' / hour'
-                                                        : 'Select a vehicle';
+                                                    if (! $vehicle || blank($vehicle->front_image_url)) {
+                                                        return 'No image available';
+                                                    }
+
+                                                    $url = e((string) $vehicle->front_image_url);
+                                                    $alt = e(static::vehicleName($vehicle));
+
+                                                    return new HtmlString(
+                                                        '<img src="' . $url . '" alt="' . $alt . '" style="width:100%;max-width:260px;height:150px;object-fit:cover;border-radius:14px;border:1px solid #e2e8f0;">'
+                                                    );
                                                 },
                                             ),
 
@@ -343,18 +348,63 @@ class ProductResource extends Resource
                                                         static::vehicleName($vehicle),
                                                         $vehicle->vehicle_number,
                                                         $vehicle->fuel_type
-                                                            ? Str::headline(
-                                                                (string) $vehicle->fuel_type,
-                                                            )
+                                                            ? Str::headline((string) $vehicle->fuel_type)
                                                             : null,
                                                         $vehicle->transmission
-                                                            ? Str::headline(
-                                                                (string) $vehicle->transmission,
-                                                            )
+                                                            ? Str::headline((string) $vehicle->transmission)
+                                                            : null,
+                                                        filled($vehicle->seats)
+                                                            ? ((int) $vehicle->seats) . ' Seats'
                                                             : null,
                                                     ]);
 
                                                     return implode(' | ', $parts);
+                                                },
+                                            ),
+
+                                        Placeholder::make('selected_vehicle_price')
+                                            ->label('Rental Price')
+                                            ->content(
+                                                function (Get $get): string {
+                                                    $vehicle = static::findVehicle(
+                                                        $get('vehicle_id'),
+                                                    );
+
+                                                    if (! $vehicle) {
+                                                        return 'Select a vehicle';
+                                                    }
+
+                                                    $hourly = '₹' . number_format((float) $vehicle->hourly_price, 2) . '/hour';
+                                                    $daily = (float) $vehicle->daily_price > 0
+                                                        ? '₹' . number_format((float) $vehicle->daily_price, 2) . '/day'
+                                                        : 'Daily price not set';
+
+                                                    return $hourly . ' | ' . $daily;
+                                                },
+                                            ),
+
+                                        Placeholder::make('selected_vehicle_partner')
+                                            ->label('Vendor / City / Status')
+                                            ->content(
+                                                function (Get $get): string {
+                                                    $vehicle = static::findVehicle(
+                                                        $get('vehicle_id'),
+                                                    );
+
+                                                    if (! $vehicle) {
+                                                        return 'No vehicle selected';
+                                                    }
+
+                                                    $vendor = $vehicle->transporter?->company_name
+                                                        ?: $vehicle->user?->name
+                                                        ?: $vehicle->owner_name
+                                                        ?: 'Unknown partner';
+                                                    $city = $vehicle->transporter?->city ?: 'City not set';
+                                                    $status = $vehicle->canBeBookedForRental()
+                                                        ? 'Ready for booking'
+                                                        : 'Not ready for booking';
+
+                                                    return $vendor . ' | ' . $city . ' | ' . $status;
                                                 },
                                             ),
                                     ]),
@@ -451,7 +501,16 @@ class ProductResource extends Resource
                                     )
                                     ->searchable()
                                     ->preload()
-                                    ->required(),
+                                    ->required(
+                                        fn (Get $get): bool =>
+                                            $get('ride_type') !== 'self_drive',
+                                    )
+                                    ->helperText(
+                                        fn (Get $get): string =>
+                                            $get('ride_type') === 'self_drive'
+                                                ? 'Self Drive me vehicle classification se category auto-map hoti hai. Match na mile to ye field blank reh sakti hai.'
+                                                : 'Legacy taxi pages ke liye fallback category required hai.',
+                                    ),
 
                                 Grid::make(2)
                                     ->schema([
@@ -820,34 +879,71 @@ class ProductResource extends Resource
         $set('price', $hourlyPrice > 0 ? $hourlyPrice : 1);
         $set('max_price', $hourlyPrice > 0 ? $hourlyPrice : 1);
 
-        $categoryId = static::findMatchingCategoryId(
-            $vehicle->car_classification,
-        );
+        $categoryId = static::findMatchingCategoryIdForVehicle($vehicle);
 
-        if ($categoryId !== null) {
-            $set('category_id', $categoryId);
-        }
+        $set('category_id', $categoryId);
     }
 
-    protected static function findMatchingCategoryId(
-        ?string $classification,
+    protected static function findMatchingCategoryIdForVehicle(
+        Vehicle $vehicle,
     ): ?int {
-        if (blank($classification)) {
-            return null;
+        $classification = trim((string) $vehicle->car_classification);
+        $modelName = trim((string) $vehicle->model_name);
+        $companyName = trim((string) $vehicle->car_company_name);
+
+        $haystack = Str::lower(
+            trim($classification . ' ' . $companyName . ' ' . $modelName),
+        );
+
+        $candidates = collect([
+            $classification,
+        ]);
+
+        $aliasRules = [
+            'hatchback' => ['hatchback', 'hatch', 'compact car'],
+            'sedan' => ['sedan', 'compact sedan'],
+            'suv' => ['suv', 'compact suv', 'crossover'],
+            'muv' => ['muv', 'mpv', 'multi utility'],
+            'luxury' => ['luxury', 'premium'],
+        ];
+
+        foreach ($aliasRules as $canonical => $needles) {
+            foreach ($needles as $needle) {
+                if (Str::contains($haystack, $needle)) {
+                    $candidates->push($canonical);
+                    break;
+                }
+            }
         }
 
-        $classification = Str::headline($classification);
+        $candidates = $candidates
+            ->filter(fn (mixed $value): bool => filled($value))
+            ->map(fn (mixed $value): string => trim((string) $value))
+            ->unique(fn (string $value): string => Str::lower($value))
+            ->values();
 
-        $categoryId = Category::query()
-            ->whereRaw(
-                'LOWER(name) = ?',
-                [Str::lower($classification)],
-            )
-            ->value('id');
+        foreach ($candidates as $candidate) {
+            $categoryId = Category::query()
+                ->whereRaw('LOWER(TRIM(name)) = ?', [Str::lower($candidate)])
+                ->value('id');
 
-        return $categoryId !== null
-            ? (int) $categoryId
-            : null;
+            if ($categoryId !== null) {
+                return (int) $categoryId;
+            }
+        }
+
+        foreach ($candidates as $candidate) {
+            $categoryId = Category::query()
+                ->whereRaw('LOWER(name) LIKE ?', ['%' . Str::lower($candidate) . '%'])
+                ->orderByRaw('CHAR_LENGTH(name) ASC')
+                ->value('id');
+
+            if ($categoryId !== null) {
+                return (int) $categoryId;
+            }
+        }
+
+        return null;
     }
 
     public static function table(Table $table): Table
