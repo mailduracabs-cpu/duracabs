@@ -148,16 +148,16 @@ class PageResource extends Resource
                             ),
 
                         Select::make('content_type')
-                            ->label('Page Type')
+                            ->label('URL Type / Page Type')
                             ->options([
-                                'page' => 'Normal Content Page',
-                                'landing_page' => 'Landing Page',
-                                'route_page' => 'Taxi Route Page',
-                                'city_page' => 'City Page',
-                                'service_page' => 'Self Drive Page',
-                                'tour_package' => 'Tour Package',
-                                'blog' => 'Blog Article',
-                                'product' => 'Product',
+                                'page' => 'Pages — Normal Content Page',
+                                'landing_page' => 'Pages — Landing Page',
+                                'route_page' => 'Pages — Taxi Route Page',
+                                'city_page' => 'Pages — City Page',
+                                'service_page' => 'Pages — Self Drive Page',
+                                'tour_package' => 'Tours — Tour Package',
+                                'blog' => 'Blog — Blog Article',
+                                'product' => 'Pages — Product',
                             ])
                             ->default('page')
                             ->required()
@@ -179,7 +179,7 @@ class PageResource extends Resource
                                 },
                             )
                             ->helperText(
-                                'Blog se /blog/, Tour Package se /tour/, aur baaki page types se /pages/ URL banega.',
+                                'Pages types se /pages/, Blog se /blog/, aur Tours se /tour/ URL banega.',
                             ),
 
                         \Filament\Forms\Components\Placeholder::make('public_url_preview')
@@ -238,6 +238,85 @@ class PageResource extends Resource
                             ->helperText(
                                 'Blank hone par page immediately available maana jayega.',
                             ),
+                    ]),
+
+                Section::make('SEO URL & Canonical')
+                    ->description(
+                        'URL type select karein, live URL dekhein aur canonical ko auto ya custom mode me manage karein.',
+                    )
+                    ->icon('heroicon-o-link')
+                    ->columns([
+                        'default' => 1,
+                        'lg' => 2,
+                    ])
+                    ->schema([
+                        \Filament\Forms\Components\Placeholder::make('seo_url_preview')
+                            ->label('Live Public URL')
+                            ->content(
+                                fn (Get $get): string =>
+                                    static::previewPageUrl(
+                                        (string) $get('content_type'),
+                                        (string) $get('slug'),
+                                    ),
+                            )
+                            ->helperText('Ye URL Page Type aur Slug ke hisaab se automatically banta hai.')
+                            ->columnSpanFull(),
+
+                        Toggle::make('auto_canonical')
+                            ->label('Auto Generate Canonical')
+                            ->default(true)
+                            ->dehydrated(false)
+                            ->live()
+                            ->afterStateHydrated(
+                                function (Toggle $component, ?Page $record): void {
+                                    $component->state(blank($record?->canonical_url));
+                                },
+                            )
+                            ->afterStateUpdated(
+                                function (bool $state, Set $set): void {
+                                    if ($state) {
+                                        $set('canonical_url', null);
+                                    }
+                                },
+                            )
+                            ->helperText('ON rakhen to current public URL canonical hoga. OFF par custom canonical enter kar sakte hain.'),
+
+                        \Filament\Forms\Components\Placeholder::make('canonical_preview')
+                            ->label('Canonical Preview')
+                            ->content(
+                                function (Get $get): string {
+                                    if ((bool) $get('auto_canonical')) {
+                                        return static::previewPageUrl(
+                                            (string) $get('content_type'),
+                                            (string) $get('slug'),
+                                        );
+                                    }
+
+                                    return filled($get('canonical_url'))
+                                        ? (string) $get('canonical_url')
+                                        : 'Custom canonical URL enter karein';
+                                },
+                            ),
+
+                        TextInput::make('canonical_url')
+                            ->label('Custom Canonical URL')
+                            ->placeholder('https://www.duracabs.com/pages/example-page')
+                            ->url()
+                            ->maxLength(1000)
+                            ->visible(fn (Get $get): bool => ! (bool) $get('auto_canonical'))
+                            ->helperText('Sirf tab use karein jab canonical kisi doosre valid URL par point karna ho.'),
+
+                        Select::make('robots')
+                            ->label('Robots')
+                            ->options([
+                                'index,follow' => 'Index, Follow',
+                                'index,nofollow' => 'Index, No Follow',
+                                'noindex,follow' => 'No Index, Follow',
+                                'noindex,nofollow' => 'No Index, No Follow',
+                            ])
+                            ->default('index,follow')
+                            ->native(false)
+                            ->helperText('Normal SEO pages ke liye Index, Follow recommended hai.'),
                     ]),
 
                 Section::make('Self Drive Page Settings')
@@ -1023,7 +1102,10 @@ class PageResource extends Resource
                                 }
 
                                 $record->forceFill([
-                                    'canonical_url' => (string) $record->public_url,
+                                    'canonical_url' => static::previewPageUrl(
+                                        (string) $record->content_type,
+                                        (string) $record->slug,
+                                    ),
                                 ])->save();
 
                                 $generated++;
@@ -1154,7 +1236,10 @@ class PageResource extends Resource
             'canonical_url' => $record->canonical_url,
             'robots' => $record->robots,
             'is_active' => true,
-            'page_url' => (string) $record->public_url,
+            'page_url' => static::previewPageUrl(
+                (string) $record->content_type,
+                (string) $record->slug,
+            ),
             'published_at' => $record->published_at,
             'updated_at' => $record->updated_at,
         ];
