@@ -517,7 +517,15 @@
             : 'min-h-screen pb-20 lg:pb-0'
         }}"
     >
+        @if(! $isPartner)
+            <x-seo.seo mode="breadcrumb" :page-title="$metaTitle" />
+        @endif
+
         {{ $slot }}
+
+        @if(! $isPartner)
+            <x-seo.seo mode="links" />
+        @endif
     </main>
 
     @if(! $isPartner)
