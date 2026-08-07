@@ -325,18 +325,29 @@
 
 
                                     @if ($hours)
-                                        <div class="flex items-center justify-between">
-                                            <p class="text-center w-full text-xl text-green-600 font-extrabold mt-4">
-                                                Total Hours: {{ $hours }} </p>
-                                            <p class="text-center w-full text-xl text-green-600 font-extrabold mt-4">
-                                                Total Price: {{ $ride->price * $hours }} </p>
+                                        <div class="mt-4 rounded-xl bg-emerald-50 p-3 text-center">
+                                            <p class="font-extrabold text-emerald-700">
+                                                Total Hours: {{ $hours }}
+                                            </p>
+                                            <p class="mt-1 font-extrabold text-emerald-700">
+                                                Estimated Price:
+                                                {{ Number::currency(((float) ($selectedVehicle?->hourly_price ?? $ride->price)) * $hours, 'INR') }}
+                                            </p>
                                         </div>
                                     @endif
 
+                                    @if ($selfDriveAvailabilityMessage)
+                                        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                                            {{ $selfDriveAvailabilityMessage }}
+                                        </div>
+                                    @endif
 
                                     <button type="submit"
-                                        class="main-color mt-4 text-xl w-full text-white p-2 rounded-sm">
-                                        Book Now
+                                        wire:loading.attr="disabled"
+                                        wire:target="submitSelfDrive"
+                                        class="main-color mt-4 text-xl w-full text-white p-2 rounded-sm disabled:opacity-60">
+                                        <span wire:loading.remove wire:target="submitSelfDrive">Check Availability & Book</span>
+                                        <span wire:loading wire:target="submitSelfDrive">Checking Availability...</span>
                                     </button>
                                 </div>
                             </div>
@@ -595,10 +606,10 @@
                             @if ($ride->ride_type === 'self_drive')
                                 <div>
                                     <p class="text-sm font-extrabold text-slate-900">
-                                        {{ $selectedVehicle ? '1 Self Drive Vehicle Available' : 'Vehicle Currently Unavailable' }}
+                                        {{ $selectedVehicle ? 'Linked Self Drive Vehicle' : 'Linked Vehicle Not Found' }}
                                     </p>
                                     <p class="text-xs text-slate-500">
-                                        {{ $selectedVehicle ? 'This SEO page is linked to the exact approved Self Drive vehicle.' : 'Admin me linked vehicle ki live/verified status check karein.' }}
+                                        {{ $selectedVehicle ? 'Select pickup and return date/time to check live availability.' : 'Admin me is SEO page ke saath vehicle link check karein.' }}
                                     </p>
                                 </div>
                             @else
@@ -643,7 +654,7 @@
 
                                         <div class="ride-package-rating" aria-label="Verified self drive vehicle">
                                             <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-                                            <span>Verified</span>
+                                            <span>Linked Vehicle</span>
                                         </div>
 
                                         <p class="ride-package-model">
@@ -662,7 +673,7 @@
                                                 <span><i class="fa-solid fa-users"></i> {{ $selectedVehicle->seats }} Seats</span>
                                             @endif
                                             <span><i class="fa-solid fa-building"></i> {{ $vendorName }}</span>
-                                            <span><i class="fa-solid fa-circle-check"></i> Live & Approved</span>
+                                            <span><i class="fa-solid fa-calendar-check"></i> Availability checked before checkout</span>
                                         </div>
 
                                         @if ($selectedVehicle->transporter?->pickup_address)
@@ -720,9 +731,9 @@
                                 </article>
                             @else
                                 <div class="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
-                                    <h3 class="text-lg font-black text-amber-900">Linked vehicle is not available</h3>
+                                    <h3 class="text-lg font-black text-amber-900">Linked vehicle details not found</h3>
                                     <p class="mt-2 text-sm font-semibold text-amber-800">
-                                        Vehicle inactive, not live, not verified, or not approved ho sakta hai. Admin me vehicle status check karein.
+                                        Is SEO page ka vehicle link missing ya deleted ho sakta hai. Admin me linked vehicle select karein.
                                     </p>
                                 </div>
                             @endif

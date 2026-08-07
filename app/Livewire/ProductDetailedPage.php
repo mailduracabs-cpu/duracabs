@@ -6,6 +6,7 @@ use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\Vehicle;
+use App\Models\SelfDriveBooking;
 use App\Models\RideInquiry;
 use App\Models\WebsiteSetting;
 use App\SEO\Services\SeoSchemaService;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Support\Number;
+use Carbon\Carbon;
 
 #[Title('Ride Detail - Duracabs')]
 class ProductDetailedPage extends Component
@@ -67,6 +69,9 @@ class ProductDetailedPage extends Component
     public ?string $pendingBookingAction = null;
     public mixed $pendingBookingPayload = null;
 
+    // Self Drive selected-date availability feedback.
+    public ?string $selfDriveAvailabilityMessage = null;
+
     public function mount($slug): void
     {
         $this->slug = $slug;
@@ -107,6 +112,9 @@ public function submitLocal($productId)
 
 public function submitSelfDrive($productId)
 {
+    $this->resetErrorBag();
+    $this->selfDriveAvailabilityMessage = null;
+
     $this->validate([
         'date' => ['required', 'date'],
         'time' => ['required'],
@@ -121,7 +129,74 @@ public function submitSelfDrive($productId)
         return null;
     }
 
-    return $this->storeBookingDraft('self_drive', $productId, __FUNCTION__);
+    try {
+        $ride = Product::query()
+            ->where('slug', $this->slug)
+            ->where('is_active', 1)
+            ->firstOrFail();
+
+        $vehicleId = (int) ($ride->vehicle_id ?: (is_numeric($productId) ? $productId : 0));
+
+        if ($vehicleId <= 0) {
+            $this->selfDriveAvailabilityMessage = 'This Self Drive page is not linked to a vehicle yet.';
+            $this->alert('warning', $this->selfDriveAvailabilityMessage, [
+                'position' => 'center-end',
+                'timer' => 5000,
+                'toast' => true,
+            ]);
+
+            return null;
+        }
+
+        // Booking eligibility is checked only after the customer selects dates.
+        // The SEO page itself can still display the linked vehicle.
+        $bookableVehicle = Vehicle::query()
+            ->availableForRental()
+            ->selfDrive()
+            ->whereKey($vehicleId)
+            ->exists();
+
+        if (! $bookableVehicle) {
+            $this->selfDriveAvailabilityMessage = 'This car is currently not available for booking. Please try again later.';
+            $this->alert('warning', $this->selfDriveAvailabilityMessage, [
+                'position' => 'center-end',
+                'timer' => 5000,
+                'toast' => true,
+            ]);
+
+            return null;
+        }
+
+        if ($this->selfDriveBookingOverlapExists($vehicleId)) {
+            $this->selfDriveAvailabilityMessage = 'This car is not available on your selected dates. Please choose another date or time.';
+            $this->alert('warning', $this->selfDriveAvailabilityMessage, [
+                'position' => 'center-end',
+                'timer' => 5000,
+                'toast' => true,
+            ]);
+
+            return null;
+        }
+    } catch (\Throwable $e) {
+        Log::warning('Self Drive availability check failed', [
+            'slug' => $this->slug,
+            'selection_id' => $productId,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->selfDriveAvailabilityMessage = 'Availability check nahi ho saki. Please try again.';
+        $this->alert('error', $this->selfDriveAvailabilityMessage, [
+            'position' => 'center-end',
+            'timer' => 5000,
+            'toast' => true,
+        ]);
+
+        return null;
+    }
+
+    // If available: unauthenticated/unverified customer gets OTP/login gate,
+    // then the same availability is checked again before checkout.
+    return $this->storeBookingDraft('self_drive', $vehicleId, __FUNCTION__);
 }
 
 private function storeBookingDraft(string $bookingType, mixed $selectionId, string $pendingAction)
@@ -156,6 +231,12 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                 ->availableForRental()
                 ->selfDrive()
                 ->findOrFail($vehicleId);
+
+            // Re-check selected dates immediately before creating checkout draft.
+            // This also protects the OTP/login continuation flow.
+            if ($this->selfDriveBookingOverlapExists($vehicleId)) {
+                throw new \RuntimeException('SELF_DRIVE_VEHICLE_ALREADY_BOOKED');
+            }
 
             $this->recalculateSelfDriveHours();
 
@@ -292,10 +373,19 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
             'SELF_DRIVE_VEHICLE_NOT_LINKED' => 'Is Self Drive page ke saath vehicle link nahi hai.',
             'SELF_DRIVE_PERIOD_INVALID' => 'Pickup aur return date-time sahi select karein.',
             'SELF_DRIVE_PRICE_UNAVAILABLE' => 'Is vehicle ka hourly price available nahi hai.',
+            'SELF_DRIVE_VEHICLE_ALREADY_BOOKED' => 'This car is not available on your selected dates. Please choose another date or time.',
             default => 'Booking start nahi ho saki. Page refresh karke dobara try karein.',
         };
 
-        $this->alert('error', $message, [
+        if ($bookingType === 'self_drive') {
+            $this->selfDriveAvailabilityMessage = $message;
+            $this->tab = 'self_drive';
+        }
+
+        $this->alert(
+            $e->getMessage() === 'SELF_DRIVE_VEHICLE_ALREADY_BOOKED' ? 'warning' : 'error',
+            $message,
+            [
             'position' => 'center-end',
             'timer' => 4000,
             'toast' => true,
@@ -307,21 +397,25 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
 
 public function updatedEndDate(): void
 {
+    $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
 }
 
 public function updatedEndTime(): void
 {
+    $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
 }
 
 public function updatedTime(): void
 {
+    $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
 }
 
 public function updatedDate(): void
 {
+    $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
 }
 
@@ -344,15 +438,54 @@ private function recalculateSelfDriveHours(): void
     $this->hours = max(24, $calculatedHours);
 }
 
+/**
+ * Return true when this exact vehicle already has an overlapping active booking.
+ */
+private function selfDriveBookingOverlapExists(int $vehicleId): bool
+{
+    [$pickupAt, $dropAt] = $this->selfDriveDateTimes();
+
+    return SelfDriveBooking::query()
+        ->where('vehicle_id', $vehicleId)
+        ->whereIn('status', ['pending', 'confirmed', 'running'])
+        ->where('start_datetime', '<', $dropAt->toDateTimeString())
+        ->where('end_datetime', '>', $pickupAt->toDateTimeString())
+        ->exists();
+}
+
+/**
+ * @return array{0: Carbon, 1: Carbon}
+ */
+private function selfDriveDateTimes(): array
+{
+    if (! $this->date || ! $this->time || ! $this->endDate || ! $this->endTime) {
+        throw new \InvalidArgumentException('Pickup and drop date/time are required.');
+    }
+
+    $pickupAt = Carbon::parse(trim((string) $this->date . ' ' . (string) $this->time));
+    $dropAt = Carbon::parse(trim((string) $this->endDate . ' ' . (string) $this->endTime));
+
+    if (! $dropAt->greaterThan($pickupAt)) {
+        throw new \InvalidArgumentException('Drop date/time must be after pickup date/time.');
+    }
+
+    return [$pickupAt, $dropAt];
+}
+
 
 public function tabValue($val){
 
-    if (! $this->fareUnlocked) {
+    $requestedTab = is_array($val) ? ($val[0] ?? null) : null;
+
+    // For Self Drive, first let the customer select pickup/drop date and time.
+    // OTP/login happens only after the selected vehicle is confirmed available.
+    if (! $this->fareUnlocked && $requestedTab !== 'self_drive') {
         $this->pendingTabValue = is_array($val) ? $val : null;
         $this->openFareGate();
         return;
     }
 
+    $this->selfDriveAvailabilityMessage = null;
     $this->tab = $val[0];
     $this->price = $val[1];
     $this->name = $val[2];
@@ -619,10 +752,11 @@ public function tabValue($val){
         $selectedVehicle = null;
 
         if ($ride->ride_type === 'self_drive' && filled($ride->vehicle_id)) {
+            // SEO display and booking availability are intentionally separate.
+            // Keep the linked vehicle visible on the SEO page even when it is
+            // temporarily unavailable for selected booking dates.
             $selectedVehicle = Vehicle::query()
                 ->with('transporter')
-                ->availableForRental()
-                ->selfDrive()
                 ->find((int) $ride->vehicle_id);
         }
 
