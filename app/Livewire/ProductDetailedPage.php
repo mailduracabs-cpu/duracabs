@@ -5,6 +5,7 @@ namespace App\Livewire;
 use App\Services\OtpService;
 use App\Models\Brand;
 use App\Models\Product;
+use App\Models\Vehicle;
 use App\Models\RideInquiry;
 use App\Models\WebsiteSetting;
 use App\SEO\Services\SeoSchemaService;
@@ -137,62 +138,143 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
             ->where('is_active', 1)
             ->firstOrFail();
 
-        $selectedPrice = $ride->prices->firstWhere('id', (int) $selectionId);
         $dropCity = ! empty($ride->booking_to)
             ? Brand::query()->find($ride->booking_to)
             : null;
 
-        $unitPrice = (float) ($selectedPrice?->price ?? $this->price ?? 0);
         $quantity = max(1, (int) $this->quantity);
-        $hours = $bookingType === 'self_drive'
-            ? max(24, (int) ($this->hours ?: 24))
-            : null;
 
-        session()->put('booking_draft', [
-            'version' => 1,
-            'type' => $bookingType,
-            'source' => 'product_detailed_page',
-            'selection_id' => is_numeric($selectionId) ? (int) $selectionId : $selectionId,
-            'product_id' => (int) $ride->getKey(),
-            'vehicle_id' => $selectedPrice?->category_id
-                ? (int) $selectedPrice->category_id
-                : null,
-            'customer' => [
-                'user_id' => Auth::id(),
-                'mobile' => $this->mobileNumber ?: session('route_verified_mobile'),
-            ],
-            'trip' => [
-                'pickup_city_id' => $ride->brand_id ? (int) $ride->brand_id : null,
-                'pickup_name' => $ride->brand?->name,
-                'drop_city_id' => $ride->booking_to ? (int) $ride->booking_to : null,
-                'drop_name' => $dropCity?->name,
-                'date' => (string) $this->date,
-                'time' => (string) $this->time,
-                'end_date' => $bookingType === 'self_drive' ? (string) $this->endDate : null,
-                'end_time' => $bookingType === 'self_drive' ? (string) $this->endTime : null,
-                'hours' => $hours,
-                'plan' => $bookingType === 'local' ? (string) $this->plan : null,
-                'quantity' => $quantity,
-            ],
-            'fare' => [
-                'unit_price' => $unitPrice,
-                'quantity' => $quantity,
-                'subtotal' => $unitPrice * $quantity,
-                'display_price' => $this->price,
-                'toll' => $this->toll,
-                'security' => $bookingType === 'self_drive' ? $this->security : null,
-            ],
-            'product' => [
-                'slug' => (string) $ride->slug,
-                'name' => (string) ($this->name ?: $ride->name),
-                'category_name' => (string) ($this->categoryName ?: $selectedPrice?->category?->name ?: ''),
-                'ride_type' => (string) ($ride->ride_type ?: $bookingType),
-                'new_vehicle' => (bool) $this->newVehical,
-                'pet_friendly' => (bool) $this->petFrindly,
-                'roof_carrier' => (bool) $this->roof_career,
-            ],
-            'created_at' => now()->toIso8601String(),
-        ]);
+        if ($bookingType === 'self_drive') {
+            $vehicleId = (int) ($ride->vehicle_id ?: (is_numeric($selectionId) ? $selectionId : 0));
+
+            if ($vehicleId <= 0) {
+                throw new \RuntimeException('SELF_DRIVE_VEHICLE_NOT_LINKED');
+            }
+
+            $vehicle = Vehicle::query()
+                ->with('transporter')
+                ->availableForRental()
+                ->selfDrive()
+                ->findOrFail($vehicleId);
+
+            $this->recalculateSelfDriveHours();
+
+            if ($this->hours === false) {
+                throw new \RuntimeException('SELF_DRIVE_PERIOD_INVALID');
+            }
+
+            $hours = max(1, (int) $this->hours);
+            $minimumHours = max(1, (int) ($vehicle->minimum_booking_hours ?? 1));
+            $billableHours = max($hours, $minimumHours);
+            $unitPrice = max(0, (float) $vehicle->hourly_price);
+
+            if ($unitPrice <= 0) {
+                throw new \RuntimeException('SELF_DRIVE_PRICE_UNAVAILABLE');
+            }
+
+            $subtotal = $unitPrice * $billableHours * $quantity;
+
+            session()->put('booking_draft', [
+                'version' => 2,
+                'type' => 'self_drive',
+                'source' => 'product_detailed_page',
+                'selection_id' => $vehicleId,
+                'product_id' => (int) $ride->getKey(),
+                'vehicle_id' => $vehicleId,
+                'customer' => [
+                    'user_id' => Auth::id(),
+                    'mobile' => $this->mobileNumber ?: session('route_verified_mobile'),
+                ],
+                'trip' => [
+                    'pickup_city_id' => $ride->brand_id ? (int) $ride->brand_id : null,
+                    'pickup_name' => $ride->brand?->name,
+                    'drop_city_id' => null,
+                    'drop_name' => null,
+                    'date' => (string) $this->date,
+                    'time' => (string) $this->time,
+                    'end_date' => (string) $this->endDate,
+                    'end_time' => (string) $this->endTime,
+                    'hours' => $hours,
+                    'billable_hours' => $billableHours,
+                    'quantity' => $quantity,
+                ],
+                'fare' => [
+                    'unit_price' => $unitPrice,
+                    'price_unit' => 'hour',
+                    'hours' => $hours,
+                    'billable_hours' => $billableHours,
+                    'minimum_booking_hours' => $minimumHours,
+                    'quantity' => $quantity,
+                    'subtotal' => $subtotal,
+                    'total' => $subtotal,
+                    'security' => max(0, (float) ($vehicle->security_deposit ?? 0)),
+                ],
+                'vehicle' => [
+                    'id' => $vehicleId,
+                    'name' => (string) $vehicle->display_name,
+                    'number' => $vehicle->vehicle_number,
+                    'fuel_type' => $vehicle->fuel_type,
+                    'transmission' => $vehicle->transmission,
+                    'seats' => $vehicle->seats,
+                    'transporter_profile_id' => $vehicle->transporter_profile_id,
+                    'vendor_name' => $vehicle->transporter?->company_name,
+                    'pickup_address' => $vehicle->transporter?->pickup_address,
+                ],
+                'product' => [
+                    'slug' => (string) $ride->slug,
+                    'name' => (string) ($ride->name ?: $vehicle->display_name),
+                    'category_name' => (string) ($vehicle->car_classification ?: 'Self Drive Car'),
+                    'ride_type' => 'self_drive',
+                ],
+                'created_at' => now()->toIso8601String(),
+            ]);
+        } else {
+            $selectedPrice = $ride->prices->firstWhere('id', (int) $selectionId);
+            $unitPrice = (float) ($selectedPrice?->price ?? $this->price ?? 0);
+
+            session()->put('booking_draft', [
+                'version' => 1,
+                'type' => $bookingType,
+                'source' => 'product_detailed_page',
+                'selection_id' => is_numeric($selectionId) ? (int) $selectionId : $selectionId,
+                'product_id' => (int) $ride->getKey(),
+                'vehicle_id' => null,
+                'customer' => [
+                    'user_id' => Auth::id(),
+                    'mobile' => $this->mobileNumber ?: session('route_verified_mobile'),
+                ],
+                'trip' => [
+                    'pickup_city_id' => $ride->brand_id ? (int) $ride->brand_id : null,
+                    'pickup_name' => $ride->brand?->name,
+                    'drop_city_id' => $ride->booking_to ? (int) $ride->booking_to : null,
+                    'drop_name' => $dropCity?->name,
+                    'date' => (string) $this->date,
+                    'time' => (string) $this->time,
+                    'end_date' => null,
+                    'end_time' => null,
+                    'hours' => null,
+                    'plan' => $bookingType === 'local' ? (string) $this->plan : null,
+                    'quantity' => $quantity,
+                ],
+                'fare' => [
+                    'unit_price' => $unitPrice,
+                    'quantity' => $quantity,
+                    'subtotal' => $unitPrice * $quantity,
+                    'display_price' => $this->price,
+                    'toll' => $this->toll,
+                ],
+                'product' => [
+                    'slug' => (string) $ride->slug,
+                    'name' => (string) ($this->name ?: $ride->name),
+                    'category_name' => (string) ($this->categoryName ?: $selectedPrice?->category?->name ?: ''),
+                    'ride_type' => (string) ($ride->ride_type ?: $bookingType),
+                    'new_vehicle' => (bool) $this->newVehical,
+                    'pet_friendly' => (bool) $this->petFrindly,
+                    'roof_carrier' => (bool) $this->roof_career,
+                ],
+                'created_at' => now()->toIso8601String(),
+            ]);
+        }
 
         $this->pendingBookingAction = null;
         $this->pendingBookingPayload = null;
@@ -206,7 +288,14 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
             'error' => $e->getMessage(),
         ]);
 
-        $this->alert('error', 'Booking start nahi ho saki. Page refresh karke dobara try karein.', [
+        $message = match ($e->getMessage()) {
+            'SELF_DRIVE_VEHICLE_NOT_LINKED' => 'Is Self Drive page ke saath vehicle link nahi hai.',
+            'SELF_DRIVE_PERIOD_INVALID' => 'Pickup aur return date-time sahi select karein.',
+            'SELF_DRIVE_PRICE_UNAVAILABLE' => 'Is vehicle ka hourly price available nahi hai.',
+            default => 'Booking start nahi ho saki. Page refresh karke dobara try karein.',
+        };
+
+        $this->alert('error', $message, [
             'position' => 'center-end',
             'timer' => 4000,
             'toast' => true,
@@ -527,6 +616,16 @@ public function tabValue($val){
         $prices = $ride->prices;
         $links = $ride->links;
 
+        $selectedVehicle = null;
+
+        if ($ride->ride_type === 'self_drive' && filled($ride->vehicle_id)) {
+            $selectedVehicle = Vehicle::query()
+                ->with('transporter')
+                ->availableForRental()
+                ->selfDrive()
+                ->find((int) $ride->vehicle_id);
+        }
+
         $ridesQuery = Product::query()
             ->with(['brand'])
             ->where('is_active', 1)
@@ -568,7 +667,9 @@ public function tabValue($val){
             ? trim((string) $ride->meta_title)
             : $this->buildFallbackSeoTitle($ride, $routeName, $tripLabel, $contentType);
 
-        $lowestFare = $prices->min('price');
+        $lowestFare = $ride->ride_type === 'self_drive'
+            ? ($selectedVehicle ? (float) $selectedVehicle->hourly_price : null)
+            : $prices->min('price');
         $fareText = $lowestFare
             ? ' Fares start from ' . Number::currency((float) $lowestFare, 'INR') . '.'
             : '';
@@ -603,7 +704,7 @@ public function tabValue($val){
             $pickupName,
             $dropName,
             $lowestFare,
-            $prices->count(),
+            $ride->ride_type === 'self_drive' ? ($selectedVehicle ? 1 : 0) : $prices->count(),
             $contentType
         );
 
@@ -706,6 +807,7 @@ public function tabValue($val){
             'cityTo' => $cityTo,
             'links' => $links,
             'prices' => $prices,
+            'selectedVehicle' => $selectedVehicle,
             'imageMeta' => $imageMeta,
             'allCities' => Brand::query()->orderBy('name')->get(['id', 'name']),
             'seoTitle' => $seoTitle,
