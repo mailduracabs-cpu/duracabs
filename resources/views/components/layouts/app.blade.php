@@ -366,19 +366,43 @@
     </script>
 
     @php
-        $gtagIds = collect([
-            $settings->google_analytics_id,
-            $settings->google_ads_id,
-        ])
-            ->filter()
-            ->unique()
-            ->values();
+        /*
+        |--------------------------------------------------------------------------
+        | Tracking configuration - ADMIN SETTINGS ONLY
+        |--------------------------------------------------------------------------
+        |
+        | No tracking ID is hardcoded in this layout.
+        |
+        | Priority:
+        | 1. Google Tag Manager ID from Website Settings > Analytics.
+        | 2. If GTM is empty, Google Analytics / Google Ads IDs from the same
+        |    admin screen are used as a fallback.
+        |
+        | When GTM is present, direct gtag.js loading is disabled to avoid
+        | duplicate GA4 / Google Ads events when those tags are managed in GTM.
+        |
+        */
+
+        $googleTagManagerId = filled($settings->google_tag_manager_id)
+            ? trim((string) $settings->google_tag_manager_id)
+            : null;
+
+        $gtagIds = $googleTagManagerId
+            ? collect()
+            : collect([
+                $settings->google_analytics_id,
+                $settings->google_ads_id,
+            ])
+                ->filter()
+                ->map(fn ($id) => trim((string) $id))
+                ->unique()
+                ->values();
     @endphp
 
-    {{-- Delayed tracking loader --}}
+    {{-- Consent-aware tracking loader. All IDs come from Website Settings. --}}
     <script>
         window.duraTrackingConfig = @json([
-            'gtmId' => $settings->google_tag_manager_id,
+            'gtmId' => $googleTagManagerId,
             'gtagIds' => $gtagIds,
         ]);
 
@@ -413,6 +437,8 @@
                         + encodeURIComponent(config.gtmId);
 
                     document.head.appendChild(gtmScript);
+
+                    return;
                 }
 
                 if (
