@@ -8,6 +8,7 @@ use App\Filament\Resources\ProductResource\RelationManagers\LinksRelationManager
 use App\Forms\Components\DuraImageUpload;
 use App\Forms\Components\DuraSeo;
 use App\Forms\Components\DuraSeoAiWriter;
+use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Vehicle;
@@ -188,7 +189,19 @@ class ProductResource extends Resource
                                             ->relationship('brand', 'name')
                                             ->searchable()
                                             ->preload()
-                                            ->required(),
+                                            ->required()
+                                            ->live()
+                                            ->afterStateUpdated(
+                                                function (
+                                                    mixed $state,
+                                                    Get $get,
+                                                    Set $set,
+                                                ): void {
+                                                    if ($get('ride_type') === 'self_drive') {
+                                                        $set('vehicle_id', null);
+                                                    }
+                                                },
+                                            ),
 
                                         Select::make('booking_to')
                                             ->label('Destination City')
@@ -236,17 +249,31 @@ class ProductResource extends Resource
                                 Select::make('vehicle_id')
                                     ->label('Self Drive Vehicle')
                                     ->placeholder(
-                                        'Type vehicle name, model or registration number',
+                                        fn (Get $get): string => filled($get('brand_id'))
+                                            ? 'Select or search a vehicle for this city'
+                                            : 'Select City first',
+                                    )
+                                    ->options(
+                                        fn (Get $get): array =>
+                                            static::selfDriveVehicleOptions(
+                                                $get('brand_id'),
+                                            ),
                                     )
                                     ->searchable()
                                     ->native(false)
+                                    ->disabled(
+                                        fn (Get $get): bool => blank($get('brand_id')),
+                                    )
                                     ->required(
                                         fn (Get $get): bool =>
                                             $get('ride_type') === 'self_drive',
                                     )
                                     ->getSearchResultsUsing(
-                                        fn (string $search): array =>
-                                            static::searchSelfDriveVehicles($search),
+                                        fn (string $search, Get $get): array =>
+                                            static::searchSelfDriveVehicles(
+                                                $search,
+                                                $get('brand_id'),
+                                            ),
                                     )
                                     ->getOptionLabelUsing(
                                         fn (mixed $value): ?string =>
@@ -262,7 +289,20 @@ class ProductResource extends Resource
                                         },
                                     )
                                     ->helperText(
-                                        'Only approved, active, live and verified Self Drive vehicles are shown.',
+                                        fn (Get $get): string => static::vehicleSelectHelperText(
+                                            $get('brand_id'),
+                                        ),
+                                    ),
+
+                                Placeholder::make('self_drive_vehicle_city_status')
+                                    ->label('City Vehicle Status')
+                                    ->content(
+                                        fn (Get $get): string => static::vehicleCityStatus(
+                                            $get('brand_id'),
+                                        ),
+                                    )
+                                    ->visible(
+                                        fn (Get $get): bool => filled($get('brand_id')),
                                     ),
 
                                 Grid::make([
@@ -468,9 +508,27 @@ class ProductResource extends Resource
             ]);
     }
 
-    protected static function searchSelfDriveVehicles(string $search): array
+    /**
+     * @return array<int, string>
+     */
+    protected static function selfDriveVehicleOptions(mixed $brandId): array
     {
+        return static::searchSelfDriveVehicles('', $brandId);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function searchSelfDriveVehicles(
+        string $search,
+        mixed $brandId,
+    ): array {
         $search = trim($search);
+        $cityTerms = static::citySearchTerms($brandId);
+
+        if ($cityTerms === []) {
+            return [];
+        }
 
         return Vehicle::query()
             ->with([
@@ -482,6 +540,32 @@ class ProductResource extends Resource
             ->where('is_active', true)
             ->where('is_live', true)
             ->where('is_verified', true)
+            ->whereHas(
+                'transporter',
+                function (Builder $transporterQuery) use ($cityTerms): void {
+                    $transporterQuery->where(
+                        function (Builder $locationQuery) use ($cityTerms): void {
+                            foreach ($cityTerms as $term) {
+                                $locationQuery
+                                    ->orWhereRaw(
+                                        'LOWER(TRIM(city)) = ?',
+                                        [Str::lower($term)],
+                                    )
+                                    ->orWhere(
+                                        'city',
+                                        'like',
+                                        "%{$term}%",
+                                    )
+                                    ->orWhere(
+                                        'office_address',
+                                        'like',
+                                        "%{$term}%",
+                                    );
+                            }
+                        },
+                    );
+                },
+            )
             ->when(
                 filled($search),
                 function (Builder $query) use ($search): void {
@@ -540,7 +624,12 @@ class ProductResource extends Resource
                                                         "%{$search}%",
                                                     )
                                                     ->orWhere(
-                                                        'pickup_address',
+                                                        'city',
+                                                        'like',
+                                                        "%{$search}%",
+                                                    )
+                                                    ->orWhere(
+                                                        'office_address',
                                                         'like',
                                                         "%{$search}%",
                                                     );
@@ -561,7 +650,7 @@ class ProductResource extends Resource
             )
             ->orderBy('car_company_name')
             ->orderBy('model_name')
-            ->limit(50)
+            ->limit(100)
             ->get()
             ->mapWithKeys(
                 fn (Vehicle $vehicle): array => [
@@ -569,6 +658,82 @@ class ProductResource extends Resource
                 ],
             )
             ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function citySearchTerms(mixed $brandId): array
+    {
+        if (blank($brandId) || ! is_numeric($brandId)) {
+            return [];
+        }
+
+        $brandName = trim(
+            (string) Brand::query()
+                ->whereKey((int) $brandId)
+                ->value('name'),
+        );
+
+        if ($brandName === '') {
+            return [];
+        }
+
+        $shortCity = trim((string) Str::before($brandName, ','));
+
+        return collect([
+            $brandName,
+            $shortCity,
+        ])
+            ->filter(fn (string $value): bool => $value !== '')
+            ->unique(fn (string $value): string => Str::lower($value))
+            ->values()
+            ->all();
+    }
+
+    protected static function selectedCityName(mixed $brandId): ?string
+    {
+        if (blank($brandId) || ! is_numeric($brandId)) {
+            return null;
+        }
+
+        $name = Brand::query()
+            ->whereKey((int) $brandId)
+            ->value('name');
+
+        return filled($name)
+            ? trim((string) $name)
+            : null;
+    }
+
+    protected static function vehicleSelectHelperText(mixed $brandId): string
+    {
+        $cityName = static::selectedCityName($brandId);
+
+        if (! $cityName) {
+            return 'Pehle City select karein. Us city ke approved, active, live aur verified Self Drive vehicles hi dikhaye jayenge.';
+        }
+
+        return "Only approved, active, live and verified Self Drive vehicles for {$cityName} are shown.";
+    }
+
+    protected static function vehicleCityStatus(mixed $brandId): string
+    {
+        $cityName = static::selectedCityName($brandId);
+
+        if (! $cityName) {
+            return 'Select City first';
+        }
+
+        $count = count(static::selfDriveVehicleOptions($brandId));
+
+        if ($count === 0) {
+            return "No Self Drive Vehicle available in {$cityName}";
+        }
+
+        return $count === 1
+            ? "1 Self Drive Vehicle available in {$cityName}"
+            : "{$count} Self Drive Vehicles available in {$cityName}";
     }
 
     protected static function getVehicleOptionLabel(mixed $value): ?string
@@ -607,7 +772,8 @@ class ProductResource extends Resource
             ?: $vehicle->owner_name
             ?: 'Unknown partner';
 
-        $location = $vehicle->transporter?->pickup_address;
+        $location = $vehicle->transporter?->office_address
+            ?: $vehicle->transporter?->city;
 
         $price = '₹' . number_format(
             max(0, (float) $vehicle->hourly_price),
