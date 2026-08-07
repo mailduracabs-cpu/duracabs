@@ -287,54 +287,144 @@
             </div>
         </section>
 
-        {{-- Popular route products --}}
+        {{-- Popular route products: image-free route banners --}}
         @if (filled($products))
-            <section aria-labelledby="popular-routes-heading">
-                <div class="mb-7">
-                    <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-600">Explore more journeys</p>
-                    <h2 id="popular-routes-heading" class="mt-2 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-                        More Popular Routes
-                    </h2>
-                    <p class="mt-2 text-sm text-slate-600">Discover frequently booked routes across India.</p>
+            <section
+                aria-labelledby="popular-routes-heading"
+                class="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-sm"
+            >
+                <div
+                    class="relative overflow-hidden border-b border-slate-200 px-5 py-7 sm:px-8"
+                    style="background:
+                        radial-gradient(circle at 92% 15%, rgba(56,189,248,.18), transparent 30%),
+                        radial-gradient(circle at 8% 100%, rgba(14,165,233,.10), transparent 35%),
+                        linear-gradient(135deg, #f8fafc 0%, #ffffff 52%, #f0f9ff 100%);"
+                >
+                    <div class="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full border border-sky-200/70"></div>
+                    <div class="pointer-events-none absolute -right-4 -top-6 h-24 w-24 rounded-full border border-sky-200/60"></div>
+
+                    <div class="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                        <div class="max-w-2xl">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-sky-700">
+                                <i class="fa-solid fa-route" aria-hidden="true"></i>
+                                Popular Routes
+                            </span>
+
+                            <h2
+                                id="popular-routes-heading"
+                                class="mt-3 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl"
+                            >
+                                Popular Cab Routes from {{ $brandName }}
+                            </h2>
+
+                            <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                                Explore frequently booked outstation journeys related to {{ $pageName }}.
+                            </p>
+                        </div>
+
+                        <div class="hidden shrink-0 items-center gap-2 text-xs font-bold text-slate-500 sm:flex">
+                            <i class="fa-solid fa-circle-info text-sky-500" aria-hidden="true"></i>
+                            Tap a route to view details
+                        </div>
+                    </div>
                 </div>
 
-                <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3">
-                    @foreach ($products as $product)
-                        @php
-                            $productImages = is_array($product->images)
-                                ? $product->images
-                                : (json_decode($product->images ?? '[]', true) ?: []);
-                            $firstProductImage = $productImages[0] ?? null;
-                            $productImageUrl = filled($firstProductImage)
-                                ? url('storage/' . ltrim($firstProductImage, '/'))
-                                : asset('img/placeholder/car-category.webp');
-                        @endphp
+                <div class="p-4 sm:p-6">
+                    <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+                        @foreach ($products as $product)
+                            @php
+                                $routeName = trim((string) $product->name);
+                                $routeParts = preg_split('/\s+to\s+/i', $routeName, 2) ?: [];
+                                $routeFrom = trim((string) ($routeParts[0] ?? $brandName));
+                                $routeTo = trim((string) ($routeParts[1] ?? ''));
 
-                        <article wire:key="popular-route-{{ $product->id }}" class="group w-[82%] shrink-0 snap-start overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:w-[47%] lg:w-[31%] xl:w-[24%]">
-                            <a href="{{ url('/route/' . ltrim($product->slug, '/')) }}" class="block">
-                                <div class="relative aspect-[16/10] overflow-hidden bg-slate-100">
-                                    <img
-                                        src="{{ $productImageUrl }}"
-                                        alt="{{ $product->name }}"
-                                        loading="lazy"
-                                        decoding="async"
-                                        class="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                                        onerror="this.onerror=null;this.src='{{ asset('img/placeholder/car-category.webp') }}';"
-                                    >
-                                    <div class="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent"></div>
-                                    <span class="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-extrabold uppercase text-sky-700 shadow-sm">
-                                        Popular Route
-                                    </span>
-                                </div>
-                                <div class="flex items-center justify-between gap-3 p-4">
-                                    <h3 class="line-clamp-2 font-black text-slate-900">{{ $product->name }}</h3>
-                                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-50 text-sky-600 transition group-hover:bg-sky-500 group-hover:text-white">
-                                        <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
-                                    </span>
-                                </div>
-                            </a>
-                        </article>
-                    @endforeach
+                                if ($routeFrom === '') {
+                                    $routeFrom = $brandName;
+                                }
+
+                                $routeLabel = $routeTo !== ''
+                                    ? $routeFrom . ' to ' . $routeTo
+                                    : $routeName;
+                            @endphp
+
+                            <article
+                                wire:key="popular-route-{{ $product->id }}"
+                                class="group w-[88%] shrink-0 snap-start sm:w-[48%] lg:w-[32%] xl:w-[24%]"
+                            >
+                                <a
+                                    href="{{ url('/route/' . ltrim($product->slug, '/')) }}"
+                                    class="relative block h-full min-h-[210px] overflow-hidden rounded-[26px] border border-slate-200 bg-slate-950 p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg"
+                                    aria-label="View {{ $routeLabel }}"
+                                >
+                                    <div
+                                        class="pointer-events-none absolute inset-0"
+                                        style="background:
+                                            radial-gradient(circle at 88% 12%, rgba(56,189,248,.28), transparent 27%),
+                                            radial-gradient(circle at 12% 90%, rgba(14,165,233,.20), transparent 34%),
+                                            linear-gradient(145deg, #0f172a 0%, #172554 55%, #0c4a6e 100%);"
+                                        aria-hidden="true"
+                                    ></div>
+
+                                    <div class="pointer-events-none absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/15 bg-white/10 text-xl text-sky-200 backdrop-blur">
+                                        <i class="fa-solid fa-route" aria-hidden="true"></i>
+                                    </div>
+
+                                    <div class="relative flex h-full min-h-[170px] flex-col">
+                                        <div>
+                                            <span class="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-sky-100 backdrop-blur">
+                                                <i class="fa-solid fa-star text-[9px]" aria-hidden="true"></i>
+                                                Popular Route
+                                            </span>
+                                        </div>
+
+                                        @if ($routeTo !== '')
+                                            <div class="mt-7 pr-16">
+                                                <div class="flex items-start gap-3">
+                                                    <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sky-200">
+                                                        <i class="fa-solid fa-location-dot text-xs" aria-hidden="true"></i>
+                                                    </span>
+                                                    <div class="min-w-0">
+                                                        <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">From</p>
+                                                        <p class="mt-0.5 line-clamp-1 text-base font-black text-white">{{ $routeFrom }}</p>
+                                                    </div>
+                                                </div>
+
+                                                <div class="ml-4 my-2 h-5 border-l border-dashed border-sky-300/60"></div>
+
+                                                <div class="flex items-start gap-3">
+                                                    <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-100">
+                                                        <i class="fa-solid fa-location-arrow text-xs" aria-hidden="true"></i>
+                                                    </span>
+                                                    <div class="min-w-0">
+                                                        <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">To</p>
+                                                        <p class="mt-0.5 line-clamp-2 text-base font-black text-white">{{ $routeTo }}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        @else
+                                            <div class="mt-8 pr-14">
+                                                <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">
+                                                    Recommended from {{ $brandName }}
+                                                </p>
+                                                <h3 class="mt-2 line-clamp-3 text-xl font-black leading-tight text-white">
+                                                    {{ $routeName }}
+                                                </h3>
+                                            </div>
+                                        @endif
+
+                                        <div class="mt-auto flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+                                            <span class="text-xs font-bold text-slate-200">
+                                                View route & fare
+                                            </span>
+                                            <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-slate-900 transition duration-300 group-hover:bg-sky-400 group-hover:text-slate-950">
+                                                <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            </article>
+                        @endforeach
+                    </div>
                 </div>
             </section>
         @endif
