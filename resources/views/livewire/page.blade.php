@@ -287,7 +287,7 @@
             </div>
         </section>
 
-        {{-- Popular route products: image-free route banners --}}
+        {{-- Popular route products: responsive image-free grid --}}
         @if (filled($products))
             <section
                 aria-labelledby="popular-routes-heading"
@@ -330,7 +330,7 @@
                 </div>
 
                 <div class="p-4 sm:p-6">
-                    <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2">
+                    <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-4">
                         @foreach ($products as $product)
                             @php
                                 $routeName = trim((string) $product->name);
@@ -349,27 +349,27 @@
 
                             <article
                                 wire:key="popular-route-{{ $product->id }}"
-                                class="group w-[88%] shrink-0 snap-start sm:w-[48%] lg:w-[32%] xl:w-[24%]"
+                                class="group w-[86%] shrink-0 snap-start sm:w-[48%] md:w-auto"
                             >
                                 <a
                                     href="{{ url('/route/' . ltrim($product->slug, '/')) }}"
-                                    class="relative block h-full min-h-[210px] overflow-hidden rounded-[26px] border border-slate-200 bg-slate-950 p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg"
+                                    class="relative flex h-full min-h-[240px] flex-col overflow-hidden rounded-[26px] border border-slate-200 bg-slate-950 p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:border-sky-300 hover:shadow-lg"
                                     aria-label="View {{ $routeLabel }}"
                                 >
                                     <div
                                         class="pointer-events-none absolute inset-0"
                                         style="background:
-                                            radial-gradient(circle at 88% 12%, rgba(56,189,248,.28), transparent 27%),
-                                            radial-gradient(circle at 12% 90%, rgba(14,165,233,.20), transparent 34%),
-                                            linear-gradient(145deg, #0f172a 0%, #172554 55%, #0c4a6e 100%);"
+                                            radial-gradient(circle at 88% 12%, rgba(56,189,248,.30), transparent 27%),
+                                            radial-gradient(circle at 10% 92%, rgba(14,165,233,.20), transparent 34%),
+                                            linear-gradient(145deg, #0f172a 0%, #172554 52%, #0c4a6e 100%);"
                                         aria-hidden="true"
                                     ></div>
 
-                                    <div class="pointer-events-none absolute right-5 top-5 grid h-14 w-14 place-items-center rounded-2xl border border-white/15 bg-white/10 text-xl text-sky-200 backdrop-blur">
+                                    <div class="pointer-events-none absolute right-5 top-5 grid h-12 w-12 place-items-center rounded-2xl border border-white/15 bg-white/10 text-lg text-sky-200 backdrop-blur">
                                         <i class="fa-solid fa-route" aria-hidden="true"></i>
                                     </div>
 
-                                    <div class="relative flex h-full min-h-[170px] flex-col">
+                                    <div class="relative flex h-full flex-1 flex-col">
                                         <div>
                                             <span class="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-sky-100 backdrop-blur">
                                                 <i class="fa-solid fa-star text-[9px]" aria-hidden="true"></i>
@@ -378,44 +378,59 @@
                                         </div>
 
                                         @if ($routeTo !== '')
-                                            <div class="mt-7 pr-16">
+                                            <div class="mt-7 pr-12">
                                                 <div class="flex items-start gap-3">
-                                                    <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sky-200">
+                                                    <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/10 text-sky-200">
                                                         <i class="fa-solid fa-location-dot text-xs" aria-hidden="true"></i>
                                                     </span>
+
                                                     <div class="min-w-0">
                                                         <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">From</p>
-                                                        <p class="mt-0.5 line-clamp-1 text-base font-black text-white">{{ $routeFrom }}</p>
+                                                        <h3 class="mt-0.5 line-clamp-2 text-base font-black leading-snug text-white">
+                                                            {{ $routeFrom }}
+                                                        </h3>
                                                     </div>
                                                 </div>
 
                                                 <div class="ml-4 my-2 h-5 border-l border-dashed border-sky-300/60"></div>
 
                                                 <div class="flex items-start gap-3">
-                                                    <span class="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-100">
+                                                    <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-400/20 text-sky-100">
                                                         <i class="fa-solid fa-location-arrow text-xs" aria-hidden="true"></i>
                                                     </span>
+
                                                     <div class="min-w-0">
                                                         <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">To</p>
-                                                        <p class="mt-0.5 line-clamp-2 text-base font-black text-white">{{ $routeTo }}</p>
+                                                        <p class="mt-0.5 line-clamp-2 text-base font-black leading-snug text-white">
+                                                            {{ $routeTo }}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>
                                         @else
-                                            <div class="mt-8 pr-14">
+                                            <div class="mt-8 pr-10">
                                                 <p class="text-[10px] font-bold uppercase tracking-[0.12em] text-sky-200">
                                                     Recommended from {{ $brandName }}
                                                 </p>
+
                                                 <h3 class="mt-2 line-clamp-3 text-xl font-black leading-tight text-white">
                                                     {{ $routeName }}
                                                 </h3>
                                             </div>
                                         @endif
 
+                                        <div class="mt-5">
+                                            <span class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[11px] font-bold text-sky-100">
+                                                <i class="fa-solid fa-taxi text-[10px]" aria-hidden="true"></i>
+                                                One Way Cab
+                                            </span>
+                                        </div>
+
                                         <div class="mt-auto flex items-center justify-between gap-3 border-t border-white/10 pt-4">
                                             <span class="text-xs font-bold text-slate-200">
-                                                View route & fare
+                                                View Route & Fare
                                             </span>
+
                                             <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-slate-900 transition duration-300 group-hover:bg-sky-400 group-hover:text-slate-950">
                                                 <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
                                             </span>
