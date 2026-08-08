@@ -298,13 +298,12 @@ trait HandlesOtpCustomerAuthentication
     /**
      * Assign the existing website customer role.
      *
-     * This project stores normal customers under the Spatie role `user`
-     * with guard_name `web`. Do not create or expect a separate `Customer`
-     * role here.
+     * Use the centralized customer role from User::ROLE_CUSTOMER so OTP
+     * authentication stays consistent with login, registration and rides.
      */
     protected function assignCustomerRole(User $user): void
     {
-        $customerRole = 'user';
+        $customerRole = User::ROLE_CUSTOMER;
 
         if ($user->hasRole($customerRole)) {
             return;
