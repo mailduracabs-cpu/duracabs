@@ -75,7 +75,10 @@ class ProductDetailedPage extends Component
     public function mount($slug): void
     {
         $this->slug = $slug;
-        $this->fareUnlocked = Auth::check() || (bool) session('route_fare_unlocked', false);
+        $this->fareUnlocked =
+            Auth::guard('customer')->check()
+            || Auth::check()
+            || (bool) session('route_fare_unlocked', false);
         $this->mobileNumber = (string) session('route_verified_mobile', '');
         $this->date = request()->query('date', '');
         $this->time = request()->query('time', '');
@@ -263,7 +266,7 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                 'product_id' => (int) $ride->getKey(),
                 'vehicle_id' => $vehicleId,
                 'customer' => [
-                    'user_id' => Auth::id(),
+                    'user_id' => Auth::guard('customer')->id() ?: Auth::id(),
                     'mobile' => $this->mobileNumber ?: session('route_verified_mobile'),
                 ],
                 'trip' => [
@@ -321,7 +324,7 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                 'product_id' => (int) $ride->getKey(),
                 'vehicle_id' => null,
                 'customer' => [
-                    'user_id' => Auth::id(),
+                    'user_id' => Auth::guard('customer')->id() ?: Auth::id(),
                     'mobile' => $this->mobileNumber ?: session('route_verified_mobile'),
                 ],
                 'trip' => [

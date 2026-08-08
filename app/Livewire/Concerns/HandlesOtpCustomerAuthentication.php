@@ -296,16 +296,22 @@ trait HandlesOtpCustomerAuthentication
     }
 
     /**
-     * Assign the Customer role by its stable name, never by a database ID.
+     * Assign the existing website customer role.
+     *
+     * This project stores normal customers under the Spatie role `user`
+     * with guard_name `web`. Do not create or expect a separate `Customer`
+     * role here.
      */
     protected function assignCustomerRole(User $user): void
     {
-        if ($user->hasRole(User::ROLE_CUSTOMER)) {
+        $customerRole = 'user';
+
+        if ($user->hasRole($customerRole)) {
             return;
         }
 
         $user->syncRoles([
-            User::ROLE_CUSTOMER,
+            $customerRole,
         ]);
     }
 }

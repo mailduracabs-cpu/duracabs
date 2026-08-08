@@ -17,12 +17,12 @@ class RazorePay extends Component
 
     public function render()
     {
-        abort_unless(Auth::check(), 401);
+        abort_unless(Auth::guard('customer')->check() || Auth::check(), 401);
 
         $order = Order::query()
             ->with('address')
             ->whereKey($this->id)
-            ->where('user_id', Auth::id())
+            ->where('user_id', Auth::guard('customer')->id() ?: Auth::id())
             ->firstOrFail();
 
         $extraOptions = $this->normaliseExtraOptions($order->extraOptions);
@@ -69,12 +69,15 @@ class RazorePay extends Component
             'bookingTotal' => $bookingTotal,
             'balanceAmount' => $balanceAmount,
             'customerName' => $order->address?->full_name
+                ?? Auth::guard('customer')->user()?->name
                 ?? Auth::user()?->name
                 ?? '',
             'customerEmail' => $order->address?->email
+                ?? Auth::guard('customer')->user()?->email
                 ?? Auth::user()?->email
                 ?? '',
             'customerPhone' => $order->address?->phone
+                ?? Auth::guard('customer')->user()?->mobile
                 ?? Auth::user()?->mobile
                 ?? '',
         ]);

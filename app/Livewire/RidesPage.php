@@ -449,7 +449,25 @@ class RidesPage extends Component
 
     private function storeBookingDraft(string $bookingType, mixed $selectionId, string $pendingAction)
     {
+        /*
+         * Legacy rides Blade buttons still send an array payload.
+         * For one-way/local bookings the first value is the Product ID.
+         * Passing the whole array to Product::whereKey() makes Eloquent build
+         * a WHERE IN query and can accidentally select Product ID 1 (Agra -> Ajmer)
+         * because the payload also contains boolean 0/1 feature values.
+         */
+        $legacyPayload = is_array($selectionId)
+            ? array_values($selectionId)
+            : [];
+
+        $resolvedSelectionId = in_array($bookingType, ['one_way', 'local'], true)
+            && $legacyPayload !== []
+                ? ($legacyPayload[0] ?? null)
+                : $selectionId;
+
         if (! $this->fareUnlocked) {
+            // Keep the original payload so OTP continuation preserves the
+            // selected fare/category and re-enters this method correctly.
             $this->openFareGate($pendingAction, $selectionId);
 
             return null;
@@ -457,6 +475,10 @@ class RidesPage extends Component
 
         try {
             $quantity = max(1, (int) ($this->cars ?: 1));
+
+            if ($bookingType === 'local' && is_numeric($legacyPayload[5] ?? null)) {
+                $quantity = max(1, (int) $legacyPayload[5]);
+            }
 
             if ($bookingType === 'self_drive') {
                 $vehicleId = is_numeric($selectionId) ? (int) $selectionId : 0;
@@ -538,23 +560,75 @@ class RidesPage extends Component
                     'created_at' => now()->toIso8601String(),
                 ]);
             } else {
+                if (in_array($bookingType, ['one_way', 'local'], true)) {
+                    if (! is_numeric($resolvedSelectionId) || (int) $resolvedSelectionId <= 0) {
+                        throw new \InvalidArgumentException('A valid product selection is required.');
+                    }
+                }
+
                 $product = Product::query()
                     ->with(['brand', 'prices.category'])
-                    ->whereKey($selectionId)
+                    ->whereKey($resolvedSelectionId)
                     ->where('is_active', 1)
                     ->firstOrFail();
 
                 $dropCity = ! empty($product->booking_to)
                     ? Brand::query()->find($product->booking_to)
                     : null;
-                $unitPrice = (float) ($product->price ?? $product->prices->min('price') ?? 0);
+
+                $payloadPrice = match ($bookingType) {
+                    'one_way' => $legacyPayload[4] ?? null,
+                    'local' => $legacyPayload[6] ?? null,
+                    default => null,
+                };
+
+                $unitPrice = is_numeric($payloadPrice)
+                    ? (float) $payloadPrice
+                    : (float) ($product->price ?? $product->prices->min('price') ?? 0);
+
+                $selectedProductName = match ($bookingType) {
+                    'one_way' => $legacyPayload[5] ?? null,
+                    'local' => $legacyPayload[7] ?? null,
+                    default => null,
+                };
+
+                $selectedCategoryName = match ($bookingType) {
+                    'one_way' => $legacyPayload[6] ?? null,
+                    'local' => $legacyPayload[8] ?? null,
+                    default => null,
+                };
+
+                $selectedToll = match ($bookingType) {
+                    'one_way' => $legacyPayload[7] ?? 0,
+                    'local' => $legacyPayload[9] ?? 0,
+                    default => 0,
+                };
+
+                $selectedNewVehicle = match ($bookingType) {
+                    'one_way' => $legacyPayload[8] ?? false,
+                    'local' => $legacyPayload[10] ?? false,
+                    default => false,
+                };
+
+                $selectedPetFriendly = match ($bookingType) {
+                    'one_way' => $legacyPayload[9] ?? false,
+                    'local' => $legacyPayload[11] ?? false,
+                    default => false,
+                };
+
+                $selectedRoofCarrier = match ($bookingType) {
+                    'one_way' => $legacyPayload[10] ?? false,
+                    'local' => $legacyPayload[12] ?? false,
+                    default => false,
+                };
+
                 $subtotal = $unitPrice * $quantity;
 
                 session()->put('booking_draft', [
                     'version' => 1,
                     'type' => $bookingType,
                     'source' => 'rides_page',
-                    'selection_id' => is_numeric($selectionId) ? (int) $selectionId : $selectionId,
+                    'selection_id' => is_numeric($resolvedSelectionId) ? (int) $resolvedSelectionId : $resolvedSelectionId,
                     'product_id' => (int) $product->getKey(),
                     'vehicle_id' => null,
                     'customer' => [
@@ -590,16 +664,33 @@ class RidesPage extends Component
                         'quantity' => $quantity,
                         'subtotal' => $subtotal,
                         'total' => $subtotal,
+                        'toll' => is_numeric($selectedToll) ? (float) $selectedToll : 0,
                     ],
                     'product' => [
                         'id' => (int) $product->getKey(),
-                        'name' => (string) ($product->name ?? ''),
+                        'name' => (string) ($selectedProductName ?: $product->name ?: ''),
                         'slug' => (string) ($product->slug ?? ''),
+                        'category_name' => (string) ($selectedCategoryName ?: ''),
                         'ride_type' => (string) ($product->ride_type ?? $bookingType),
+                        'new_vehicle' => (bool) $selectedNewVehicle,
+                        'pet_friendly' => (bool) $selectedPetFriendly,
+                        'roof_carrier' => (bool) $selectedRoofCarrier,
                     ],
                     'created_at' => now()->toIso8601String(),
                 ]);
             }
+
+            $savedDraft = session('booking_draft', []);
+
+            Log::info('RIDES_BOOKING_DRAFT_CREATED', [
+                'type' => data_get($savedDraft, 'type'),
+                'selection_id' => data_get($savedDraft, 'selection_id'),
+                'product_id' => data_get($savedDraft, 'product_id'),
+                'vehicle_id' => data_get($savedDraft, 'vehicle_id'),
+                'pickup_name' => data_get($savedDraft, 'trip.pickup_name'),
+                'drop_name' => data_get($savedDraft, 'trip.drop_name'),
+                'unit_price' => data_get($savedDraft, 'fare.unit_price'),
+            ]);
 
             $this->alert('success', 'Booking details saved. Checkout open ho raha hai.', [
                 'position' => 'center-end',
