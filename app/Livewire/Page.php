@@ -358,33 +358,42 @@ public ?string $query2_search = '';
                 $timeFormatted = date('h:i A', strtotime($this->time));
             }
 
-            // Send WhatsApp message to admin
-            $adminMobile = env('ADMIN_MOBILE');
-            if ($adminMobile) {
-                $adminWhatsAppMessage = "📩 *New OTP Verification Enquiry*\n\n";
-                $adminWhatsAppMessage .= "Dear Admin,\n\n";
-                $adminWhatsAppMessage .= "A new OTP verification request has been received.\n\n";
-                $adminWhatsAppMessage .= "📱 *Mobile Number:* " . $this->mobileNumber . "\n\n";
-                $adminWhatsAppMessage .= "🚘 *Trip Type:* " . $tripType . "\n\n";
-                
-                if ($fromLocation !== 'N/A') {
-                    $adminWhatsAppMessage .= "📍 *From:* " . $fromLocation . "\n\n";
+            // Send approved WhatsApp inquiry template through the notification-rule system.
+            // The lead.searched rule decides which groups receive it (admin, sales, etc.).
+            try {
+                $whatsAppResult = WhatsAppService::dispatchEvent('lead.searched', [
+                    'customer_name' => Auth::user()?->name ?: ('Customer ' . $this->mobileNumber),
+                    'customer_mobile' => $this->mobileNumber,
+                    'mobile' => $this->mobileNumber,
+                    'service' => $tripType,
+                    'service_type' => $tripType,
+                    'pickup' => $fromLocation,
+                    'pickup_location' => $fromLocation,
+                    'drop' => $toLocation,
+                    'drop_location' => $toLocation,
+                    'route' => $toLocation !== 'N/A'
+                        ? $fromLocation . ' to ' . $toLocation
+                        : $fromLocation,
+                    'travel_date' => $dateFormatted,
+                    'date' => $dateFormatted,
+                    'travel_time' => $timeFormatted,
+                    'time' => $timeFormatted,
+                ]);
+
+                if (!($whatsAppResult['status'] ?? false)) {
+                    Log::warning('Website inquiry WhatsApp notification was not fully accepted.', [
+                        'event_key' => 'lead.searched',
+                        'mobile' => $this->mobileNumber,
+                        'result' => $whatsAppResult,
+                    ]);
                 }
-                
-                if ($toLocation !== 'N/A') {
-                    $adminWhatsAppMessage .= "➡️ *To:* " . $toLocation . "\n\n";
-                }
-                
-                $adminWhatsAppMessage .= "🗓️ *Date:* " . $dateFormatted . "\n\n";
-                $adminWhatsAppMessage .= "⏰ *Time:* " . $timeFormatted . "\n\n";
-                $adminWhatsAppMessage .= "From,\n\n";
-                $adminWhatsAppMessage .= "*DURA CABS SYSTEM ALERT* 🚖";
-                
-                try {
-                    WhatsAppService::send($adminMobile, $adminWhatsAppMessage);
-                } catch (\Exception $e) {
-                    \Log::error('WhatsApp admin OTP notification failed: ' . $e->getMessage());
-                }
+            } catch (\Throwable $exception) {
+                Log::error('Website inquiry WhatsApp notification failed.', [
+                    'event_key' => 'lead.searched',
+                    'mobile' => $this->mobileNumber,
+                    'error' => $exception->getMessage(),
+                    'exception' => get_class($exception),
+                ]);
             }
 
             // Handle the retrieved weather data as needed (e.g., pass it to a view)
