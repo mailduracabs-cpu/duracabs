@@ -75,37 +75,6 @@ class ProductDetailedPage extends Component
     public function mount($slug): void
     {
         $this->slug = $slug;
-
-        /*
-         * Canonical route enforcement for product SEO pages.
-         *
-         * Old /route/{slug} links must never render Self Drive or Bike Rental
-         * products as duplicate 200 pages. Redirect them permanently to their
-         * dedicated canonical URL before the Livewire component renders.
-         */
-        if (request()->routeIs('route.show')) {
-            $routeProduct = Product::query()
-                ->where('slug', $slug)
-                ->where('is_active', 1)
-                ->first(['id', 'slug', 'ride_type', 'url_type']);
-
-            $canonicalRouteName = match ((string) ($routeProduct?->ride_type ?? '')) {
-                'self_drive' => 'self-drive.show',
-                'bike_rental' => 'bike-rental.show',
-                default => null,
-            };
-
-            if ($canonicalRouteName !== null) {
-                throw new \Illuminate\Http\Exceptions\HttpResponseException(
-                    redirect()->route(
-                        $canonicalRouteName,
-                        ['slug' => $slug],
-                        301
-                    )
-                );
-            }
-        }
-
         $this->fareUnlocked =
             Auth::guard('customer')->check()
             || Auth::check()
@@ -765,13 +734,7 @@ public function tabValue($val){
             'end_time' => $this->editEndTime,
         ]);
 
-        $targetRouteName = match ((string) $target->ride_type) {
-            'self_drive' => 'self-drive.show',
-            'bike_rental' => 'bike-rental.show',
-            default => 'route.show',
-        };
-
-        return redirect()->route($targetRouteName, ['slug' => $target->slug] + $params);
+        return redirect()->route('route.show', ['slug' => $target->slug] + $params);
     }
 
     public function render()
@@ -852,13 +815,9 @@ public function tabValue($val){
             ? trim((string) $ride->meta_description)
             : $this->buildFallbackSeoDescription($routeName, $tripLabel, $contentType, $fareText);
 
-        $canonicalUrl = match ((string) $ride->ride_type) {
-            'self_drive' => route('self-drive.show', ['slug' => $ride->slug]),
-            'bike_rental' => route('bike-rental.show', ['slug' => $ride->slug]),
-            default => filled($ride->canonical_url)
-                ? trim((string) $ride->canonical_url)
-                : $this->resolveCanonicalUrl($ride, $urlType),
-        };
+        $canonicalUrl = filled($ride->canonical_url)
+            ? trim((string) $ride->canonical_url)
+            : $this->resolveCanonicalUrl($ride, $urlType);
 
         $firstImage = collect($ride->images ?? [])->filter()->first();
         $imageMeta = $this->resolveSeoImage($ride, $firstImage);
@@ -1050,8 +1009,6 @@ public function tabValue($val){
             'page' => url('/pages/' . $slug),
             'blog' => url('/blog/' . $slug),
             'product' => url('/product/' . $slug),
-            'self_drive' => route('self-drive.show', ['slug' => $slug]),
-            'bike_rental' => route('bike-rental.show', ['slug' => $slug]),
             'root', 'landing_page' => url('/' . $slug),
             default => route('route.show', ['slug' => $slug]),
         };
