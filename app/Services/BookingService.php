@@ -665,6 +665,78 @@ class BookingService
             bookingData: $bookingData
         );
 
+        // Dispatch the approved WhatsApp notification rule to all enabled
+        // recipients (customer/admin/sales/operations). WhatsApp failures
+        // must never block a valid booking confirmation.
+        try {
+            $user = ! empty($bookingData['user_id'])
+                ? User::query()->find((int) $bookingData['user_id'])
+                : null;
+
+            $contact = $this->resolveBookingContact(
+                $bookingData,
+                [],
+                $user
+            );
+
+            $pickup = trim((string) (
+                $bookingData['pickup']
+                ?? $bookingData['pickup_city']
+                ?? ''
+            ));
+
+            $drop = trim((string) (
+                $bookingData['drop']
+                ?? $bookingData['drop_city']
+                ?? ''
+            ));
+
+            WhatsAppService::dispatchEvent('booking.confirmed', [
+                'customer_name' => $contact['name']
+                    ?? $user?->name
+                    ?? 'Customer',
+                'customer_mobile' => $contact['mobile']
+                    ?? $user?->mobile
+                    ?? '',
+                'mobile' => $contact['mobile']
+                    ?? $user?->mobile
+                    ?? '',
+                'booking_id' => $bookingData['booking_no']
+                    ?? $bookingData['booking_id']
+                    ?? $bookingData['id']
+                    ?? $bookingId,
+                'service' => $bookingData['service_type']
+                    ?? $bookingData['ride_type']
+                    ?? 'Taxi',
+                'vehicle' => $bookingData['product_name']
+                    ?? $bookingData['taxi_type']
+                    ?? 'Dura Cabs Vehicle',
+                'pickup' => $pickup,
+                'drop' => $drop,
+                'route' => ($pickup !== '' && $drop !== '')
+                    ? $pickup . ' to ' . $drop
+                    : ($pickup !== '' ? $pickup : $drop),
+                'travel_date' => $bookingData['pickup_date']
+                    ?? $bookingData['date']
+                    ?? '',
+                'travel_time' => $bookingData['pickup_time']
+                    ?? $bookingData['time']
+                    ?? '',
+                'amount' => (string) ($bookingData['grand_total'] ?? 0),
+                'total_amount' => (string) ($bookingData['grand_total'] ?? 0),
+            ]);
+        } catch (\Throwable $exception) {
+            Log::error('Booking confirmed WhatsApp event failed.', [
+                'booking_id' => $bookingData['booking_no']
+                    ?? $bookingData['booking_id']
+                    ?? $bookingData['id']
+                    ?? $bookingId,
+                'message' => $exception->getMessage(),
+                'file' => $exception->getFile(),
+                'line' => $exception->getLine(),
+            ]);
+        }
+
         return [
             'status' => true,
             'message' => 'Booking confirmed successfully.',
