@@ -6,6 +6,9 @@ use App\Filament\Resources\OrderResource\Pages;
 use App\Filament\Resources\OrderResource\RelationManagers\AddressRelationManager;
 use App\Filament\Resources\OrderResource\RelationManagers\InvoicesRelationManager;
 use App\Models\Order;
+use App\Models\Brand;
+use App\Models\Price;
+use App\Models\SelfDrive\Price as SelfDrivePrice;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -31,492 +34,765 @@ class OrderResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Tabs::make('Create Booking')
-                ->persistTabInQueryString()
-                ->tabs([
-                    Forms\Components\Tabs\Tab::make('1. Customer')
-                        ->icon('heroicon-o-user')
-                        ->schema([
-                            Forms\Components\Section::make('Customer Details')
-                                ->description('Search an existing customer or create a new customer without leaving this page.')
-                                ->schema([
-                                    Forms\Components\Placeholder::make('booking_reference')
-                                        ->label('Booking Number')
-                                        ->content(function (?Order $record): string {
-                                            return $record
-                                                ? static::bookingNumber($record)
-                                                : 'Generated automatically after saving';
-                                        }),
+            Forms\Components\Section::make('Create Booking')
+                ->description('Customer, journey, package, fare and payment — all in one screen. City, package and fare are loaded from the Laravel database.')
+                ->schema([
+                    Forms\Components\Placeholder::make('booking_reference')
+                        ->label('Booking Number')
+                        ->content(function (?Order $record): string {
+                            return $record
+                                ? static::bookingNumber($record)
+                                : 'Generated automatically after saving';
+                        })
+                        ->columnSpan(1),
 
-                                    Forms\Components\Select::make('user_id')
-                                        ->label('Customer')
-                                        ->relationship('user', 'name')
-                                        ->getOptionLabelFromRecordUsing(
-                                            fn (User $record): string =>
-                                            trim(
-                                                ($record->name ?: 'No Name')
-                                                . ' | '
-                                                . ($record->mobile ?: 'No Mobile')
-                                            )
-                                        )
-                                        ->searchable(['name', 'mobile', 'email'])
-                                        ->preload()
-                                        ->createOptionForm([
-                                            Forms\Components\TextInput::make('name')
-                                                ->label('Customer Name')
-                                                ->required()
-                                                ->maxLength(150),
+                    Forms\Components\Select::make('user_id')
+                        ->label('Customer')
+                        ->relationship('user', 'name')
+                        ->getOptionLabelFromRecordUsing(
+                            fn (User $record): string => trim(
+                                ($record->name ?: 'No Name')
+                                . ' | '
+                                . ($record->mobile ?: 'No Mobile')
+                            )
+                        )
+                        ->searchable(['name', 'mobile', 'email'])
+                        ->preload()
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('name')
+                                ->label('Customer Name')
+                                ->required()
+                                ->maxLength(150),
+                            Forms\Components\TextInput::make('mobile')
+                                ->label('Mobile Number')
+                                ->tel()
+                                ->required()
+                                ->maxLength(15),
+                            Forms\Components\TextInput::make('email')
+                                ->label('Email')
+                                ->email()
+                                ->maxLength(150),
+                        ])
+                        ->createOptionUsing(function (array $data): int {
+                            $mobile = preg_replace('/\\D+/', '', (string) ($data['mobile'] ?? ''));
 
-                                            Forms\Components\TextInput::make('mobile')
-                                                ->label('Mobile Number')
-                                                ->tel()
-                                                ->required()
-                                                ->maxLength(15),
-
-                                            Forms\Components\TextInput::make('email')
-                                                ->label('Email')
-                                                ->email()
-                                                ->maxLength(150),
-                                        ])
-                                        ->createOptionUsing(function (array $data): int {
-                                            $mobile = preg_replace(
-                                                '/\D+/',
-                                                '',
-                                                (string) ($data['mobile'] ?? '')
-                                            );
-
-                                            return User::query()->firstOrCreate(
-                                                ['mobile' => $mobile],
-                                                [
-                                                    'name' => $data['name'],
-                                                    'email' => $data['email'] ?? null,
-                                                    'password' => bcrypt(Str::random(32)),
-                                                ]
-                                            )->id;
-                                        })
-                                        ->required()
-                                        ->columnSpanFull(),
-                                ])
-                                ->columns(2),
-                        ]),
-
-                    Forms\Components\Tabs\Tab::make('2. Journey')
-                        ->icon('heroicon-o-map')
-                        ->schema([
-                            Forms\Components\Section::make('Journey Details')
-                                ->description('Only fields required for the selected service will be shown.')
-                                ->schema([
-                                    Forms\Components\Select::make('ride_type')
-                                        ->label('Booking Type')
-                                        ->options([
-                                            'one_way' => 'One Way',
-                                            'local' => 'Local',
-                                            'return' => 'Round Trip / Multi-City',
-                                            'airport' => 'Airport',
-                                            'self_drive' => 'Self Drive',
-                                        ])
-                                        ->default('one_way')
-                                        ->required()
-                                        ->native(false)
-                                        ->live(),
-
-                                    Forms\Components\TextInput::make('cityFrom')
-                                        ->label('Pickup City / Location')
-                                        ->required()
-                                        ->maxLength(255),
-
-                                    Forms\Components\TextInput::make('cityTo')
-                                        ->label(fn (Get $get): string =>
-                                            $get('ride_type') === 'return'
-                                                ? 'First Destination'
-                                                : 'Drop City / Location'
-                                        )
-                                        ->visible(fn (Get $get): bool =>
-                                            in_array(
-                                                $get('ride_type'),
-                                                ['one_way', 'return', 'airport'],
-                                                true
-                                            )
-                                        )
-                                        ->required(fn (Get $get): bool =>
-                                            in_array(
-                                                $get('ride_type'),
-                                                ['one_way', 'return', 'airport'],
-                                                true
-                                            )
-                                        )
-                                        ->maxLength(255),
-
-                                    Forms\Components\TagsInput::make('route_stops')
-                                        ->label('Additional Cities')
-                                        ->placeholder('Type a city and press Enter')
-                                        ->helperText('Use for Round Trip / Multi-City bookings. The route returns to the pickup city.')
-                                        ->visible(fn (Get $get): bool =>
-                                            $get('ride_type') === 'return'
-                                        )
-                                        ->columnSpanFull(),
-
-                                    Forms\Components\DatePicker::make('date')
-                                        ->label('Pickup Date')
-                                        ->required()
-                                        ->native(false),
-
-                                    Forms\Components\TimePicker::make('time')
-                                        ->label('Pickup Time')
-                                        ->seconds(false)
-                                        ->required()
-                                        ->native(false),
-
-                                    Forms\Components\DatePicker::make('dateTo')
-                                        ->label('Return / Drop Date')
-                                        ->afterOrEqual('date')
-                                        ->visible(fn (Get $get): bool =>
-                                            in_array(
-                                                $get('ride_type'),
-                                                ['return', 'self_drive'],
-                                                true
-                                            )
-                                        )
-                                        ->required(fn (Get $get): bool =>
-                                            in_array(
-                                                $get('ride_type'),
-                                                ['return', 'self_drive'],
-                                                true
-                                            )
-                                        )
-                                        ->native(false),
-
-                                    Forms\Components\TimePicker::make('endTime')
-                                        ->label('Return / Drop Time')
-                                        ->seconds(false)
-                                        ->visible(fn (Get $get): bool =>
-                                            in_array(
-                                                $get('ride_type'),
-                                                ['return', 'self_drive'],
-                                                true
-                                            )
-                                        )
-                                        ->native(false),
-
-                                    Forms\Components\Select::make('plan')
-                                        ->label('Local Package')
-                                        ->options(static::plans())
-                                        ->visible(fn (Get $get): bool =>
-                                            $get('ride_type') === 'local'
-                                        )
-                                        ->required(fn (Get $get): bool =>
-                                            $get('ride_type') === 'local'
-                                        )
-                                        ->native(false),
-
-                                    Forms\Components\TextInput::make('total_km')
-                                        ->label('Total / Billable KM')
-                                        ->numeric()
-                                        ->suffix('KM'),
-
-                                    Forms\Components\Textarea::make('notes')
-                                        ->label('Booking Notes')
-                                        ->rows(3)
-                                        ->columnSpanFull(),
-                                ])
-                                ->columns(3),
-                        ]),
-
-                    Forms\Components\Tabs\Tab::make('3. Vehicle & Fare')
-                        ->icon('heroicon-o-truck')
-                        ->schema([
-                            Forms\Components\Section::make('Vehicle Selection')
-                                ->schema([
-                                    Forms\Components\Select::make('taxi_type')
-                                        ->label('Vehicle Category')
-                                        ->options(static::taxiTypes())
-                                        ->native(false)
-                                        ->searchable(),
-
-                                    Forms\Components\TextInput::make('productName')
-                                        ->label('Vehicle / Package Name')
-                                        ->maxLength(255),
-
-                                    Forms\Components\Select::make('transporter_id')
-                                        ->label('Transporter')
-                                        ->options(fn (): array => User::role('Transporter')
-                                            ->pluck('name', 'id')
-                                            ->all())
-                                        ->searchable()
-                                        ->preload()
-                                        ->live(),
-
-                                    Forms\Components\Select::make('driver_id')
-                                        ->label('Driver')
-                                        ->options(function (Get $get): array {
-                                            $transporterId = $get('transporter_id');
-
-                                            if (! $transporterId) {
-                                                return [];
-                                            }
-
-                                            return User::role('Driver')
-                                                ->where('created_by', $transporterId)
-                                                ->pluck('name', 'id')
-                                                ->all();
-                                        })
-                                        ->searchable()
-                                        ->preload(),
-
-                                    Forms\Components\Select::make('vehicle_id')
-                                        ->label('Assigned Vehicle')
-                                        ->options(function (Get $get): array {
-                                            $transporterId = $get('transporter_id');
-
-                                            $query = Vehicle::query();
-
-                                            if ($transporterId) {
-                                                $query->where(function (Builder $builder) use ($transporterId): void {
-                                                    $builder
-                                                        ->where('user_id', $transporterId)
-                                                        ->orWhere('transporter_profile_id', $transporterId);
-                                                });
-                                            }
-
-                                            return $query
-                                                ->limit(200)
-                                                ->get()
-                                                ->mapWithKeys(function (Vehicle $vehicle): array {
-                                                    $name = trim(
-                                                        ($vehicle->car_company_name ?? '')
-                                                        . ' '
-                                                        . ($vehicle->model_name ?? '')
-                                                    );
-
-                                                    $number = $vehicle->vehicle_number ?: 'No Number';
-
-                                                    return [
-                                                        $vehicle->id => trim(
-                                                            "{$name} | {$number}",
-                                                            ' |'
-                                                        ),
-                                                    ];
-                                                })
-                                                ->all();
-                                        })
-                                        ->searchable()
-                                        ->preload(),
-                                ])
-                                ->columns(3),
-
-                            Forms\Components\Section::make('Fare')
-                                ->description('Automatic fare integration will be connected in the next phase. Admin can safely enter or adjust the final fare here.')
-                                ->schema([
-                                    Forms\Components\Select::make('fare_type')
-                                        ->label('Fare Type')
-                                        ->options([
-                                            'normal' => 'Normal Fare',
-                                            'all_inclusive' => 'All Inclusive',
-                                        ])
-                                        ->default('normal')
-                                        ->native(false),
-
-                                    Forms\Components\TextInput::make('calculated_amount')
-                                        ->label('Calculated Fare')
-                                        ->numeric()
-                                        ->prefix('₹')
-                                        ->default(0)
-                                        ->live()
-                                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
-                                            $calculated = max(0, (float) $state);
-                                            $discount = max(0, (float) ($get('coupon_value') ?? 0));
-                                            $set('grand_total', max(0, $calculated - $discount));
-                                        }),
-
-                                    Forms\Components\TextInput::make('coupon_value')
-                                        ->label('Manual Discount')
-                                        ->numeric()
-                                        ->prefix('₹')
-                                        ->default(0)
-                                        ->live()
-                                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
-                                            $calculated = max(
-                                                0,
-                                                (float) ($get('calculated_amount') ?? 0)
-                                            );
-                                            $discount = max(0, (float) $state);
-                                            $set('grand_total', max(0, $calculated - $discount));
-                                        }),
-
-                                    Forms\Components\TextInput::make('grand_total')
-                                        ->label('Final Booking Amount')
-                                        ->numeric()
-                                        ->prefix('₹')
-                                        ->required()
-                                        ->default(0),
-
-                                    Forms\Components\Textarea::make('fare_override_reason')
-                                        ->label('Discount / Fare Change Reason')
-                                        ->placeholder('Required when the calculated fare is changed manually.')
-                                        ->rows(2)
-                                        ->visible(function (Get $get): bool {
-                                            return (float) ($get('coupon_value') ?? 0) > 0;
-                                        })
-                                        ->required(function (Get $get): bool {
-                                            return (float) ($get('coupon_value') ?? 0) > 0;
-                                        })
-                                        ->columnSpanFull(),
-                                ])
-                                ->columns(4),
-
-                            Forms\Components\Section::make('Order Item')
-                                ->schema([
-                                    Forms\Components\Repeater::make('items')
-                                        ->relationship()
-                                        ->defaultItems(1)
-                                        ->minItems(1)
-                                        ->maxItems(1)
-                                        ->schema([
-                                            Forms\Components\Select::make('product_id')
-                                                ->relationship('product', 'name')
-                                                ->label('Fare Product')
-                                                ->searchable()
-                                                ->preload()
-                                                ->required()
-                                                ->live()
-                                                ->afterStateUpdated(function ($state, Set $set): void {
-                                                    $price = (float) (
-                                                        Product::find($state)?->price
-                                                        ?? 0
-                                                    );
-
-                                                    $set('unit_ammount', $price);
-                                                    $set('total_ammount', $price);
-                                                })
-                                                ->columnSpan(6),
-
-                                            Forms\Components\TextInput::make('quantity')
-                                                ->numeric()
-                                                ->required()
-                                                ->default(1)
-                                                ->minValue(1)
-                                                ->live()
-                                                ->afterStateUpdated(function ($state, Set $set, Get $get): void {
-                                                    $quantity = max(1, (int) $state);
-                                                    $unitAmount = (float) (
-                                                        $get('unit_ammount')
-                                                        ?? 0
-                                                    );
-
-                                                    $set(
-                                                        'total_ammount',
-                                                        $quantity * $unitAmount
-                                                    );
-                                                })
-                                                ->columnSpan(2),
-
-                                            Forms\Components\TextInput::make('unit_ammount')
-                                                ->label('Unit Amount')
-                                                ->numeric()
-                                                ->prefix('₹')
-                                                ->required()
-                                                ->dehydrated()
-                                                ->columnSpan(2),
-
-                                            Forms\Components\TextInput::make('total_ammount')
-                                                ->label('Total')
-                                                ->numeric()
-                                                ->prefix('₹')
-                                                ->required()
-                                                ->dehydrated()
-                                                ->columnSpan(2),
-                                        ])
-                                        ->columns(12),
-                                ]),
-                        ]),
-
-                    Forms\Components\Tabs\Tab::make('4. Payment & Confirm')
-                        ->icon('heroicon-o-credit-card')
-                        ->schema([
-                            Forms\Components\Section::make('Payment')
-                                ->schema([
-                                    Forms\Components\Select::make('payment_request_type')
-                                        ->label('Payment Request')
-                                        ->options([
-                                            'token' => 'Token Amount',
-                                            'full' => 'Full Amount',
-                                            'custom' => 'Custom Amount',
-                                        ])
-                                        ->default('token')
-                                        ->native(false)
-                                        ->live(),
-
-                                    Forms\Components\TextInput::make('payment_request_amount')
-                                        ->label('Amount to Collect')
-                                        ->numeric()
-                                        ->prefix('₹')
-                                        ->default(500)
-                                        ->required()
-                                        ->visible(fn (Get $get): bool =>
-                                            $get('payment_request_type') !== 'full'
-                                        ),
-
-                                    Forms\Components\Select::make('payment_method')
-                                        ->label('Payment Method')
-                                        ->options(static::paymentMethods())
-                                        ->default('cash')
-                                        ->required()
-                                        ->native(false),
-
-                                    Forms\Components\Select::make('payment_status')
-                                        ->label('Payment Status')
-                                        ->options(static::paymentStatuses())
-                                        ->default('pending')
-                                        ->required()
-                                        ->native(false),
-
-                                    Forms\Components\Select::make('currency')
-                                        ->options([
-                                            'INR' => 'INR',
-                                            'inr' => 'INR',
-                                        ])
-                                        ->default('INR')
-                                        ->required()
-                                        ->native(false),
-
-                                    Forms\Components\TextInput::make('coupon_name')
-                                        ->label('Coupon / Reference')
-                                        ->maxLength(100),
-                                ])
-                                ->columns(3),
-
-                            Forms\Components\Section::make('Booking Status')
-                                ->schema([
-                                    Forms\Components\ToggleButtons::make('status')
-                                        ->inline()
-                                        ->default('new')
-                                        ->required()
-                                        ->options(static::statusOptions())
-                                        ->colors([
-                                            'new' => 'info',
-                                            'reconfirmation' => 'warning',
-                                            'confirm' => 'success',
-                                            'modification' => 'warning',
-                                            'start' => 'success',
-                                            'cancelled' => 'danger',
-                                            'closed' => 'success',
-                                            'refund' => 'info',
-                                        ])
-                                        ->icons([
-                                            'new' => 'heroicon-m-sparkles',
-                                            'reconfirmation' => 'heroicon-m-phone-arrow-down-left',
-                                            'confirm' => 'heroicon-m-check-badge',
-                                            'modification' => 'heroicon-m-arrow-path',
-                                            'start' => 'heroicon-m-truck',
-                                            'cancelled' => 'heroicon-m-x-circle',
-                                            'closed' => 'heroicon-m-clipboard-document-check',
-                                            'refund' => 'heroicon-m-banknotes',
-                                        ]),
-                                ]),
-                        ]),
+                            return User::query()->firstOrCreate(
+                                ['mobile' => $mobile],
+                                [
+                                    'name' => $data['name'],
+                                    'email' => $data['email'] ?? null,
+                                    'password' => bcrypt(Str::random(32)),
+                                ]
+                            )->id;
+                        })
+                        ->required()
+                        ->columnSpan(2),
                 ])
-                ->columnSpanFull(),
+                ->columns(3),
+
+            Forms\Components\Section::make('Journey')
+                ->description('Select service and cities. Matching Laravel products/packages will load automatically.')
+                ->schema([
+                    Forms\Components\Select::make('ride_type')
+                        ->label('Booking Type')
+                        ->options([
+                            'one_way' => 'One Way',
+                            'return' => 'Round Trip / Multi-City',
+                            'local' => 'Local',
+                            'airport' => 'Airport',
+                            'self_drive' => 'Self Drive',
+                        ])
+                        ->default('one_way')
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            $set('pickup_brand_id', null);
+                            $set('drop_brand_id', null);
+                            $set('selected_product_id', null);
+                            $set('selected_price_id', null);
+                            $set('cityFrom', null);
+                            $set('cityTo', null);
+                            $set('productName', null);
+                            $set('taxi_type', null);
+                            $set('calculated_amount', 0);
+                            $set('coupon_value', 0);
+                            $set('grand_total', 0);
+                            $set('items', []);
+                            $set('sd_vehicle_id', null);
+                            $set('sd_rental_plan', 'daily');
+                            $set('sd_rate', 0);
+                            $set('sd_booked_hours', 0);
+                            $set('sd_total_days', 0);
+                            $set('sd_security_deposit', 0);
+                            $set('sd_pickup_location', null);
+                        }),
+
+                    Forms\Components\Select::make('pickup_brand_id')
+                        ->label('Pickup City')
+                        ->options(fn (): array => Brand::query()
+                            ->where('is_active', 1)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->required()
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            $brand = $state ? Brand::query()->find($state) : null;
+                            $set('cityFrom', $brand?->name);
+                            if ($get('ride_type') === 'self_drive') {
+                                $set('sd_pickup_location', $brand?->name);
+                            }
+                            $set('selected_product_id', null);
+                            $set('selected_price_id', null);
+                            $set('productName', null);
+                            $set('taxi_type', null);
+                            $set('calculated_amount', 0);
+                            $set('coupon_value', 0);
+                            $set('grand_total', 0);
+                            $set('items', []);
+                        }),
+
+                    Forms\Components\Select::make('drop_brand_id')
+                        ->label(fn (Get $get): string => $get('ride_type') === 'return'
+                            ? 'First Destination'
+                            : 'Drop City')
+                        ->options(function (Get $get): array {
+                            $pickupId = (int) ($get('pickup_brand_id') ?: 0);
+
+                            return Brand::query()
+                                ->where('is_active', 1)
+                                ->when($pickupId > 0, fn (Builder $query) => $query->whereKeyNot($pickupId))
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->all();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->visible(fn (Get $get): bool => in_array(
+                            $get('ride_type'),
+                            ['one_way', 'return', 'airport'],
+                            true
+                        ))
+                        ->required(fn (Get $get): bool => in_array(
+                            $get('ride_type'),
+                            ['one_way', 'return', 'airport'],
+                            true
+                        ))
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            $brand = $state ? Brand::query()->find($state) : null;
+                            $set('cityTo', $brand?->name);
+                            $set('selected_product_id', null);
+                            $set('selected_price_id', null);
+                            $set('productName', null);
+                            $set('taxi_type', null);
+                            $set('calculated_amount', 0);
+                            $set('coupon_value', 0);
+                            $set('grand_total', 0);
+                            $set('items', []);
+                        }),
+
+                    Forms\Components\DatePicker::make('date')
+                        ->label('Start Date')
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+
+                    Forms\Components\TimePicker::make('time')
+                        ->label('Start Time')
+                        ->seconds(false)
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+
+                    Forms\Components\DatePicker::make('dateTo')
+                        ->label('End Date')
+                        ->afterOrEqual('date')
+                        ->visible(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->required(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+
+                    Forms\Components\TimePicker::make('endTime')
+                        ->label('End Time')
+                        ->seconds(false)
+                        ->visible(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->required(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+
+                    Forms\Components\TagsInput::make('route_stops')
+                        ->label('Additional Cities')
+                        ->placeholder('Type city and press Enter')
+                        ->helperText('Optional for Round Trip / Multi-City.')
+                        ->visible(fn (Get $get): bool => $get('ride_type') === 'return')
+                        ->columnSpanFull(),
+
+                    Forms\Components\Hidden::make('cityFrom'),
+                    Forms\Components\Hidden::make('cityTo'),
+                ])
+                ->columns(3),
+
+            Forms\Components\Section::make('Package / Vehicle Category & Fare')
+                ->description('Packages and fares come from products, prices and categories in the Laravel database.')
+                ->schema([
+                    Forms\Components\Select::make('selected_product_id')
+                        ->label(fn (Get $get): string => $get('ride_type') === 'local'
+                            ? 'Local Package'
+                            : 'Route / Package')
+                        ->options(function (Get $get): array {
+                            $rideType = (string) ($get('ride_type') ?: 'one_way');
+                            $pickupId = (int) ($get('pickup_brand_id') ?: 0);
+                            $dropId = (int) ($get('drop_brand_id') ?: 0);
+
+                            if ($pickupId <= 0) {
+                                return [];
+                            }
+
+                            $rideTypes = $rideType === 'return'
+                                ? ['return', 'round_trip']
+                                : [$rideType];
+
+                            return Product::query()
+                                ->where('is_active', 1)
+                                ->where('brand_id', $pickupId)
+                                ->whereIn('ride_type', $rideTypes)
+                                ->when(
+                                    in_array($rideType, ['one_way', 'return', 'airport'], true) && $dropId > 0,
+                                    fn (Builder $query) => $query->where('booking_to', $dropId)
+                                )
+                                ->orderBy('name')
+                                ->get(['id', 'name', 'slug'])
+                                ->mapWithKeys(fn (Product $product): array => [
+                                    $product->id => trim((string) ($product->name ?: $product->slug)),
+                                ])
+                                ->all();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->required(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
+                        ->helperText(fn (Get $get): string => $get('ride_type') === 'self_drive'
+                            ? 'Self Drive uses the dedicated Self Drive booking workflow to preserve availability, KYC and OTP checks.'
+                            : 'Only matching active products are shown.')
+                        ->disabled(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->afterStateUpdated(function ($state, Set $set): void {
+                            $product = $state ? Product::query()->find($state) : null;
+                            $set('productName', $product?->name);
+                            $set('selected_price_id', null);
+                            $set('taxi_type', null);
+                            $set('calculated_amount', 0);
+                            $set('coupon_value', 0);
+                            $set('grand_total', 0);
+                            $set('items', []);
+                        }),
+
+                    Forms\Components\Select::make('selected_price_id')
+                        ->label('Vehicle Category / Database Fare')
+                        ->options(function (Get $get): array {
+                            $productId = (int) ($get('selected_product_id') ?: 0);
+
+                            if ($productId <= 0) {
+                                return [];
+                            }
+
+                            return Price::query()
+                                ->with('category:id,name,slug')
+                                ->where('product_id', $productId)
+                                ->orderBy('price')
+                                ->get()
+                                ->mapWithKeys(function (Price $price): array {
+                                    $category = $price->category?->name ?: 'Vehicle';
+                                    $amount = number_format((float) $price->price, 2);
+                                    $max = (float) ($price->max_price ?? 0);
+                                    $label = $category . ' — ₹' . $amount;
+
+                                    if ($max > 0 && $max !== (float) $price->price) {
+                                        $label .= ' to ₹' . number_format($max, 2);
+                                    }
+
+                                    return [$price->id => $label];
+                                })
+                                ->all();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->required(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
+                        ->disabled(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            $price = $state
+                                ? Price::query()->with('category')->find($state)
+                                : null;
+
+                            if (! $price) {
+                                $set('taxi_type', null);
+                                $set('calculated_amount', 0);
+                                $set('grand_total', 0);
+                                $set('items', []);
+                                return;
+                            }
+
+                            $fare = max(0, (float) $price->price);
+                            $discount = max(0, (float) ($get('coupon_value') ?? 0));
+                            $productId = (int) ($get('selected_product_id') ?: 0);
+
+                            $set('taxi_type', (string) ($price->category?->slug ?: Str::slug((string) ($price->category?->name ?: 'vehicle'))));
+                            $set('calculated_amount', $fare);
+                            $set('grand_total', max(0, $fare - $discount));
+
+                            if ($productId > 0) {
+                                $set('items', [[
+                                    'product_id' => $productId,
+                                    'quantity' => 1,
+                                    'unit_ammount' => $fare,
+                                    'total_ammount' => $fare,
+                                ]]);
+                            }
+                        }),
+
+                    Forms\Components\TextInput::make('calculated_amount')
+                        ->label('Database Fare')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->readOnly()
+                        ->dehydrated(false),
+
+                    Forms\Components\TextInput::make('coupon_value')
+                        ->label('Discount / Adjustment')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->live()
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            $databaseFare = max(0, (float) ($get('calculated_amount') ?? 0));
+                            $discount = max(0, (float) $state);
+                            $set('grand_total', max(0, $databaseFare - $discount));
+                        }),
+
+                    Forms\Components\TextInput::make('grand_total')
+                        ->label('Final Booking Amount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->required()
+                        ->default(0)
+                        ->live(),
+
+                    Forms\Components\Textarea::make('fare_override_reason')
+                        ->label('Fare Change / Discount Reason')
+                        ->placeholder('Required when final fare differs from database fare.')
+                        ->rows(2)
+                        ->visible(function (Get $get): bool {
+                            return abs(
+                                (float) ($get('grand_total') ?? 0)
+                                - (float) ($get('calculated_amount') ?? 0)
+                            ) > 0.009;
+                        })
+                        ->required(function (Get $get): bool {
+                            return abs(
+                                (float) ($get('grand_total') ?? 0)
+                                - (float) ($get('calculated_amount') ?? 0)
+                            ) > 0.009;
+                        })
+                        ->columnSpanFull(),
+
+                    Forms\Components\Hidden::make('productName'),
+                    Forms\Components\Hidden::make('taxi_type'),
+
+                    Forms\Components\Repeater::make('items')
+                        ->relationship()
+                        ->label('Order Item')
+                        ->defaultItems(0)
+                        ->minItems(1)
+                        ->maxItems(1)
+                        ->schema([
+                            Forms\Components\Select::make('product_id')
+                                ->relationship('product', 'name')
+                                ->label('Product')
+                                ->searchable()
+                                ->preload()
+                                ->required()
+                                ->columnSpan(6),
+                            Forms\Components\TextInput::make('quantity')
+                                ->numeric()
+                                ->required()
+                                ->default(1)
+                                ->minValue(1)
+                                ->columnSpan(2),
+                            Forms\Components\TextInput::make('unit_ammount')
+                                ->label('Unit Amount')
+                                ->numeric()
+                                ->prefix('₹')
+                                ->required()
+                                ->columnSpan(2),
+                            Forms\Components\TextInput::make('total_ammount')
+                                ->label('Total')
+                                ->numeric()
+                                ->prefix('₹')
+                                ->required()
+                                ->columnSpan(2),
+                        ])
+                        ->columns(12)
+                        ->collapsed()
+                        ->columnSpanFull(),
+                ])
+                ->columns(3)
+                ->visible(fn (Get $get): bool => $get('ride_type') !== 'self_drive'),
+
+            Forms\Components\Section::make('Self Drive Vehicle & Fare')
+                ->description('Select the actual vehicle and rental plan. Duration and fare are calculated from Laravel database pricing.')
+                ->schema([
+                    Forms\Components\TextInput::make('sd_pickup_location')
+                        ->label('Pickup Location')
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->maxLength(255),
+
+                    Forms\Components\Select::make('sd_vehicle_id')
+                        ->label('Self Drive Vehicle')
+                        ->options(function (): array {
+                            return Vehicle::query()
+                                ->with('transporter')
+                                ->where('is_active', true)
+                                ->orderBy('car_company_name')
+                                ->orderBy('model_name')
+                                ->limit(300)
+                                ->get()
+                                ->mapWithKeys(function (Vehicle $vehicle): array {
+                                    $name = trim(($vehicle->car_company_name ?? '') . ' ' . ($vehicle->model_name ?? ''));
+                                    $number = $vehicle->vehicle_number ?: 'No Number';
+                                    $partner = $vehicle->transporter?->company_name ?: 'Partner';
+
+                                    return [$vehicle->id => trim("{$name} | {$number} | {$partner}", ' |')];
+                                })
+                                ->all();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->afterStateUpdated(function ($state, Get $get, Set $set): void {
+                            $set('sd_rental_plan', 'daily');
+                            static::loadSelfDriveVehiclePricing((int) ($state ?: 0), $set);
+                            static::recalculateSelfDrive($get, $set);
+                        }),
+
+                    Forms\Components\Select::make('sd_rental_plan')
+                        ->label('Rental Plan')
+                        ->options(function (Get $get): array {
+                            $vehicleId = (int) ($get('sd_vehicle_id') ?: 0);
+                            return static::selfDrivePlanOptions($vehicleId);
+                        })
+                        ->default('daily')
+                        ->native(false)
+                        ->live()
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+
+                    Forms\Components\TextInput::make('sd_booked_hours')
+                        ->label('Duration Hours')
+                        ->numeric()
+                        ->suffix('hrs')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('sd_total_days')
+                        ->label('Duration Days')
+                        ->numeric()
+                        ->suffix('days')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('sd_rate')
+                        ->label('Database Rate')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('sd_security_deposit')
+                        ->label('Security Deposit')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('sd_calculated_amount')
+                        ->label('Calculated Rental Fare')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('sd_total_amount')
+                        ->label('Final Booking Amount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->live(),
+
+                    Forms\Components\Placeholder::make('sd_availability_note')
+                        ->label('Availability')
+                        ->content('Availability is checked again at Create Booking time to prevent overlapping vehicle bookings.')
+                        ->columnSpanFull(),
+                ])
+                ->columns(3)
+                ->visible(fn (Get $get): bool => $get('ride_type') === 'self_drive'),
+
+            Forms\Components\Section::make('Payment & Status')
+                ->schema([
+                    Forms\Components\Select::make('payment_request_type')
+                        ->label('Amount to Request')
+                        ->options([
+                            'token' => 'Token Amount',
+                            'full' => 'Full Booking Amount',
+                            'custom' => 'Custom Amount',
+                        ])
+                        ->default('token')
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            $bookingAmount = $get('ride_type') === 'self_drive'
+                                ? max(0, (float) ($get('sd_total_amount') ?? 0))
+                                : max(0, (float) ($get('grand_total') ?? 0));
+
+                            if ($state === 'full') {
+                                $set('payment_request_amount', $bookingAmount);
+                            } elseif ($state === 'token') {
+                                $set('payment_request_amount', min(500, $bookingAmount));
+                            } elseif ((float) ($get('payment_request_amount') ?? 0) > $bookingAmount) {
+                                $set('payment_request_amount', $bookingAmount);
+                            }
+                        }),
+
+                    Forms\Components\TextInput::make('payment_request_amount')
+                        ->label('Payment Link Amount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(500)
+                        ->required()
+                        ->maxValue(fn (Get $get) => $get('ride_type') === 'self_drive'
+                            ? max(0, (float) ($get('sd_total_amount') ?? 0))
+                            : max(0, (float) ($get('grand_total') ?? 0)))
+                        ->helperText('After the booking is created, this amount can be used to generate the Razorpay payment link.'),
+
+                    Forms\Components\Select::make('payment_method')
+                        ->label('Payment Method')
+                        ->options(static::paymentMethods())
+                        ->default('cash')
+                        ->required()
+                        ->native(false),
+
+                    Forms\Components\Select::make('payment_status')
+                        ->label('Payment Status')
+                        ->options(static::paymentStatuses())
+                        ->default('pending')
+                        ->required()
+                        ->native(false),
+
+                    Forms\Components\Select::make('currency')
+                        ->options(['INR' => 'INR'])
+                        ->default('INR')
+                        ->required()
+                        ->native(false),
+
+                    Forms\Components\ToggleButtons::make('status')
+                        ->label('Booking Status')
+                        ->inline()
+                        ->default('new')
+                        ->required()
+                        ->options(static::statusOptions())
+                        ->colors([
+                            'new' => 'info',
+                            'reconfirmation' => 'warning',
+                            'confirm' => 'success',
+                            'modification' => 'warning',
+                            'start' => 'success',
+                            'cancelled' => 'danger',
+                            'closed' => 'success',
+                            'refund' => 'info',
+                        ])
+                        ->visible(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
+                        ->columnSpanFull(),
+
+                    Forms\Components\TextInput::make('coupon_name')
+                        ->label('Coupon / Reference')
+                        ->maxLength(100),
+
+                    Forms\Components\Textarea::make('notes')
+                        ->label('Booking Notes')
+                        ->rows(2)
+                        ->columnSpanFull(),
+                ])
+                ->columns(3),
         ]);
+    }
+
+    public static function loadSelfDriveVehiclePricing(int $vehicleId, Set $set): void
+    {
+        $vehicle = $vehicleId > 0 ? Vehicle::query()->find($vehicleId) : null;
+
+        if (! $vehicle) {
+            $set('sd_rate', 0);
+            $set('sd_security_deposit', 0);
+            return;
+        }
+
+        $price = static::selfDrivePriceForVehicle($vehicle);
+
+        $set('sd_security_deposit', max(0, (float) (
+            $price?->security_deposit
+            ?? $vehicle->security_deposit
+            ?? 0
+        )));
+    }
+
+    public static function selfDrivePlanOptions(int $vehicleId): array
+    {
+        $vehicle = $vehicleId > 0 ? Vehicle::query()->find($vehicleId) : null;
+
+        if (! $vehicle) {
+            return [];
+        }
+
+        $price = static::selfDrivePriceForVehicle($vehicle);
+        $options = [];
+
+        $rates = [
+            'hourly' => (float) ($price?->hourly_price ?? $vehicle->hourly_price ?? 0),
+            'daily' => (float) ($price?->daily_price ?? $vehicle->daily_price ?? 0),
+            'weekly' => (float) ($price?->weekly_price ?? 0),
+            'monthly' => (float) ($price?->monthly_price ?? 0),
+        ];
+
+        foreach ($rates as $key => $rate) {
+            if ($rate <= 0) {
+                continue;
+            }
+
+            $options[$key] = Str::headline($key) . ' — ₹' . number_format($rate, 2);
+        }
+
+        return $options;
+    }
+
+    public static function recalculateSelfDrive(Get $get, Set $set): void
+    {
+        if ($get('ride_type') !== 'self_drive') {
+            return;
+        }
+
+        $vehicleId = (int) ($get('sd_vehicle_id') ?: 0);
+        $date = $get('date');
+        $time = $get('time');
+        $dateTo = $get('dateTo');
+        $endTime = $get('endTime');
+
+        if ($vehicleId <= 0 || ! $date || ! $time || ! $dateTo || ! $endTime) {
+            return;
+        }
+
+        try {
+            $start = Carbon::parse($date . ' ' . $time);
+            $end = Carbon::parse($dateTo . ' ' . $endTime);
+        } catch (\Throwable) {
+            return;
+        }
+
+        if ($end->lte($start)) {
+            $set('sd_booked_hours', 0);
+            $set('sd_total_days', 0);
+            $set('sd_rate', 0);
+            $set('sd_calculated_amount', 0);
+            $set('sd_total_amount', 0);
+            return;
+        }
+
+        $vehicle = Vehicle::query()->find($vehicleId);
+
+        if (! $vehicle) {
+            return;
+        }
+
+        $price = static::selfDrivePriceForVehicle($vehicle);
+        $hours = max(1, (int) ceil($start->diffInMinutes($end) / 60));
+        $days = max(1, (int) ceil($hours / 24));
+        $plan = (string) ($get('sd_rental_plan') ?: 'daily');
+
+        $rate = match ($plan) {
+            'hourly' => (float) ($price?->hourly_price ?? $vehicle->hourly_price ?? 0),
+            'weekly' => (float) ($price?->weekly_price ?? 0),
+            'monthly' => (float) ($price?->monthly_price ?? 0),
+            default => (float) ($price?->daily_price ?? $vehicle->daily_price ?? 0),
+        };
+
+        $units = match ($plan) {
+            'hourly' => $hours,
+            'weekly' => max(1, (int) ceil($days / 7)),
+            'monthly' => max(1, (int) ceil($days / 30)),
+            default => $days,
+        };
+
+        $minimumHours = max(1, (int) (
+            $price?->minimum_booking_hours
+            ?? $vehicle->minimum_booking_hours
+            ?? 1
+        ));
+
+        if ($plan === 'hourly') {
+            $units = max($units, $minimumHours);
+        }
+
+        $fare = round(max(0, $rate) * max(1, $units), 2);
+
+        $set('sd_booked_hours', $hours);
+        $set('sd_total_days', $days);
+        $set('sd_rate', $rate);
+        $set('sd_security_deposit', max(0, (float) (
+            $price?->security_deposit
+            ?? $vehicle->security_deposit
+            ?? 0
+        )));
+        $set('sd_calculated_amount', $fare);
+        $set('sd_total_amount', $fare);
+
+        if ($get('payment_request_type') === 'full') {
+            $set('payment_request_amount', $fare);
+        } elseif ($get('payment_request_type') === 'token') {
+            $set('payment_request_amount', min(500, $fare));
+        } elseif ((float) ($get('payment_request_amount') ?? 0) > $fare) {
+            $set('payment_request_amount', $fare);
+        }
+    }
+
+    private static function selfDrivePriceForVehicle(Vehicle $vehicle): ?SelfDrivePrice
+    {
+        $productId = (int) ($vehicle->product_id ?? 0);
+
+        if ($productId <= 0) {
+            return null;
+        }
+
+        return SelfDrivePrice::query()
+            ->where('product_id', $productId)
+            ->where('is_active', true)
+            ->first();
     }
 
     public static function table(Table $table): Table
@@ -782,6 +1058,7 @@ class OrderResource extends Resource
     {
         return [
             'pending' => 'Pending',
+            'partial' => 'Partial',
             'paid' => 'Paid',
             'failed' => 'Failed',
             'refunded' => 'Refunded',

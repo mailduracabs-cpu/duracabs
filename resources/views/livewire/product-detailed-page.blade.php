@@ -658,9 +658,8 @@
                                         </div>
 
                                         <p class="ride-package-model">
-                                            {{ $selectedVehicle->vehicle_number ?: 'Registration available at pickup' }}
-                                            • {{ $vehicleClass }}
-                                        </p>
+    {{ $vehicleClass }}
+</p>
 
                                         <div class="ride-package-features">
                                             @if ($selectedVehicle->fuel_type)
