@@ -23,80 +23,44 @@ final class LocalBusinessSchema
         ?string $businessId = null
     ): array {
         $homeUrl = rtrim($homeUrl, '/') . '/';
-
         $businessId ??= $homeUrl . '#local-business';
 
+        /*
+         * Reuse the safe Organization identity fields (name, address,
+         * contact details, social profiles), then add place/business-only
+         * properties to a separate LocalBusiness node.
+         */
         $schema = $this->settings->organizationSchema(
             $homeUrl,
             $businessId
         );
 
+        $schema['@type'] = 'LocalBusiness';
         $schema['@id'] = $businessId;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Force proper schema type
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            ! isset($schema['@type'])
-            || empty($schema['@type'])
-        ) {
-            $schema['@type'] = [
-                'LocalBusiness',
-                'TaxiService',
-            ];
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Ensure url exists
-        |--------------------------------------------------------------------------
-        */
-
         $schema['url'] = $homeUrl;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Area Served
-        |--------------------------------------------------------------------------
-        */
-
-        if (! isset($schema['areaServed'])) {
-
-            $schema['areaServed'] = [
-                [
-                    '@type' => 'Country',
-                    'name' => 'India',
-                ],
-            ];
+        if (filled($this->settings->price_range)) {
+            $schema['priceRange'] = trim(
+                (string) $this->settings->price_range
+            );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Available Languages
-        |--------------------------------------------------------------------------
-        */
+        $geo = $this->settings->geoCoordinatesSchema();
 
-        if (! isset($schema['availableLanguage'])) {
-
-            $schema['availableLanguage'] = [
-                'en',
-                'hi',
-            ];
+        if (is_array($geo) && $geo !== []) {
+            $schema['geo'] = $geo;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Price Range
-        |--------------------------------------------------------------------------
-        */
+        if (filled($this->settings->google_map_url)) {
+            $schema['hasMap'] = trim(
+                (string) $this->settings->google_map_url
+            );
+        }
 
-        if (
-            empty($schema['priceRange'])
-        ) {
-            $schema['priceRange'] = '₹₹';
+        $openingHours = $this->settings->openingHoursSchema();
+
+        if (is_array($openingHours) && $openingHours !== []) {
+            $schema['openingHoursSpecification'] = $openingHours;
         }
 
         return $this->clean($schema);

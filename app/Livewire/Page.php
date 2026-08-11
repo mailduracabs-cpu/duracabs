@@ -2292,10 +2292,24 @@ public ?string $query2_search = '';
             ?: $this->seoTitle
         ));
 
-        $aboutName = trim((string) (
-            data_get($page, 'brand.name')
-            ?: $pageName
-        ));
+        $rawBrandName = data_get($page, 'brand.name');
+
+        /*
+         * A missing/unloaded belongsTo relation may surface as a numeric-ish
+         * value in legacy page payloads. Only use a real non-empty textual
+         * brand name for Place schema; otherwise fall back to the page name.
+         */
+        $brandName = is_string($rawBrandName)
+            ? trim($rawBrandName)
+            : '';
+
+        if ($brandName === '' || $brandName === '0') {
+            $brandName = '';
+        }
+
+        $aboutName = $brandName !== ''
+            ? $brandName
+            : $pageName;
 
         $schema = array_filter([
             '@context' => 'https://schema.org',
@@ -2323,7 +2337,7 @@ public ?string $query2_search = '';
             ],
             'about' => $aboutName !== ''
                 ? [
-                    '@type' => filled(data_get($page, 'brand.name'))
+                    '@type' => $brandName !== ''
                         ? 'Place'
                         : 'Thing',
                     'name' => $aboutName,

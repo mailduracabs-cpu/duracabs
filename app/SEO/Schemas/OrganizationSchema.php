@@ -31,9 +31,12 @@ final class OrganizationSchema
             $organizationId
         );
 
-        if (! isset($schema['@type'])) {
-            $schema['@type'] = 'Organization';
-        }
+        /*
+         * #organization is the publisher identity used by WebSite/WebPage.
+         * Always keep it typed as Organization even if an admin business
+         * setting is TaxiService/LocalBusiness.
+         */
+        $schema['@type'] = 'Organization';
 
         $schema['@id'] = $organizationId;
         $schema['url'] = $homeUrl;

@@ -300,13 +300,13 @@ class WebsiteSetting extends Model
     public function openingHoursSchema(): ?array
     {
         $days = [
-            'Monday',
-            'Tuesday',
-            'Wednesday',
-            'Thursday',
-            'Friday',
-            'Saturday',
-            'Sunday',
+            'https://schema.org/Monday',
+            'https://schema.org/Tuesday',
+            'https://schema.org/Wednesday',
+            'https://schema.org/Thursday',
+            'https://schema.org/Friday',
+            'https://schema.org/Saturday',
+            'https://schema.org/Sunday',
         ];
 
         if ((bool) $this->open_24_hours) {
@@ -395,8 +395,15 @@ class WebsiteSetting extends Model
             ? strtoupper(trim((string) $this->country_code))
             : 'IN';
 
+        /*
+         * Keep the global #organization node a real Organization.
+         *
+         * Business/place-only properties (priceRange, geo, hasMap and
+         * openingHoursSpecification) belong on the separate LocalBusiness
+         * node, not on the publisher Organization node.
+         */
         return $this->cleanSchema([
-            '@type' => $this->schemaBusinessType(),
+            '@type' => 'Organization',
             '@id' => $organizationId,
             'name' => $this->business_name
                 ?: $this->site_name
@@ -422,11 +429,7 @@ class WebsiteSetting extends Model
                 : $this->logo_url,
             'telephone' => $this->stringOrNull($this->phone),
             'email' => $this->stringOrNull($this->email),
-            'priceRange' => $this->stringOrNull($this->price_range),
             'address' => $this->postalAddressSchema(),
-            'geo' => $this->geoCoordinatesSchema(),
-            'hasMap' => $this->stringOrNull($this->google_map_url),
-            'openingHoursSpecification' => $this->openingHoursSchema(),
             'contactPoint' => $contactPoints !== [] ? $contactPoints : null,
             'sameAs' => $socialProfiles !== [] ? $socialProfiles : null,
             'areaServed' => [
