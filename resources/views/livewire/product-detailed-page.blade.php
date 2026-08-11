@@ -56,9 +56,9 @@
     </nav>
 
     <header class="product-premium-header premium-hero-animate mb-5">
-        <h2 class="text-2xl font-extrabold leading-tight text-slate-900 sm:text-3xl">
+        <h1 class="text-2xl font-extrabold leading-tight text-slate-900 sm:text-3xl">
             {{ $routeName }} {{ $tripLabel }} Booking
-        </h2>
+        </h1>
         <p class="mt-2 max-w-4xl text-sm leading-6 text-slate-600 sm:text-base">{{ $seoDescription }}</p>
     </header>
 
