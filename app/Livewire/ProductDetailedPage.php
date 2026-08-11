@@ -77,33 +77,31 @@ class ProductDetailedPage extends Component
         $this->slug = $slug;
 
         /*
-         * Canonical route enforcement for product SEO pages.
+         * Strict URL enforcement for product SEO pages.
          *
-         * Old /route/{slug} links must never render Self Drive or Bike Rental
-         * products as duplicate 200 pages. Redirect them permanently to their
-         * dedicated canonical URL before the Livewire component renders.
+         * A product must render only on the URL that belongs to its ride type.
+         * Wrong URL types return 404 — no redirect and no duplicate 200 page.
          */
+        $routeProduct = Product::query()
+            ->where('slug', $slug)
+            ->where('is_active', 1)
+            ->first(['id', 'slug', 'ride_type', 'url_type']);
+
+        abort_if(! $routeProduct, 404);
+
         if (request()->routeIs('route.show')) {
-            $routeProduct = Product::query()
-                ->where('slug', $slug)
-                ->where('is_active', 1)
-                ->first(['id', 'slug', 'ride_type', 'url_type']);
+            abort_if(
+                in_array((string) $routeProduct->ride_type, ['self_drive', 'bike_rental'], true),
+                404
+            );
+        }
 
-            $canonicalRouteName = match ((string) ($routeProduct?->ride_type ?? '')) {
-                'self_drive' => 'self-drive.show',
-                'bike_rental' => 'bike-rental.show',
-                default => null,
-            };
+        if (request()->routeIs('self-drive.show')) {
+            abort_if((string) $routeProduct->ride_type !== 'self_drive', 404);
+        }
 
-            if ($canonicalRouteName !== null) {
-                throw new \Illuminate\Http\Exceptions\HttpResponseException(
-                    redirect()->route(
-                        $canonicalRouteName,
-                        ['slug' => $slug],
-                        301
-                    )
-                );
-            }
+        if (request()->routeIs('bike-rental.show')) {
+            abort_if((string) $routeProduct->ride_type !== 'bike_rental', 404);
         }
 
         $this->fareUnlocked =
