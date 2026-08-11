@@ -55,9 +55,9 @@
                     Reliable • Affordable • 24×7 Support
                 </span>
 
-                <h1 class="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
+                <h2 class="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl lg:text-5xl">
                     Premium Car Rental in {{ $pageName }}
-                </h1>
+                </h2>
 
                 <p class="mx-auto mt-4 max-w-2xl text-sm font-medium leading-6 text-sky-50 sm:text-base">
                     Book one way, round trip, local taxi and self-drive cars from one simple search.
