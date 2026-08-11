@@ -843,6 +843,61 @@
         </div>
     </section>
 
+    {{-- =========================================================
+        SEO INTERNAL LINKS / RELATED PAGES
+        Uses the existing $rides query from ProductDetailedPage.php.
+        Real crawlable <a href> links help prevent orphan SEO pages.
+    ========================================================= --}}
+    @if (isset($rides) && $rides->count())
+        <section class="mt-6 rounded-3xl border border-slate-200 bg-white px-4 py-6 font-poppins shadow-sm sm:px-6 lg:px-8" aria-labelledby="related-pages-heading">
+            <div class="mb-5">
+                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-600">Explore More</p>
+                <h2 id="related-pages-heading" class="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
+                    @if ($ride->ride_type === 'self_drive')
+                        Related Self Drive Cars in {{ $ride->brand?->name ?: 'Your City' }}
+                    @elseif ($ride->ride_type === 'one_way')
+                        Related Taxi Routes
+                    @elseif ($ride->ride_type === 'round_trip')
+                        Related Round Trip Cabs
+                    @elseif ($ride->ride_type === 'airport')
+                        Related Airport Cabs
+                    @elseif ($ride->ride_type === 'local')
+                        Related Local Cabs
+                    @elseif ($ride->ride_type === 'bike_rental')
+                        Related Bike Rentals
+                    @else
+                        Related Services
+                    @endif
+                </h2>
+                <p class="mt-1 text-sm text-slate-500">Browse more relevant Dura Cabs services and vehicles.</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($rides as $relatedRide)
+                    @php
+                        $relatedRouteName = match ((string) $relatedRide->ride_type) {
+                            'self_drive' => 'self-drive.show',
+                            'bike_rental' => 'bike-rental.show',
+                            default => 'route.show',
+                        };
+
+                        $relatedUrl = route($relatedRouteName, ['slug' => $relatedRide->slug]);
+                        $relatedTitle = trim((string) ($relatedRide->name ?: $relatedRide->meta_title ?: Str::headline($relatedRide->slug)));
+                    @endphp
+
+                    <a href="{{ $relatedUrl }}"
+                       class="group flex min-h-14 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-sky-200 hover:bg-sky-50"
+                       title="{{ $relatedTitle }}">
+                        <span class="text-sm font-bold leading-5 text-slate-700 transition group-hover:text-sky-700">
+                            {{ $relatedTitle }}
+                        </span>
+                        <span class="shrink-0 text-lg font-bold text-sky-600" aria-hidden="true">→</span>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
 
     <style>
         /* Dynamic route content comes from the admin editor. These scoped rules

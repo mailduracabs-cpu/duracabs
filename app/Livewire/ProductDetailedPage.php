@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Services\OtpService;
+use App\Services\SeoAutoLinkService;
 use App\Models\Brand;
 use App\Models\Product;
 use App\Models\Vehicle;
@@ -1003,6 +1004,7 @@ public function tabValue($val){
             'contentLinks' => collect($ride->content_links ?? [])->filter()->values(),
             'fareCards' => collect($ride->fare_cards ?? [])->filter()->values(),
             'linkedProducts' => collect($ride->link_products ?? [])->filter()->values(),
+            'seoAutoLinks' => app(SeoAutoLinkService::class)->linksFor($ride),
         ]);
     }
 

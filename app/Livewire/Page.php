@@ -8,6 +8,7 @@ use App\Models\Reviews;
 use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Services\SmartBannerService;
+use App\Services\SeoAutoLinkService;
 use App\Services\WhatsAppService;
 use App\SEO\Services\SeoSchemaService;
 use Illuminate\Support\Facades\Auth;
@@ -2021,12 +2022,15 @@ public ?string $query2_search = '';
             ->where('is_featured', 1)
             ->get();
 
+        $seoAutoLinks = app(SeoAutoLinkService::class)->linksFor($page);
+
         $viewData = [
             'page' => $page,
             'carousel' => $carousel,
             'smartHeroBanners' => $smartHeroBanners,
             'reviews' => $reviews,
             'products' => $products,
+            'seoAutoLinks' => $seoAutoLinks,
             'imageMeta' => $this->imageMeta,
             'seoTitle' => $this->seoTitle,
             'seoDescription' => $this->seoDescription,

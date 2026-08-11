@@ -646,4 +646,6 @@
         </div>
     @endteleport
 
+
+    @include('components.seo.auto-links', ['seoAutoLinks' => $seoAutoLinks ?? []])
 </div>
