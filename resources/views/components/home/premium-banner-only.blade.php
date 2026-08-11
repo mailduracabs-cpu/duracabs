@@ -276,7 +276,7 @@ if (
                             aria-hidden="true"
                         ></i>
 
-                        Popular Routes
+                        {{ $selectedBannerService === 'self_drive' ? 'Self Drive Cars' : 'Popular Routes' }}
                     </div>
 
                     <h2
@@ -286,18 +286,24 @@ if (
                                text-[var(--dura-heading,#0f172a)]
                                sm:text-3xl"
                     >
-                        Popular
-
-                        <span class="text-[var(--dura-primary,#2563eb)]">
-                            Outstation Routes
-                        </span>
+                        @if($selectedBannerService === 'self_drive')
+                            Drive Your
+                            <span class="text-[var(--dura-primary,#2563eb)]">Way</span>
+                        @else
+                            Popular
+                            <span class="text-[var(--dura-primary,#2563eb)]">
+                                Outstation Routes
+                            </span>
+                        @endif
                     </h2>
 
                     <p
                         class="mt-1.5 max-w-xl text-sm leading-6
                                text-[var(--dura-muted,#64748b)]"
                     >
-                        Best prices, safe rides and reliable cab service.
+                        {{ $selectedBannerService === 'self_drive'
+                            ? 'Verified cars, flexible rentals and transparent pricing.'
+                            : 'Best prices, safe rides and reliable cab service.' }}
                     </p>
                 </div>
 
@@ -550,8 +556,190 @@ if (
                                     )
                                 )
                             );
+
+                            $bannerTransmission = data_get(
+                                $banner,
+                                'transmission',
+                                data_get($banner, 'vehicle.transmission')
+                            );
+
+                            $bannerFuelType = data_get(
+                                $banner,
+                                'fuel_type',
+                                data_get($banner, 'vehicle.fuel_type')
+                            );
+
+                            $bannerSeats = (int) data_get(
+                                $banner,
+                                'seats',
+                                data_get($banner, 'vehicle.seats', 0)
+                            );
+
+                            $selfDriveDailyFare = null;
+
+                            if ($isSelfDriveBanner && filled($displayFare)) {
+                                $selfDriveDailyFare = trim(
+                                    preg_replace(
+                                        '/\s*\/\s*24\s*Hours?/i',
+                                        ' / day',
+                                        (string) $displayFare
+                                    ) ?? (string) $displayFare
+                                );
+                            }
                         @endphp
 
+                        @if($isSelfDriveBanner)
+                            <article
+                                data-dura-banner-card
+                                class="group relative min-h-[260px] shrink-0 snap-start overflow-hidden
+                                       rounded-[22px] border border-slate-200 bg-white
+                                       shadow-[0_10px_24px_rgba(15,23,42,0.08)]
+                                       transition duration-300 hover:-translate-y-1
+                                       hover:shadow-[0_20px_45px_rgba(15,23,42,0.12)]
+                                       basis-[92%] sm:min-h-[275px] sm:basis-[72%]
+                                       md:basis-[calc((100%-1rem)/2)]
+                                       lg:basis-[calc((100%-2rem)/3)]
+                                       xl:basis-[calc((100%-2rem)/3)]"
+                            >
+                                <a
+                                    href="#"
+                                    x-on:click.prevent="window.dispatchEvent(new CustomEvent('open-self-drive-popup', { detail: {
+                                        vehicleId: {{ $bannerVehicleId }},
+                                        vehicleName: @js($vehicleName ?: data_get($banner, 'title', 'Self Drive Car')),
+                                        vehicleImage: @js($imageUrl ?: ''),
+                                        hourlyPrice: {{ $bannerHourlyPrice }},
+                                        minimumHours: {{ $bannerMinimumHours }},
+                                        securityDeposit: {{ $bannerSecurityDeposit }}
+                                    } }))"
+                                    class="relative z-10 flex min-h-[260px] flex-col text-inherit no-underline
+                                           sm:min-h-[275px] focus-visible:outline-none focus-visible:ring-2
+                                           focus-visible:ring-inset focus-visible:ring-blue-500"
+                                    aria-label="Select date and time for {{ $vehicleName ?: data_get($banner, 'title', 'self drive car') }}"
+                                >
+                                    {{-- Premium image zone: same total card dimensions, bigger vehicle focus --}}
+                                    <div class="relative h-[132px] overflow-hidden bg-gradient-to-br from-slate-50 via-white to-blue-50 sm:h-[142px]">
+                                        <div class="pointer-events-none absolute -right-10 -top-14 h-44 w-44 rounded-full bg-blue-100/70 blur-2xl"></div>
+                                        <div class="pointer-events-none absolute -left-8 bottom-0 h-24 w-24 rounded-full bg-cyan-100/60 blur-2xl"></div>
+
+                                        <span class="absolute left-3 top-3 z-20 inline-flex items-center gap-1.5 rounded-full
+                                                     bg-emerald-600 px-3 py-1.5 text-[10px] font-black uppercase
+                                                     tracking-[0.08em] text-white shadow-sm">
+                                            <span class="h-1.5 w-1.5 rounded-full bg-white"></span>
+                                            Self Drive
+                                        </span>
+
+                                        <span class="absolute right-3 top-3 z-20 inline-flex items-center rounded-full
+                                                     border border-slate-200 bg-white/95 px-2.5 py-1.5
+                                                     text-[10px] font-extrabold text-slate-600 shadow-sm backdrop-blur">
+                                            24 Hours
+                                        </span>
+
+                                        @if(filled($imageUrl))
+                                            <img
+                                                src="{{ $imageUrl }}"
+                                                alt="{{ data_get($banner, 'title', 'Duracabs self drive car') }}"
+                                                class="absolute inset-0 z-10 h-full w-full
+                                                       object-cover object-center
+                                                       transition duration-500 group-hover:scale-[1.025]"
+                                                loading="{{ $loop->first ? 'eager' : 'lazy' }}"
+                                                decoding="async"
+                                                fetchpriority="{{ $loop->first ? 'high' : 'low' }}"
+                                                onerror="this.hidden=true; this.nextElementSibling.classList.remove('hidden');"
+                                            >
+                                            <i class="fa-solid fa-car-side absolute inset-0 hidden place-items-center text-6xl text-blue-600"></i>
+                                        @else
+                                            <div class="absolute inset-0 grid place-items-center">
+                                                <i class="fa-solid fa-car-side text-6xl text-blue-600"></i>
+                                            </div>
+                                        @endif
+                                    </div>
+
+                                    <div class="flex flex-1 flex-col px-4 pb-3 pt-3">
+                                        <div class="min-w-0">
+                                            <h3 class="truncate text-[17px] font-black leading-tight tracking-tight text-slate-900">
+                                                {{ data_get($banner, 'title', $vehicleName ?: 'Self Drive Car') }}
+                                            </h3>
+
+                                            @if(filled($routeLabel))
+                                                <p class="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                                                    <i class="fa-solid fa-location-dot shrink-0 text-blue-600" aria-hidden="true"></i>
+                                                    <span class="truncate">{{ $routeLabel }}</span>
+                                                </p>
+                                            @endif
+                                        </div>
+
+                                        <div class="mt-2 flex items-end justify-between gap-3 border-t border-slate-100 pt-2">
+                                            <div class="min-w-0">
+                                                <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                                    Starting from
+                                                </span>
+                                                @if(filled($selfDriveDailyFare))
+                                                    <strong class="mt-0.5 block truncate text-[20px] font-black leading-none text-blue-700">
+                                                        {{ $selfDriveDailyFare }}
+                                                    </strong>
+                                                @elseif(filled($displayFare))
+                                                    <strong class="mt-0.5 block truncate text-[20px] font-black leading-none text-blue-700">
+                                                        {{ $displayFare }}
+                                                    </strong>
+                                                @endif
+                                            </div>
+
+                                            <span class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-50 px-2 py-1
+                                                         text-[10px] font-extrabold text-blue-700">
+                                                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                                                Verified
+                                            </span>
+                                        </div>
+
+                                        <div class="mt-2 flex min-h-[20px] items-center gap-2 overflow-hidden text-[10px] font-semibold text-slate-600">
+                                            @if(filled($bannerTransmission))
+                                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                                    <i class="fa-solid fa-gears text-blue-600"></i>
+                                                    {{ ucfirst((string) $bannerTransmission) }}
+                                                </span>
+                                            @endif
+
+                                            @if(filled($bannerFuelType))
+                                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                                    <i class="fa-solid fa-gas-pump text-blue-600"></i>
+                                                    {{ ucfirst((string) $bannerFuelType) }}
+                                                </span>
+                                            @endif
+
+                                            @if($bannerSeats > 0)
+                                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                                    <i class="fa-solid fa-user-group text-blue-600"></i>
+                                                    {{ $bannerSeats }} Seats
+                                                </span>
+                                            @endif
+
+                                            @if(blank($bannerTransmission) && blank($bannerFuelType) && $bannerSeats <= 0)
+                                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                                    <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                                                    Verified Car
+                                                </span>
+                                                <span class="inline-flex items-center gap-1 whitespace-nowrap">
+                                                    <i class="fa-solid fa-headset text-blue-600"></i>
+                                                    24×7 Support
+                                                </span>
+                                            @endif
+                                        </div>
+
+                                        <div class="mt-auto pt-2">
+                                            <span class="flex h-9 w-full items-center justify-center gap-2 rounded-xl
+                                                         bg-blue-600 px-4 text-xs font-black text-white
+                                                         shadow-[0_8px_18px_rgba(37,99,235,0.22)]
+                                                         transition group-hover:bg-blue-700">
+                                                Book Now
+                                                <span class="grid h-6 w-6 place-items-center rounded-full bg-white/15">
+                                                    <i class="fa-solid fa-arrow-right text-[9px]" aria-hidden="true"></i>
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </a>
+                            </article>
+                        @else
                         <article
     data-dura-banner-card
     class="group relative min-h-[260px] shrink-0
@@ -900,6 +1088,7 @@ if (
                                 </span>
                             </div>
                         </article>
+                        @endif
                     @empty
                         @forelse($fallbackBanners as $item)
                             @php

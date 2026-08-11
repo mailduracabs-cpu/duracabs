@@ -533,6 +533,250 @@
         @endif
     </main>
 
+
+    {{-- Homepage-style Self Drive banner booking popup --}}
+    <div
+        x-data="{
+            open: false,
+            vehicleId: null,
+            vehicleName: '',
+            vehicleImage: '',
+            hourlyPrice: 0,
+            minimumHours: 1,
+            securityDeposit: 0,
+            pickupDate: '',
+            pickupTime: '',
+            dropDate: '',
+            dropTime: '',
+
+            init() {
+                window.addEventListener('open-self-drive-popup', (event) => {
+                    const detail = event.detail || {};
+
+                    this.vehicleId = detail.vehicleId || null;
+                    this.vehicleName = detail.vehicleName || 'Self Drive Car';
+                    this.vehicleImage = detail.vehicleImage || '';
+                    this.hourlyPrice = Number(detail.hourlyPrice || 0);
+                    this.minimumHours = Math.max(1, Number(detail.minimumHours || 1));
+                    this.securityDeposit = Number(detail.securityDeposit || 0);
+
+                    const now = new Date();
+                    const start = new Date(now.getTime() + (60 * 60 * 1000));
+                    const end = new Date(start.getTime() + (this.minimumHours * 60 * 60 * 1000));
+
+                    this.pickupDate = this.formatDate(start);
+                    this.pickupTime = this.formatTime(start);
+                    this.dropDate = this.formatDate(end);
+                    this.dropTime = this.formatTime(end);
+
+                    this.open = true;
+                    document.documentElement.classList.add('overflow-hidden');
+                });
+            },
+
+            close() {
+                this.open = false;
+                document.documentElement.classList.remove('overflow-hidden');
+            },
+
+            formatDate(date) {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            },
+
+            formatTime(date) {
+                const h = String(date.getHours()).padStart(2, '0');
+                const m = String(date.getMinutes()).padStart(2, '0');
+                return `${h}:${m}`;
+            },
+
+            startDateTime() {
+                if (!this.pickupDate || !this.pickupTime) return null;
+                return new Date(`${this.pickupDate}T${this.pickupTime}`);
+            },
+
+            endDateTime() {
+                if (!this.dropDate || !this.dropTime) return null;
+                return new Date(`${this.dropDate}T${this.dropTime}`);
+            },
+
+            durationHours() {
+                const start = this.startDateTime();
+                const end = this.endDateTime();
+
+                if (!start || !end || end <= start) return 0;
+
+                return Math.ceil((end - start) / 3600000);
+            },
+
+            rentalAmount() {
+                return this.durationHours() * this.hourlyPrice;
+            },
+
+            continueBooking() {
+                const hours = this.durationHours();
+
+                if (!this.vehicleId || hours < this.minimumHours) {
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    tab: 'self_drive',
+                    vehicle_id: String(this.vehicleId),
+                    date: this.pickupDate,
+                    time: this.pickupTime,
+                    dateto: this.dropDate,
+                    endTime: this.dropTime,
+                });
+
+                window.location.href = @js(url('/rides')) + '?' + params.toString();
+            }
+        }"
+        x-on:keydown.escape.window="if (open) close()"
+        x-cloak
+    >
+        <template x-teleport="body">
+            <div
+                x-show="open"
+                x-transition.opacity
+                class="fixed inset-0 z-[999999] flex items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-6 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Choose self drive pickup and return time"
+                x-on:click.self="close()"
+            >
+                <div
+                    x-show="open"
+                    x-transition
+                    class="relative w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl"
+                >
+                    <button
+                        type="button"
+                        x-on:click="close()"
+                        class="absolute right-4 top-4 z-10 grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-xl text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-900"
+                        aria-label="Close"
+                    >
+                        ×
+                    </button>
+
+                    <div class="border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-white to-sky-50 p-5 sm:p-6">
+                        <div class="flex items-center gap-4 pr-10">
+                            <template x-if="vehicleImage">
+                                <img
+                                    x-bind:src="vehicleImage"
+                                    x-bind:alt="vehicleName"
+                                    class="h-20 w-28 shrink-0 rounded-2xl bg-white object-cover shadow-sm"
+                                >
+                            </template>
+
+                            <div class="min-w-0">
+                                <p class="text-xs font-black uppercase tracking-widest text-emerald-700">
+                                    Self Drive
+                                </p>
+                                <h2 class="mt-1 truncate text-xl font-black text-slate-900" x-text="vehicleName"></h2>
+                                <p class="mt-1 text-sm font-bold text-slate-600">
+                                    ₹<span x-text="hourlyPrice.toLocaleString('en-IN')"></span>/hour
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-5 p-5 sm:p-6">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">
+                                    Pickup Date
+                                </label>
+                                <input
+                                    type="date"
+                                    x-model="pickupDate"
+                                    min="{{ date('Y-m-d') }}"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                >
+                            </div>
+
+                            <div>
+                                <label class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">
+                                    Pickup Time
+                                </label>
+                                <input
+                                    type="time"
+                                    x-model="pickupTime"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                >
+                            </div>
+
+                            <div>
+                                <label class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">
+                                    Return Date
+                                </label>
+                                <input
+                                    type="date"
+                                    x-model="dropDate"
+                                    x-bind:min="pickupDate || @js(date('Y-m-d'))"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                >
+                            </div>
+
+                            <div>
+                                <label class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-600">
+                                    Return Time
+                                </label>
+                                <input
+                                    type="time"
+                                    x-model="dropTime"
+                                    class="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div class="flex items-center justify-between gap-4 text-sm">
+                                <span class="font-semibold text-slate-600">Duration</span>
+                                <span class="font-black text-slate-900">
+                                    <span x-text="durationHours()"></span> hours
+                                </span>
+                            </div>
+
+                            <div class="mt-2 flex items-center justify-between gap-4 text-sm">
+                                <span class="font-semibold text-slate-600">Estimated rental</span>
+                                <span class="font-black text-slate-900">
+                                    ₹<span x-text="rentalAmount().toLocaleString('en-IN')"></span>
+                                </span>
+                            </div>
+
+                            <div class="mt-2 flex items-center justify-between gap-4 text-sm" x-show="securityDeposit > 0">
+                                <span class="font-semibold text-slate-600">Security deposit</span>
+                                <span class="font-black text-slate-900">
+                                    ₹<span x-text="securityDeposit.toLocaleString('en-IN')"></span>
+                                </span>
+                            </div>
+
+                            <p
+                                x-show="durationHours() > 0 && durationHours() < minimumHours"
+                                class="mt-3 text-xs font-bold text-red-600"
+                            >
+                                Minimum booking is <span x-text="minimumHours"></span> hours.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            x-on:click="continueBooking()"
+                            x-bind:disabled="!vehicleId || durationHours() < minimumHours"
+                            class="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-700 px-5 text-sm font-black uppercase tracking-wide text-white shadow-lg shadow-emerald-700/25 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Continue Booking
+                            <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </div>
+
     @teleport('body')
         <div
             class="fixed inset-0 z-[999999] {{ $sendOtp ? 'flex' : 'hidden' }} items-center justify-center overflow-y-auto bg-slate-950/75 px-4 py-6 backdrop-blur-sm"
