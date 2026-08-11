@@ -127,12 +127,13 @@ final class SiteMapController extends Controller
     private function productEntries(): array
     {
         $columns = [
-            'id',
-            'name',
-            'slug',
-            'ride_type',
-            'updated_at',
-        ];
+    'id',
+    'name',
+    'slug',
+    'ride_type',
+    'url_type',
+    'updated_at',
+];
 
         foreach (['is_active', 'on_sale', 'robots_index', 'image', 'images'] as $column) {
             if (Schema::hasColumn('products', $column)) {
