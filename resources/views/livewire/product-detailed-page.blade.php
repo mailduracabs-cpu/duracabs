@@ -1061,9 +1061,21 @@
                         {{ $routeName }} {{ $tripLabel }} – Affordable Booking with Dura Cabs
                     </h2>
 
-                    <div class="route-rich-content mt-7">
-                        {!! str($ride->description)->sanitizeHtml() !!}
-                    </div>
+                    @php
+    $routeDescription = str($ride->description)->sanitizeHtml();
+
+    // Main page H1 sirf ek rahe.
+    // Admin description ke H1 ko H2 me convert karein.
+    $routeDescription = preg_replace(
+        ['/<h1(\s[^>]*)?>/i', '/<\/h1>/i'],
+        ['<h2$1>', '</h2>'],
+        $routeDescription
+    );
+@endphp
+
+<div class="route-rich-content mt-7">
+    {!! $routeDescription !!}
+</div>
 
                     <div class="mt-8 rounded-2xl border border-sky-100 bg-sky-50/70 p-5">
                         <div class="flex items-center gap-3">
