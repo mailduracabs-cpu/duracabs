@@ -47,9 +47,9 @@
 
     <nav class="product-breadcrumb mb-3 mt-2 text-sm text-slate-600" aria-label="Breadcrumb">
         <ol class="flex flex-wrap items-center gap-2">
-            <li><a href="{{ url('/') }}" class="hover:text-sky-600">Home</a></li>
+            <li><a href="{{ url('/') }}" class="hover:text-sky-800">Home</a></li>
             <li aria-hidden="true">/</li>
-            <li><a href="{{ url('/routes') }}" class="hover:text-sky-600">Cab Routes</a></li>
+            <li><a href="{{ url('/routes') }}" class="hover:text-sky-800">Cab Routes</a></li>
             <li aria-hidden="true">/</li>
             <li class="font-semibold text-slate-900" aria-current="page">{{ $routeName }}</li>
         </ol>
@@ -107,7 +107,7 @@
                             </button>
                             <div class="flex items-center justify-between text-sm">
                                 <button type="button" wire:click="changeOtpMobile" class="font-semibold text-slate-600 hover:text-sky-700">Mobile badlein</button>
-                                <button type="button" wire:click="sendFareOtp" class="font-semibold text-sky-600 hover:text-sky-800">OTP dobara bhejein</button>
+                                <button type="button" wire:click="sendFareOtp" class="font-semibold text-sky-800 hover:text-sky-800">OTP dobara bhejein</button>
                             </div>
                         </form>
                     @endif
@@ -124,7 +124,7 @@
         <div class="fixed inset-0 z-[95] flex items-center justify-center overflow-y-auto bg-slate-950/65 px-4 py-8" wire:click.self="closeEditTripModal">
             <div class="w-full max-w-2xl rounded-3xl bg-white shadow-2xl">
                 <div class="flex items-center justify-between border-b px-6 py-5">
-                    <div><p class="text-sm font-semibold text-sky-600">Search update</p><h2 class="text-2xl font-bold text-slate-900">Trip Edit Karein</h2></div>
+                    <div><p class="text-sm font-semibold text-sky-800">Search update</p><h2 class="text-2xl font-bold text-slate-900">Trip Edit Karein</h2></div>
                     <button type="button" wire:click="closeEditTripModal" class="rounded-full bg-slate-100 px-3 py-2 text-slate-600 hover:bg-slate-200">✕</button>
                 </div>
                 <form wire:submit.prevent="updateTripSearch" class="grid gap-5 p-6 md:grid-cols-2">
@@ -713,9 +713,16 @@
                                                 <em><i class="fa-solid fa-lock"></i> Verify mobile to view fare</em>
                                             </button>
 
-                                            <button type="button" wire:click="openFareGate" class="ride-fare-icon-button">
-                                                <i class="fa-solid fa-lock"></i><span>Unlock fare</span>
-                                            </button>
+                                            <button
+    type="button"
+    wire:click="openFareGate"
+    class="ride-fare-icon-button"
+    aria-label="Unlock fare and view exact price"
+    title="Unlock fare and view exact price"
+>
+    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+    <span>Unlock fare</span>
+</button>
                                         @endif
 
                                         <button type="button"
@@ -806,9 +813,16 @@
                                                 </button>
                                             @endif
                                         @else
-                                            <button type="button" wire:click="openFareGate" class="ride-fare-icon-button">
-                                                <i class="fa-solid fa-lock"></i><span>Unlock fare</span>
-                                            </button>
+                                            <button
+    type="button"
+    wire:click="openFareGate"
+    class="ride-fare-icon-button"
+    aria-label="Unlock fare and view exact price"
+    title="Unlock fare and view exact price"
+>
+    <i class="fa-solid fa-lock" aria-hidden="true"></i>
+    <span>Unlock fare</span>
+</button>
                                         @endif
 
                                         @if ($ride->ride_type === 'one_way')
@@ -850,7 +864,7 @@
     @if (isset($rides) && $rides->count())
         <section class="mt-6 rounded-3xl border border-slate-200 bg-white px-4 py-6 font-poppins shadow-sm sm:px-6 lg:px-8" aria-labelledby="related-pages-heading">
             <div class="mb-5">
-                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-600">Explore More</p>
+                <p class="text-xs font-extrabold uppercase tracking-[0.16em] text-sky-800">Explore More</p>
                 <h2 id="related-pages-heading" class="mt-1 text-xl font-extrabold text-slate-900 sm:text-2xl">
                     @if ($ride->ride_type === 'self_drive')
                         Related Self Drive Cars in {{ $ride->brand?->name ?: 'Your City' }}
@@ -890,7 +904,7 @@
                         <span class="text-sm font-bold leading-5 text-slate-700 transition group-hover:text-sky-700">
                             {{ $relatedTitle }}
                         </span>
-                        <span class="shrink-0 text-lg font-bold text-sky-600" aria-hidden="true">→</span>
+                        <span class="shrink-0 text-lg font-bold text-sky-800" aria-hidden="true">→</span>
                     </a>
                 @endforeach
             </div>
@@ -1079,7 +1093,7 @@
 
                     <div class="mt-8 rounded-2xl border border-sky-100 bg-sky-50/70 p-5">
                         <div class="flex items-center gap-3">
-                            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-600 shadow-sm ring-1 ring-sky-100">
+                            <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-800 shadow-sm ring-1 ring-sky-100">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
@@ -1128,7 +1142,7 @@
 
                     <div class="rounded-3xl bg-slate-950 p-6 text-white shadow-xl">
                         <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-300">Need assistance?</p>
-                        <h2 class="mt-2 text-xl font-extrabold">We are here to help you book.</h2>
+                        <h2 class="mt-2 text-xl font-extrabold !text-white">We are here to help you book.</h2>
                         <p class="mt-2 text-sm leading-6 text-slate-300">Choose a cab above or contact the Dura Cabs team for booking support.</p>
                         <a href="tel:+917088873331" class="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-sky-500 px-4 py-3 text-sm font-extrabold text-white transition hover:bg-sky-400">
                             Call +91 70888 73331
@@ -1140,7 +1154,7 @@
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
                 <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-600">Fare guide</p>
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-800">Fare guide</p>
                         <h2 class="mt-2 text-2xl font-black text-slate-950">{{ $ride->name }} Cab Fare & Vehicle Options</h2>
                     </div>
                     <p class="max-w-xl text-sm leading-6 text-slate-600">Compare vehicle capacity and estimated fare before selecting your preferred cab.</p>
@@ -1178,7 +1192,7 @@
 
             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
                 <div class="max-w-2xl">
-                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-600">Help centre</p>
+                    <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-800">Help centre</p>
                     <h2 class="mt-2 text-2xl font-black text-slate-950">Frequently Asked Questions</h2>
                     <p class="mt-2 text-sm leading-6 text-slate-600">Common questions about booking and travelling on this route.</p>
                 </div>
@@ -1201,7 +1215,7 @@
             @if ($links->count())
                 <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
                     <div>
-                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-600">Explore more</p>
+                        <p class="text-xs font-bold uppercase tracking-[0.18em] text-sky-800">Explore more</p>
                         <h2 class="mt-2 text-2xl font-black text-slate-950">Popular One Way Routes from {{ $ride->brand->name }}</h2>
                     </div>
 
