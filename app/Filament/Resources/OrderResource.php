@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\URL;
+use App\Services\WhatsAppService;
 
 class OrderResource extends Resource
 {
@@ -871,6 +872,108 @@ class OrderResource extends Resource
     ->label('Status')
     ->options(static::statusOptions())
     ->selectablePlaceholder(false)
+    ->afterStateUpdated(function (Order $record, $state): void {
+        try {
+            $record->loadMissing(['user', 'address']);
+
+            $mobile = trim((string) (
+                $record->address?->phone
+                ?: $record->user?->mobile
+                ?: ''
+            ));
+
+            if ($mobile === '') {
+                \Log::warning('Status WhatsApp skipped: mobile missing.', [
+                    'order_id' => $record->id,
+                    'status' => $state,
+                ]);
+
+                return;
+            }
+
+            $bookingId = static::bookingNumber($record);
+
+            $customerName = trim((string) (
+                $record->address?->full_name
+                ?: $record->user?->name
+                ?: 'Customer'
+            ));
+
+            $route = trim(
+                (string) ($record->cityFrom ?: 'Pickup')
+                . ' to '
+                . (string) ($record->cityTo ?: $record->cityFrom ?: 'Destination')
+            );
+
+            match ($state) {
+                'confirm' => WhatsAppService::bookingConfirmation(
+                    $mobile,
+                    [
+                        'customer_name' => $customerName,
+                        'booking_id' => $bookingId,
+                        'pickup' => $record->cityFrom ?: 'N/A',
+                        'drop' => $record->cityTo ?: 'N/A',
+                        'date' => (string) ($record->date ?: 'N/A'),
+                        'time' => (string) ($record->time ?: 'N/A'),
+                        'amount' => number_format((float) $record->grand_total, 2, '.', ''),
+                    ]
+                ),
+
+                'start' => WhatsAppService::tripStarted(
+                    $mobile,
+                    [
+                        'customer_name' => $customerName,
+                        'booking_id' => $bookingId,
+                        'route' => $route,
+                        'driver_name' => 'Assigned Driver',
+                        'vehicle_name' => $record->productName ?: 'Assigned Vehicle',
+                    ]
+                ),
+
+                'closed' => WhatsAppService::tripCompleted(
+                    $mobile,
+                    [
+                        'customer_name' => $customerName,
+                        'booking_id' => $bookingId,
+                        'route' => $route,
+                        'total_amount' => number_format(
+                            (float) $record->grand_total,
+                            2,
+                            '.',
+                            ''
+                        ),
+                        'payment_status' => ucfirst(
+                            (string) ($record->payment_status ?: 'pending')
+                        ),
+                    ]
+                ),
+
+                'cancelled' => WhatsAppService::dispatchEvent(
+                    'booking.cancelled',
+                    [
+                        'mobile' => $mobile,
+                        'customer_name' => $customerName,
+                        'booking_id' => $bookingId,
+                        'route' => $route,
+                    ]
+                ),
+
+                default => null,
+            };
+
+            \Log::info('Booking status WhatsApp processed.', [
+                'order_id' => $record->id,
+                'status' => $state,
+                'mobile' => $mobile,
+            ]);
+        } catch (\Throwable $e) {
+            \Log::error('Booking status WhatsApp failed.', [
+                'order_id' => $record->id,
+                'status' => $state,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    })
     ->sortable(),
             ])
             ->filters([
