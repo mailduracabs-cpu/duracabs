@@ -23,6 +23,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\URL;
 
 class OrderResource extends Resource
 {
@@ -902,17 +903,18 @@ class OrderResource extends Resource
                         ->openUrlInNewTab(),
 
                     Tables\Actions\Action::make('invoice_pdf')
-                        ->label('Invoice PDF')
-                        ->icon('heroicon-o-document-arrow-down')
-                        ->color('success')
-                        ->visible(fn (): bool =>
-                            Route::has('orders.invoice')
-                        )
-                        ->url(fn (Order $record): string => route(
-                            'orders.invoice',
-                            ['booking' => static::bookingNumber($record)]
-                        ))
-                        ->openUrlInNewTab(),
+    ->label('Invoice PDF')
+    ->icon('heroicon-o-document-arrow-down')
+    ->color('success')
+    ->visible(fn (): bool => Route::has('invoice.shared'))
+    ->url(fn (Order $record): string => URL::temporarySignedRoute(
+        'invoice.shared',
+        now()->addMinutes(30),
+        [
+            'booking' => static::bookingNumber($record),
+        ]
+    ))
+    ->openUrlInNewTab(),
 
                     Tables\Actions\DeleteAction::make(),
                 ])
