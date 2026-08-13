@@ -177,6 +177,116 @@ class Order extends Model
         });
 
         static::updated(function ($order) {
+            /*
+             * Send customer WhatsApp updates for booking statuses that do not
+             * already have a dedicated detailed notification below.
+             *
+             * Dedicated existing flows are preserved for:
+             * - confirm
+             * - cancelled
+             * - closed
+             */
+            if (
+                $order->wasChanged('status')
+                && in_array(
+                    (string) $order->status,
+                    [
+                        'new',
+                        'reconfirmation',
+                        'modification',
+                        'start',
+                        'refund',
+                    ],
+                    true
+                )
+            ) {
+                try {
+                    $order->loadMissing(['user', 'address']);
+
+                    $mobile = $order->address?->phone
+                        ?: $order->user?->mobile;
+
+                    $customerName = $order->address?->full_name
+                        ?: $order->user?->name
+                        ?: 'Customer';
+
+                    if ($mobile) {
+                        $bookingNumber = $order->booking_number;
+
+                        $route = trim(
+                            (string) ($order->cityFrom ?: '')
+                            . (
+                                filled($order->cityTo)
+                                    ? ' → ' . $order->cityTo
+                                    : ''
+                            )
+                        );
+
+                        if ($route === '') {
+                            $route = 'Your booked trip';
+                        }
+
+                        $statusMessage = match ((string) $order->status) {
+                            'new' =>
+                                "✅ *Booking Request Received*\n\n"
+                                . "Dear {$customerName},\n\n"
+                                . "Your booking request has been received successfully and is currently awaiting confirmation.",
+
+                            'reconfirmation' =>
+                                "🔄 *Booking Reconfirmation Update*\n\n"
+                                . "Dear {$customerName},\n\n"
+                                . "Our team is currently reconfirming the availability and details of your booking. We will update you shortly.",
+
+                            'modification' =>
+                                "📝 *Booking Modification Update*\n\n"
+                                . "Dear {$customerName},\n\n"
+                                . "Your booking details are currently being updated. Please review the latest booking information once the modification is completed.",
+
+                            'start' =>
+                                "🚕 *Your Trip Has Started*\n\n"
+                                . "Dear {$customerName},\n\n"
+                                . "Your Dura Cabs trip has now started. We wish you a safe and comfortable journey.",
+
+                            'refund' =>
+                                "💰 *Refund Update*\n\n"
+                                . "Dear {$customerName},\n\n"
+                                . "The refund process for your booking has been initiated. Our team will update you once the refund is completed.",
+
+                            default => null,
+                        };
+
+                        if ($statusMessage) {
+                            $message = $statusMessage
+                                . "\n\n"
+                                . "🆔 *Booking ID:* {$bookingNumber}\n"
+                                . "📍 *Trip:* {$route}\n\n"
+                                . "📞 *Need Help?* +91 70888 73331\n"
+                                . "💬 WhatsApp: https://wa.me/917088873331\n\n"
+                                . "🚗 *Dura Cabs Services*";
+
+                            WhatsAppService::send($mobile, $message);
+                        }
+                    } else {
+                        \Log::warning(
+                            'Order status WhatsApp skipped: customer mobile missing.',
+                            [
+                                'order_id' => $order->id,
+                                'status' => $order->status,
+                            ]
+                        );
+                    }
+                } catch (\Throwable $e) {
+                    \Log::error(
+                        'Order status WhatsApp failed.',
+                        [
+                            'order_id' => $order->id,
+                            'status' => $order->status,
+                            'error' => $e->getMessage(),
+                        ]
+                    );
+                }
+            }
+
             // Send WhatsApp booking confirmation when status changes to 'confirm'
             if ($order->wasChanged('status') && $order->status === 'confirm') {
                 // Refresh to get latest data
