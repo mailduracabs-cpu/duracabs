@@ -11,6 +11,7 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -67,8 +68,175 @@ class CustomerLeadResource extends Resource
     {
         return $form
             ->schema([
+                Section::make('Complete Customer Inquiry')
+                    ->description('Customer se call par baat karte hue enquiry ki missing details yahin complete ya update karein.')
+                    ->icon('heroicon-o-user-circle')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                        'xl' => 3,
+                    ])
+                    ->schema([
+                        TextInput::make('customer_name')
+                            ->label('Customer Name')
+                            ->maxLength(150)
+                            ->placeholder('Customer ka naam'),
+
+                        TextInput::make('mobile')
+                            ->label('Mobile Number')
+                            ->tel()
+                            ->maxLength(15)
+                            ->placeholder('10 digit mobile number')
+                            ->helperText('Save hote waqt mobile automatically normalize ho jayega.'),
+
+                        TextInput::make('customer_email')
+                            ->label('Email')
+                            ->email()
+                            ->maxLength(190)
+                            ->placeholder('customer@example.com'),
+
+                        Select::make('service_type')
+                            ->label('Service')
+                            ->options(self::serviceOptions())
+                            ->native(false)
+                            ->searchable()
+                            ->live()
+                            ->afterStateUpdated(function (?string $state, \Filament\Forms\Set $set): void {
+                                $set('module', match ($state) {
+                                    CustomerSearchActivity::SERVICE_SELF_DRIVE => CustomerSearchActivity::MODULE_SELF_DRIVE,
+                                    CustomerSearchActivity::SERVICE_BIKE_RENTAL => CustomerSearchActivity::MODULE_BIKE_RENTAL,
+                                    default => CustomerSearchActivity::MODULE_TAXI,
+                                });
+                            }),
+
+                        Select::make('module')
+                            ->label('Module')
+                            ->options([
+                                CustomerSearchActivity::MODULE_TAXI => 'Taxi',
+                                CustomerSearchActivity::MODULE_SELF_DRIVE => 'Self Drive',
+                                CustomerSearchActivity::MODULE_BIKE_RENTAL => 'Bike Rental',
+                            ])
+                            ->native(false)
+                            ->disabled()
+                            ->dehydrated()
+                            ->helperText('Service ke hisaab se automatically set hota hai.'),
+
+                        TextInput::make('vehicle_category_name')
+                            ->label('Vehicle Category')
+                            ->maxLength(150)
+                            ->placeholder('Hatchback, Sedan, SUV...'),
+                    ]),
+
+                Section::make('Journey Details')
+                    ->description('Pickup, destination aur travel date/time ko customer se confirm karke update karein.')
+                    ->icon('heroicon-o-map')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
+                    ->schema([
+                        TextInput::make('pickup_location')
+                            ->label('Pickup Location')
+                            ->maxLength(255)
+                            ->placeholder('Full pickup location'),
+
+                        TextInput::make('pickup_city')
+                            ->label('Pickup City')
+                            ->maxLength(120)
+                            ->placeholder('Agra'),
+
+                        TextInput::make('drop_location')
+                            ->label('Drop Location')
+                            ->maxLength(255)
+                            ->placeholder('Full destination / drop location'),
+
+                        TextInput::make('drop_city')
+                            ->label('Drop City')
+                            ->maxLength(120)
+                            ->placeholder('Delhi'),
+
+                        DateTimePicker::make('start_datetime')
+                            ->label('Start Date & Time')
+                            ->seconds(false)
+                            ->native(false)
+                            ->nullable(),
+
+                        DateTimePicker::make('end_datetime')
+                            ->label('End Date & Time')
+                            ->seconds(false)
+                            ->native(false)
+                            ->nullable()
+                            ->helperText('Self Drive / rental duration ke liye useful.'),
+
+                        DateTimePicker::make('return_datetime')
+                            ->label('Return Date & Time')
+                            ->seconds(false)
+                            ->native(false)
+                            ->nullable()
+                            ->helperText('Round Trip ke liye return date/time.'),
+
+                        TextInput::make('total_stops')
+                            ->label('Stops')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0),
+                    ]),
+
+                Section::make('Vehicle & Fare')
+                    ->description('Customer ko bataye gaye vehicle aur estimated amount ko update karein.')
+                    ->icon('heroicon-o-currency-rupee')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                        'xl' => 3,
+                    ])
+                    ->schema([
+                        TextInput::make('vehicle_name')
+                            ->label('Vehicle')
+                            ->maxLength(190)
+                            ->placeholder('Swift Dzire / Mahindra 3XO...'),
+
+                        TextInput::make('fuel_type')
+                            ->label('Fuel Type')
+                            ->maxLength(50)
+                            ->placeholder('Petrol / Diesel / CNG'),
+
+                        TextInput::make('transmission_type')
+                            ->label('Transmission')
+                            ->maxLength(50)
+                            ->placeholder('Manual / Automatic'),
+
+                        TextInput::make('estimated_distance_km')
+                            ->label('Estimated Distance')
+                            ->numeric()
+                            ->minValue(0)
+                            ->suffix('km'),
+
+                        TextInput::make('estimated_amount')
+                            ->label('Estimated Amount')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('₹'),
+
+                        TextInput::make('grand_total')
+                            ->label('Final / Quoted Amount')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('₹'),
+
+                        TextInput::make('security_deposit')
+                            ->label('Security Deposit')
+                            ->numeric()
+                            ->minValue(0)
+                            ->prefix('₹')
+                            ->visible(
+                                fn (\Filament\Forms\Get $get): bool =>
+                                    $get('service_type') === CustomerSearchActivity::SERVICE_SELF_DRIVE
+                            ),
+                    ]),
+
                 Section::make('Lead Management')
-                    ->description('Update lead status, assignment and follow-up details.')
+                    ->description('Call outcome, priority, assignment aur next follow-up yahin manage karein.')
                     ->icon('heroicon-o-briefcase')
                     ->schema([
                         Grid::make([
@@ -109,58 +277,9 @@ class CustomerLeadResource extends Resource
 
                         Textarea::make('lead_notes')
                             ->label('Internal Lead Notes')
+                            ->placeholder('Customer ne kya kaha, requirement, budget, preferred vehicle, callback note...')
                             ->rows(5)
                             ->columnSpanFull(),
-                    ]),
-
-                Section::make('Customer & Journey')
-                    ->icon('heroicon-o-map')
-                    ->columns([
-                        'default' => 1,
-                        'md' => 2,
-                    ])
-                    ->schema([
-                        Placeholder::make('customer_summary')
-                            ->label('Customer')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->customer_display_name ?? 'New lead'
-                            ),
-
-                        Placeholder::make('mobile_summary')
-                            ->label('Mobile')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->mobile ?: 'Not available'
-                            ),
-
-                        Placeholder::make('service_summary')
-                            ->label('Service')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->service_label ?? 'Not available'
-                            ),
-
-                        Placeholder::make('route_summary')
-                            ->label('Route')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->route_summary ?? 'Not available'
-                            ),
-
-                        Placeholder::make('stage_summary')
-                            ->label('Journey Stage')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->stage_label ?? 'Not available'
-                            ),
-
-                        Placeholder::make('amount_summary')
-                            ->label('Estimated Amount')
-                            ->content(
-                                fn (?CustomerSearchActivity $record): string =>
-                                    $record?->formatted_amount ?? 'Not available'
-                            ),
                     ]),
 
                 Section::make('Booking Information')
@@ -200,6 +319,7 @@ class CustomerLeadResource extends Resource
                     ]),
             ]);
     }
+
 
     public static function table(Table $table): Table
     {

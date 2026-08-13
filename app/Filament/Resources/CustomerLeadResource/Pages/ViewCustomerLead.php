@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\CustomerLeadResource\Pages;
 
 use App\Filament\Resources\CustomerLeadResource;
+use App\Filament\Resources\OrderResource;
 use App\Filament\Resources\CustomerLeadResource\Widgets\CustomerActivityTimelineWidget;
 use App\Models\CustomerSearchActivity;
 use Filament\Actions;
@@ -479,8 +480,22 @@ class ViewCustomerLead extends ViewRecord
                     fn (): bool => filled($this->record->mobile)
                 ),
 
+            Action::make('create_booking')
+                ->label('Create Booking')
+                ->icon('heroicon-o-calendar-days')
+                ->color('primary')
+                ->url(fn (): string => OrderResource::getUrl('create', [
+                    'lead' => $this->record->getKey(),
+                ]))
+                ->visible(fn (): bool =>
+                    ! (bool) $this->record->is_converted
+                    && $this->record->service_type
+                        !== CustomerSearchActivity::SERVICE_BIKE_RENTAL
+                ),
+
             Actions\EditAction::make()
-                ->label('Manage Lead'),
+                ->label('Edit / Complete Inquiry')
+                ->color('warning'),
         ];
     }
 
