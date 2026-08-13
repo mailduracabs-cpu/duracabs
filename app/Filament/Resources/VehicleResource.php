@@ -869,14 +869,14 @@ class VehicleResource extends Resource
             Section::make('Vehicle Photos')
                 ->compact()
                 ->collapsible()
-                ->collapsed()
                 ->description(
-                    'Existing photos appear while editing. Upload a new file only to replace the current photo.'
+                    'Add up to 10 clear vehicle photos. Front Photo is required for a new vehicle; all other photos are optional.'
                 )
                 ->icon('heroicon-o-photo')
                 ->columns([
                     'default' => 1,
-                    'lg' => 3,
+                    'md' => 2,
+                    'xl' => 3,
                 ])
                 ->schema([
                     Placeholder::make('front_photo_preview')
@@ -885,14 +885,11 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->front_image_url,
-                                    alt: 'Front vehicle photo',
+                                    alt: 'Front Photo',
                                     emptyText: 'No front photo available',
                                 )
                         )
-                        ->visible(
-                            fn (?Vehicle $record): bool =>
-                                $record instanceof Vehicle
-                        ),
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
 
                     Placeholder::make('back_photo_preview')
                         ->label('Current Back Photo')
@@ -900,35 +897,107 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->back_image_url,
-                                    alt: 'Back vehicle photo',
+                                    alt: 'Back Photo',
                                     emptyText: 'No back photo available',
                                 )
                         )
-                        ->visible(
-                            fn (?Vehicle $record): bool =>
-                                $record instanceof Vehicle
-                        ),
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('left_side_photo_preview')
+                        ->label('Current Left Side')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->left_side_image_url,
+                                    alt: 'Left Side',
+                                    emptyText: 'No left side available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('right_side_photo_preview')
+                        ->label('Current Right Side')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->right_side_image_url,
+                                    alt: 'Right Side',
+                                    emptyText: 'No right side available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('front_left_photo_preview')
+                        ->label('Current Front Left Angle')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->front_left_image_url,
+                                    alt: 'Front Left Angle',
+                                    emptyText: 'No front left angle available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('front_right_photo_preview')
+                        ->label('Current Front Right Angle')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->front_right_image_url,
+                                    alt: 'Front Right Angle',
+                                    emptyText: 'No front right angle available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
 
                     Placeholder::make('interior_photo_preview')
-                        ->label(
-                            fn (Forms\Get $get): string =>
-                                $get('service_type')
-                                    === Vehicle::SERVICE_BIKE_RENTAL
-                                    ? 'Current Side / Dashboard Photo'
-                                    : 'Current Interior Photo'
-                        )
+                        ->label('Current Interior / Dashboard')
                         ->content(
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->interior_image_url,
-                                    alt: 'Additional vehicle photo',
-                                    emptyText: 'No additional photo available',
+                                    alt: 'Interior / Dashboard',
+                                    emptyText: 'No interior / dashboard available',
                                 )
                         )
-                        ->visible(
-                            fn (?Vehicle $record): bool =>
-                                $record instanceof Vehicle
-                        ),
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('front_seats_photo_preview')
+                        ->label('Current Front Seats')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->front_seats_image_url,
+                                    alt: 'Front Seats',
+                                    emptyText: 'No front seats available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('rear_seats_photo_preview')
+                        ->label('Current Rear Seats')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->rear_seats_image_url,
+                                    alt: 'Rear Seats',
+                                    emptyText: 'No rear seats available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('boot_photo_preview')
+                        ->label('Current Boot / Luggage')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleImagePreview(
+                                    url: $record?->boot_image_url,
+                                    alt: 'Boot / Luggage',
+                                    emptyText: 'No boot / luggage available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
 
                     DuraImageUpload::vehicle(
                         name: 'front_upload',
@@ -938,9 +1007,7 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->extraAttributes([
-                            'class' => 'max-w-xs',
-                        ])
+                        ->extraAttributes(['class' => 'max-w-xs'])
                         ->label(
                             fn (string $operation): string =>
                                 $operation === 'edit'
@@ -948,14 +1015,13 @@ class VehicleResource extends Resource
                                     : 'Front Photo'
                         )
                         ->required(
-                            fn (string $operation): bool =>
-                                $operation === 'create'
+                            fn (string $operation): bool => $operation === 'create'
                         )
                         ->helperText(
                             fn (string $operation): string =>
                                 $operation === 'edit'
-                                    ? 'Leave empty to keep the existing front photo.'
-                                    : 'Upload a clear front photo.'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Required. Upload a clear front photo.'
                         ),
 
                     DuraImageUpload::vehicle(
@@ -966,9 +1032,7 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->extraAttributes([
-                            'class' => 'max-w-xs',
-                        ])
+                        ->extraAttributes(['class' => 'max-w-xs'])
                         ->label(
                             fn (string $operation): string =>
                                 $operation === 'edit'
@@ -978,8 +1042,96 @@ class VehicleResource extends Resource
                         ->helperText(
                             fn (string $operation): string =>
                                 $operation === 'edit'
-                                    ? 'Leave empty to keep the existing back photo.'
-                                    : 'Upload a clear back photo.'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'left_side_upload',
+                        module: 'vehicle-left-side',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Left Side'
+                                    : 'Left Side'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'right_side_upload',
+                        module: 'vehicle-right-side',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Right Side'
+                                    : 'Right Side'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'front_left_upload',
+                        module: 'vehicle-front-left',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Front Left Angle'
+                                    : 'Front Left Angle'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'front_right_upload',
+                        module: 'vehicle-front-right',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Front Right Angle'
+                                    : 'Front Right Angle'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
                         ),
 
                     DuraImageUpload::vehicle(
@@ -990,36 +1142,96 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->extraAttributes([
-                            'class' => 'max-w-xs',
-                        ])
+                        ->extraAttributes(['class' => 'max-w-xs'])
                         ->label(
-                            function (
-                                string $operation,
-                                Forms\Get $get
-                            ): string {
-                                $photoName = $get('service_type')
-                                    === Vehicle::SERVICE_BIKE_RENTAL
-                                    ? 'Side / Dashboard Photo'
-                                    : 'Interior Photo';
-
-                                return $operation === 'edit'
-                                    ? "Replace {$photoName}"
-                                    : $photoName;
-                            }
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Interior / Dashboard'
+                                    : 'Interior / Dashboard'
                         )
                         ->helperText(
                             fn (string $operation): string =>
                                 $operation === 'edit'
                                     ? 'Leave empty to keep the existing photo.'
-                                    : 'Upload an additional vehicle photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'front_seats_upload',
+                        module: 'vehicle-front-seats',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Front Seats'
+                                    : 'Front Seats'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'rear_seats_upload',
+                        module: 'vehicle-rear-seats',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Rear Seats'
+                                    : 'Rear Seats'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
+                        ),
+
+                    DuraImageUpload::vehicle(
+                        name: 'boot_upload',
+                        module: 'vehicle-boot',
+                    )
+                        ->panelLayout('compact')
+                        ->imagePreviewHeight('56')
+                        ->panelAspectRatio('5:1')
+                        ->columnSpan(1)
+                        ->extraAttributes(['class' => 'max-w-xs'])
+                        ->label(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Replace Boot / Luggage'
+                                    : 'Boot / Luggage'
+                        )
+                        ->helperText(
+                            fn (string $operation): string =>
+                                $operation === 'edit'
+                                    ? 'Leave empty to keep the existing photo.'
+                                    : 'Optional photo.'
                         ),
 
                     Hidden::make('front_media_id'),
-
                     Hidden::make('back_media_id'),
-
+                    Hidden::make('left_side_media_id'),
+                    Hidden::make('right_side_media_id'),
+                    Hidden::make('front_left_media_id'),
+                    Hidden::make('front_right_media_id'),
                     Hidden::make('interior_media_id'),
+                    Hidden::make('front_seats_media_id'),
+                    Hidden::make('rear_seats_media_id'),
+                    Hidden::make('boot_media_id'),
                 ]),
 
             /*
@@ -1349,7 +1561,14 @@ class VehicleResource extends Resource
                 'transporter',
                 'frontMedia',
                 'backMedia',
+                'leftSideMedia',
+                'rightSideMedia',
+                'frontLeftMedia',
+                'frontRightMedia',
                 'interiorMedia',
+                'frontSeatsMedia',
+                'rearSeatsMedia',
+                'bootMedia',
             ]);
 
         if (! static::isPartnerPanel()) {

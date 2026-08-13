@@ -147,7 +147,14 @@ class Vehicle extends Model
         // Media IDs
         'front_media_id',
         'back_media_id',
+        'left_side_media_id',
+        'right_side_media_id',
+        'front_left_media_id',
+        'front_right_media_id',
         'interior_media_id',
+        'front_seats_media_id',
+        'rear_seats_media_id',
+        'boot_media_id',
         'rc_media_id',
         'insurance_media_id',
         'pollution_media_id',
@@ -155,7 +162,14 @@ class Vehicle extends Model
         // Vehicle photos
         'front_image',
         'back_image',
+        'left_side_image',
+        'right_side_image',
+        'front_left_image',
+        'front_right_image',
         'interior_image',
+        'front_seats_image',
+        'rear_seats_image',
+        'boot_image',
 
         // Approval and status
         'verification_status',
@@ -177,7 +191,14 @@ class Vehicle extends Model
 
         'front_media_id' => 'integer',
         'back_media_id' => 'integer',
+        'left_side_media_id' => 'integer',
+        'right_side_media_id' => 'integer',
+        'front_left_media_id' => 'integer',
+        'front_right_media_id' => 'integer',
         'interior_media_id' => 'integer',
+        'front_seats_media_id' => 'integer',
+        'rear_seats_media_id' => 'integer',
+        'boot_media_id' => 'integer',
         'rc_media_id' => 'integer',
         'insurance_media_id' => 'integer',
         'pollution_media_id' => 'integer',
@@ -394,12 +415,47 @@ class Vehicle extends Model
         );
     }
 
+    public function leftSideMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'left_side_media_id');
+    }
+
+    public function rightSideMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'right_side_media_id');
+    }
+
+    public function frontLeftMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'front_left_media_id');
+    }
+
+    public function frontRightMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'front_right_media_id');
+    }
+
     public function interiorMedia(): BelongsTo
     {
         return $this->belongsTo(
             AppMedia::class,
             'interior_media_id'
         );
+    }
+
+    public function frontSeatsMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'front_seats_media_id');
+    }
+
+    public function rearSeatsMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'rear_seats_media_id');
+    }
+
+    public function bootMedia(): BelongsTo
+    {
+        return $this->belongsTo(AppMedia::class, 'boot_media_id');
     }
 
     public function rcMedia(): BelongsTo
@@ -466,49 +522,61 @@ class Vehicle extends Model
 
     public function getFrontImageUrlAttribute(): ?string
     {
-        $media = $this->relationLoaded('frontMedia')
-            ? $this->getRelation('frontMedia')
-            : $this->frontMedia;
-
-        if ($media instanceof AppMedia) {
-            return $media->medium_url
-                ?: $media->large_url
-                ?: $media->original_url
-                ?: $media->url;
-        }
-
-        if (blank($this->front_image)) {
-            return null;
-        }
-
-        return DuraImage::url($this->front_image);
+        return $this->resolveVehicleImageUrl('frontMedia', 'front_image');
     }
 
     public function getBackImageUrlAttribute(): ?string
     {
-        $media = $this->relationLoaded('backMedia')
-            ? $this->getRelation('backMedia')
-            : $this->backMedia;
+        return $this->resolveVehicleImageUrl('backMedia', 'back_image');
+    }
 
-        if ($media instanceof AppMedia) {
-            return $media->medium_url
-                ?: $media->large_url
-                ?: $media->original_url
-                ?: $media->url;
-        }
+    public function getLeftSideImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('leftSideMedia', 'left_side_image');
+    }
 
-        if (blank($this->back_image)) {
-            return null;
-        }
+    public function getRightSideImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('rightSideMedia', 'right_side_image');
+    }
 
-        return DuraImage::url($this->back_image);
+    public function getFrontLeftImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('frontLeftMedia', 'front_left_image');
+    }
+
+    public function getFrontRightImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('frontRightMedia', 'front_right_image');
     }
 
     public function getInteriorImageUrlAttribute(): ?string
     {
-        $media = $this->relationLoaded('interiorMedia')
-            ? $this->getRelation('interiorMedia')
-            : $this->interiorMedia;
+        return $this->resolveVehicleImageUrl('interiorMedia', 'interior_image');
+    }
+
+    public function getFrontSeatsImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('frontSeatsMedia', 'front_seats_image');
+    }
+
+    public function getRearSeatsImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('rearSeatsMedia', 'rear_seats_image');
+    }
+
+    public function getBootImageUrlAttribute(): ?string
+    {
+        return $this->resolveVehicleImageUrl('bootMedia', 'boot_image');
+    }
+
+    protected function resolveVehicleImageUrl(
+        string $relation,
+        string $legacyField
+    ): ?string {
+        $media = $this->relationLoaded($relation)
+            ? $this->getRelation($relation)
+            : $this->{$relation};
 
         if ($media instanceof AppMedia) {
             return $media->medium_url
@@ -517,42 +585,37 @@ class Vehicle extends Model
                 ?: $media->url;
         }
 
-        if (blank($this->interior_image)) {
-            return null;
-        }
+        $legacyPath = $this->getAttribute($legacyField);
 
-        return DuraImage::url($this->interior_image);
+        return filled($legacyPath)
+            ? DuraImage::url((string) $legacyPath)
+            : null;
     }
-	public function getGalleryImagesAttribute(): array
-{
-    $images = [
-        [
-            'key' => 'front',
-            'title' => 'Front View',
-            'url' => $this->front_image_url,
-        ],
-        [
-            'key' => 'back',
-            'title' => 'Back View',
-            'url' => $this->back_image_url,
-        ],
-        [
-            'key' => 'interior',
-            'title' => $this->isBikeRental()
-                ? 'Side / Dashboard View'
-                : 'Interior View',
-            'url' => $this->interior_image_url,
-        ],
-    ];
 
-    return array_values(
-        array_filter(
+    public function getGalleryImagesAttribute(): array
+    {
+        $images = [
+            ['key' => 'front', 'title' => 'Front View', 'url' => $this->front_image_url],
+            ['key' => 'back', 'title' => 'Back View', 'url' => $this->back_image_url],
+            ['key' => 'left_side', 'title' => 'Left Side View', 'url' => $this->left_side_image_url],
+            ['key' => 'right_side', 'title' => 'Right Side View', 'url' => $this->right_side_image_url],
+            ['key' => 'front_left', 'title' => 'Front Left Angle', 'url' => $this->front_left_image_url],
+            ['key' => 'front_right', 'title' => 'Front Right Angle', 'url' => $this->front_right_image_url],
+            [
+                'key' => 'interior',
+                'title' => $this->isBikeRental() ? 'Side / Dashboard View' : 'Interior / Dashboard',
+                'url' => $this->interior_image_url,
+            ],
+            ['key' => 'front_seats', 'title' => 'Front Seats', 'url' => $this->front_seats_image_url],
+            ['key' => 'rear_seats', 'title' => 'Rear Seats', 'url' => $this->rear_seats_image_url],
+            ['key' => 'boot', 'title' => 'Boot / Luggage Area', 'url' => $this->boot_image_url],
+        ];
+
+        return array_values(array_filter(
             $images,
-            static fn (array $image): bool =>
-                filled($image['url'] ?? null)
-        )
-    );
-}
+            static fn (array $image): bool => filled($image['url'] ?? null)
+        ));
+    }
 
     public function getDisplayNameAttribute(): string
     {

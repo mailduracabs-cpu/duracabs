@@ -113,6 +113,62 @@ class EditVehicle extends EditRecord
             $this->processUploadField(
                 data: $data,
                 record: $record,
+                uploadField: 'left_side_upload',
+                mediaIdField: 'left_side_media_id',
+                legacyField: 'left_side_image',
+                usageField: 'left_side_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-left-side',
+                name: $vehicleName . ' Left Side Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'right_side_upload',
+                mediaIdField: 'right_side_media_id',
+                legacyField: 'right_side_image',
+                usageField: 'right_side_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-right-side',
+                name: $vehicleName . ' Right Side Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'front_left_upload',
+                mediaIdField: 'front_left_media_id',
+                legacyField: 'front_left_image',
+                usageField: 'front_left_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-front-left',
+                name: $vehicleName . ' Front Left Angle Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'front_right_upload',
+                mediaIdField: 'front_right_media_id',
+                legacyField: 'front_right_image',
+                usageField: 'front_right_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-front-right',
+                name: $vehicleName . ' Front Right Angle Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
                 uploadField: 'interior_upload',
                 mediaIdField: 'interior_media_id',
                 legacyField: 'interior_image',
@@ -123,6 +179,49 @@ class EditVehicle extends EditRecord
                 isPublic: true,
                 preferredVariant: 'medium',
             );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'front_seats_upload',
+                mediaIdField: 'front_seats_media_id',
+                legacyField: 'front_seats_image',
+                usageField: 'front_seats_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-front-seats',
+                name: $vehicleName . ' Front Seats Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'rear_seats_upload',
+                mediaIdField: 'rear_seats_media_id',
+                legacyField: 'rear_seats_image',
+                usageField: 'rear_seats_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-rear-seats',
+                name: $vehicleName . ' Rear Seats Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
+            $this->processUploadField(
+                data: $data,
+                record: $record,
+                uploadField: 'boot_upload',
+                mediaIdField: 'boot_media_id',
+                legacyField: 'boot_image',
+                usageField: 'boot_image',
+                type: MediaType::Vehicle,
+                module: 'vehicle-boot',
+                name: $vehicleName . ' Boot Luggage Photo',
+                isPublic: true,
+                preferredVariant: 'medium',
+            );
+
 
             /*
             |--------------------------------------------------------------------------
