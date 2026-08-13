@@ -870,7 +870,7 @@ class OrderResource extends Resource
                 Tables\Columns\SelectColumn::make('status')
     ->label('Status')
     ->options(static::statusOptions())
-    ->disabled(fn (Order $record): bool => $record->ride_type === 'self_drive')
+    ->selectablePlaceholder(false)
     ->sortable(),
             ])
             ->filters([
