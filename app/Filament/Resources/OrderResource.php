@@ -905,61 +905,109 @@ class OrderResource extends Resource
                 . (string) ($record->cityTo ?: $record->cityFrom ?: 'Destination')
             );
 
-            match ($state) {
-                'confirm' => WhatsAppService::bookingConfirmation(
-                    $mobile,
-                    [
-                        'customer_name' => $customerName,
-                        'booking_id' => $bookingId,
-                        'pickup' => $record->cityFrom ?: 'N/A',
-                        'drop' => $record->cityTo ?: 'N/A',
-                        'date' => (string) ($record->date ?: 'N/A'),
-                        'time' => (string) ($record->time ?: 'N/A'),
-                        'amount' => number_format((float) $record->grand_total, 2, '.', ''),
-                    ]
+            $serviceType = $record->ride_type === 'self_drive'
+                ? 'Self Drive Car Rental'
+                : match ($record->ride_type) {
+                    'return' => 'Round Trip Taxi',
+                    'local' => 'Local Taxi',
+                    'airport' => 'Airport Taxi',
+                    default => 'One Way Taxi',
+                };
+
+            $vehicleName = trim((string) (
+                $record->productName
+                ?: 'Dura Cabs Vehicle'
+            ));
+
+            $travelDate = $record->date
+                ? Carbon::parse($record->date)->format('d F Y')
+                : 'N/A';
+
+            $travelTime = $record->time
+                ? Carbon::parse($record->time)->format('h:i A')
+                : 'N/A';
+
+            $commonPayload = [
+                'mobile' => $mobile,
+                'customer_mobile' => $mobile,
+                'customer_name' => $customerName,
+                'booking_id' => $bookingId,
+                'service_type' => $serviceType,
+                'vehicle_name' => $vehicleName,
+                'pickup' => $record->cityFrom ?: 'N/A',
+                'drop' => $record->cityTo ?: 'N/A',
+                'route' => $route,
+                'travel_date' => $travelDate,
+                'travel_time' => $travelTime,
+                'total_amount' => number_format(
+                    (float) ($record->grand_total ?? 0),
+                    2,
+                    '.',
+                    ''
+                ),
+                'payment_status' => ucfirst(
+                    (string) ($record->payment_status ?: 'pending')
+                ),
+            ];
+
+            $result = match ($state) {
+                'confirm' => WhatsAppService::dispatchEvent(
+                    $record->ride_type === 'self_drive'
+                        ? 'selfdrive.booking.confirmed'
+                        : 'booking.confirmed',
+                    $commonPayload
                 ),
 
-                'start' => WhatsAppService::tripStarted(
-                    $mobile,
-                    [
-                        'customer_name' => $customerName,
-                        'booking_id' => $bookingId,
-                        'route' => $route,
+                'start' => WhatsAppService::dispatchEvent(
+                    'trip.started',
+                    array_merge($commonPayload, [
                         'driver_name' => 'Assigned Driver',
-                        'vehicle_name' => $record->productName ?: 'Assigned Vehicle',
-                    ]
+                    ])
                 ),
 
-                'closed' => WhatsAppService::tripCompleted(
-                    $mobile,
-                    [
-                        'customer_name' => $customerName,
-                        'booking_id' => $bookingId,
-                        'route' => $route,
-                        'total_amount' => number_format(
-                            (float) $record->grand_total,
-                            2,
-                            '.',
-                            ''
-                        ),
-                        'payment_status' => ucfirst(
-                            (string) ($record->payment_status ?: 'pending')
-                        ),
-                    ]
+                'closed' => WhatsAppService::dispatchEvent(
+                    'trip.completed',
+                    $commonPayload
                 ),
 
                 'cancelled' => WhatsAppService::dispatchEvent(
                     'booking.cancelled',
-                    [
-                        'mobile' => $mobile,
-                        'customer_name' => $customerName,
-                        'booking_id' => $bookingId,
-                        'route' => $route,
-                    ]
+                    $commonPayload
+                ),
+
+                'refund' => WhatsAppService::dispatchEvent(
+                    $record->ride_type === 'self_drive'
+                        ? 'security.refunded'
+                        : 'refund.processed',
+                    array_merge($commonPayload, [
+                        'refund_amount' => number_format(
+                            (float) (
+                                $record->refund_amount
+                                ?? $record->grand_total
+                                ?? 0
+                            ),
+                            2,
+                            '.',
+                            ''
+                        ),
+                        'refund_status' => 'Processed',
+                    ])
                 ),
 
                 default => null,
             };
+
+            if (is_array($result) && ! (bool) (
+                $result['status']
+                ?? $result['success']
+                ?? false
+            )) {
+                \Log::warning('Booking status WhatsApp was not accepted.', [
+                    'order_id' => $record->id,
+                    'status' => $state,
+                    'result' => $result,
+                ]);
+            }
 
             \Log::info('Booking status WhatsApp processed.', [
                 'order_id' => $record->id,
