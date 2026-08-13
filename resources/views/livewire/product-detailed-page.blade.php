@@ -754,10 +754,18 @@
                                     <div class="ride-package-media">
                                         <span class="ride-package-badge {{ $badgeClass }}">{{ $badgeLabel }}</span>
                                         <a href="/route/{{ $ride->slug }}" aria-label="View {{ $price->category->name }} details">
-                                            <img src="{{ url('storage') }}/{{ $price->category->image }}"
-                                                alt="{{ $price->category->name }}"
-                                                title="{{ $ride->name }}"
-                                                loading="lazy">
+                                            <img
+    src="{{ url('storage') }}/{{ $price->category->image }}"
+    alt="{{ $price->category->name }}"
+    title="{{ $ride->name }}"
+    @if ($loop->first)
+        loading="eager"
+        fetchpriority="high"
+    @else
+        loading="lazy"
+        fetchpriority="low"
+    @endif
+>
                                         </a>
                                     </div>
 
