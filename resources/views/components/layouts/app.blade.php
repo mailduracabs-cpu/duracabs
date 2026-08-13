@@ -317,14 +317,26 @@
     @endif
 
     {{-- Application assets --}}
-    @livewireStyles
+@livewireStyles
 
-    @vite([
-        'resources/css/app.css',
-        'resources/js/app.js',
-    ])
+{{-- Font Awesome --}}
+<link
+    rel="preconnect"
+    href="https://cdnjs.cloudflare.com"
+    crossorigin
+>
 
-    @stack('styles')
+<link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+>
+
+@vite([
+    'resources/css/app.css',
+    'resources/js/app.js',
+])
+
+@stack('styles')
 
     {{-- Consent Mode defaults --}}
     <script>
