@@ -178,7 +178,7 @@
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                     Discover India
                 </p>
 
@@ -205,7 +205,7 @@
                     type="button"
                     x-on:click="scrollTo(prev)"
                     x-bind:disabled="prev === null"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                    class="inline-flex h-12 w-12 items-center justify-center rounded-full
                            border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                            transition hover:border-dura-200 hover:bg-dura-50
                            hover:text-dura-700
@@ -219,7 +219,7 @@
                     type="button"
                     x-on:click="scrollTo(next)"
                     x-bind:disabled="next === null"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                    class="inline-flex h-12 w-12 items-center justify-center rounded-full
                            border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                            transition hover:border-dura-200 hover:bg-dura-50
                            hover:text-dura-700
@@ -283,7 +283,7 @@
                                 ></div>
 
                                 <span
-                                    class="absolute left-3 top-3 inline-flex items-center gap-1.5
+                                    class="absolute left-3 top-3 inline-flex items-center gap-2.5
                                            rounded-full bg-white/95 px-3 py-1.5 text-xs
                                            font-bold text-dura-700 shadow-dura-sm"
                                 >
@@ -398,8 +398,17 @@
         <br>
         <p>We also offer trustworthy chauffeur-driven taxi services for people who would prefer not to drive. These include local city rides, airport transfers, railway station pickups, and one-way taxis like Agra to Delhi or Delhi to Vrindavan. We can even set up Tempo Travelers for big groups, so everyone on board will be comfortable. Duracabs gives you a chance to build your business by letting you register as a cab or taxi vendor on our platform. This gives you access to daily customer reservations and dedicated assistance.</p>
         <br>
-        <p>Planning your trip has never been easier than with Duracabs. You can book your car directly from our website,<a href="https://www.duracabs.com/"></a>, or you can phone our trip experts at 7088873331 to talk about your plans. We are here to make sure that your trip is smooth, pleasant, and memorable from the minute you pick up your automobile until the time you return it. We don't just rent cars at Duracabs; we make trips that you'll never forget.</p>
-        <br>
+        <p>
+    Planning your trip has never been easier than with Duracabs.
+    You can book your car directly from our
+    <a href="https://www.duracabs.com/" class="font-semibold text-dura-700 underline">
+        Duracabs website
+    </a>,
+    or you can phone our trip experts at 7088873331 to talk about your plans.
+    We are here to make sure that your trip is smooth, pleasant, and memorable
+    from the minute you pick up your automobile until the time you return it.
+    We don't just rent cars at Duracabs; we make trips that you'll never forget.
+</p><br>
         <h2><strong>We have a taxi for you wherever you're going.</strong></h2>
         <p>Planning a weekend trip? You can visit all the must-see locations, sample the best local cuisine, and discover the greatest destinations with the aid of our out-of-town taxi services. Did you simply touch down at the train or airport nearest to your final destination? No issue! For the final mile, you can take advantage of our transit pick-up service and airport taxi. Along the way, we'll show you some of the most breathtaking sights while we get you to your destination. Are you going home for a family reunion? Try our recently launched one-way taxi services; for a one-side fare, you can be dropped off in your hometown regardless of where you live. Have you made the decision to explore your city for the entire day on a personal day? You can visit some of the city's most impressive monuments, the greenest parks, and the oldest temples with the aid of our local taxi packages. An empty itinerary won't ever be a concern for you again. Are you a unique traveler? Do you simply decide to take it from there and hit the road? If you simply want to be dropped off somewhere and don't want to look back, we provide one-way drops on a number of routes.</p>
         <h2><strong>About Duracabs</strong></h2>
@@ -427,7 +436,7 @@
         {{-- Section heading --}}
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                 Our cab services
             </p>
 
@@ -471,7 +480,7 @@
                 <div class="flex flex-1 flex-col p-5 sm:p-6">
 
                     <div
-                        class="mb-4 inline-flex h-11 w-11 items-center justify-center
+                        class="mb-4 inline-flex h-12 w-12 items-center justify-center
                                rounded-xl bg-dura-50 text-dura-700"
                     >
                         <i class="fa-solid fa-arrow-right-long" aria-hidden="true"></i>
@@ -527,7 +536,7 @@
                 <div class="flex flex-1 flex-col p-5 sm:p-6">
 
                     <div
-                        class="mb-4 inline-flex h-11 w-11 items-center justify-center
+                        class="mb-4 inline-flex h-12 w-12 items-center justify-center
                                rounded-xl bg-emerald-50 text-emerald-700"
                     >
                         <i class="fa-solid fa-rotate" aria-hidden="true"></i>
@@ -583,7 +592,7 @@
                 <div class="flex flex-1 flex-col p-5 sm:p-6">
 
                     <div
-                        class="mb-4 inline-flex h-11 w-11 items-center justify-center
+                        class="mb-4 inline-flex h-12 w-12 items-center justify-center
                                rounded-xl bg-amber-50 text-amber-700"
                     >
                         <i class="fa-solid fa-city" aria-hidden="true"></i>
@@ -639,7 +648,7 @@
                 <div class="flex flex-1 flex-col p-5 sm:p-6">
 
                     <div
-                        class="mb-4 inline-flex h-11 w-11 items-center justify-center
+                        class="mb-4 inline-flex h-12 w-12 items-center justify-center
                                rounded-xl bg-violet-50 text-violet-700"
                     >
                         <i class="fa-solid fa-car-side" aria-hidden="true"></i>
@@ -716,7 +725,7 @@
 
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                 Travel with confidence
             </p>
 
@@ -875,7 +884,7 @@
                    bg-slate-50 p-5 sm:grid-cols-3 sm:p-6"
         >
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
                     <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
                 </div>
 
@@ -886,7 +895,7 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
                     <i class="fa-solid fa-car" aria-hidden="true"></i>
                 </div>
 
@@ -897,7 +906,7 @@
             </div>
 
             <div class="flex items-center gap-3">
-                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
+                <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-dura-700 shadow-dura-sm">
                     <i class="fa-solid fa-clock" aria-hidden="true"></i>
                 </div>
 
@@ -930,7 +939,7 @@
 >
     <div class="dura-container">
         <div class="mx-auto mb-8 max-w-3xl text-center sm:mb-10">
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">Need help?</p>
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">Need help?</p>
             <h2 id="faq-heading" class="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl lg:text-4xl">Frequently Asked Questions</h2>
             <p class="mt-3 text-sm leading-6 text-slate-600 sm:text-base">Find quick answers about cab booking, fares, payments, self-drive rentals and vendor registration.</p>
         </div>
@@ -988,7 +997,7 @@
         {{-- Section heading --}}
         <div class="mx-auto mb-8 max-w-2xl text-center sm:mb-10">
 
-            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+            <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                 Choose your ride
             </p>
 
@@ -1070,8 +1079,8 @@
                         </h3>
 
                         <span
-                            class="mt-2 inline-flex items-center gap-1 text-xs
-                                   font-semibold text-dura-600 sm:text-sm"
+                            class="mt-2 inline-flex items-center gap-2 text-xs
+                                   font-semibold text-dura-800 sm:text-sm"
                         >
                             View cabs
 
@@ -1129,7 +1138,7 @@
         <div class="mb-8 flex flex-col gap-5 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                     Trusted by travellers
                 </p>
 
@@ -1214,7 +1223,7 @@
 
                                 
                                     <div
-    class="mt-2 flex items-center gap-1"
+    class="mt-2 flex items-center gap-2"
     role="img"
     aria-label="{{ $reviewStars }} out of 5 stars">
                                     @for ($star = 1; $star <= 5; $star++)
@@ -1279,7 +1288,7 @@
                         type="button"
                         x-on:click="scrollTo(prev)"
                         x-bind:disabled="prev === null"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                        class="inline-flex h-12 w-12 items-center justify-center rounded-full
                                border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                                transition hover:bg-dura-50 hover:text-dura-700
                                disabled:cursor-not-allowed disabled:opacity-40"
@@ -1292,7 +1301,7 @@
                         type="button"
                         x-on:click="scrollTo(next)"
                         x-bind:disabled="next === null"
-                        class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                        class="inline-flex h-12 w-12 items-center justify-center rounded-full
                                border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                                transition hover:bg-dura-50 hover:text-dura-700
                                disabled:cursor-not-allowed disabled:opacity-40"
@@ -1305,7 +1314,11 @@
 
                 <div class="text-right">
 
-                    <div class="flex justify-end gap-1" aria-label="4.6 out of 5 stars">
+                    <div
+    class="flex justify-end gap-2"
+    role="img"
+    aria-label="4.6 out of 5 stars"
+>
                         @for ($star = 1; $star <= 5; $star++)
                             <i
                                 class="fa-solid fa-star text-sm text-amber-400"
@@ -1341,7 +1354,7 @@
 
         <div class="mb-7 flex items-end justify-between gap-4">
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                     Drive yourself
                 </p>
 
@@ -1365,7 +1378,7 @@
                     type="button"
                     x-on:click="scrollTo(prev)"
                     x-bind:disabled="prev === null"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                    class="inline-flex h-12 w-12 items-center justify-center rounded-full
                            border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                            transition hover:border-dura-200 hover:bg-dura-50 hover:text-dura-700
                            disabled:cursor-not-allowed disabled:opacity-40"
@@ -1378,7 +1391,7 @@
                     type="button"
                     x-on:click="scrollTo(next)"
                     x-bind:disabled="next === null"
-                    class="inline-flex h-11 w-11 items-center justify-center rounded-full
+                    class="inline-flex h-12 w-12 items-center justify-center rounded-full
                            border border-slate-200 bg-white text-slate-700 shadow-dura-sm
                            transition hover:border-dura-200 hover:bg-dura-50 hover:text-dura-700
                            disabled:cursor-not-allowed disabled:opacity-40"
@@ -1457,21 +1470,21 @@
                             <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-500">
                                 @if (filled($vehicle->transmission))
                                     <span>
-                                        <i class="fa-solid fa-gears mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-gears mr-1 text-dura-800" aria-hidden="true"></i>
                                         {{ ucfirst($vehicle->transmission) }}
                                     </span>
                                 @endif
 
                                 @if (filled($vehicle->fuel_type))
                                     <span>
-                                        <i class="fa-solid fa-gas-pump mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-gas-pump mr-1 text-dura-800" aria-hidden="true"></i>
                                         {{ ucfirst($vehicle->fuel_type) }}
                                     </span>
                                 @endif
 
                                 @if ((int) $vehicle->seats > 0)
                                     <span>
-                                        <i class="fa-solid fa-user-group mr-1 text-dura-600" aria-hidden="true"></i>
+                                        <i class="fa-solid fa-user-group mr-1 text-dura-800" aria-hidden="true"></i>
                                         {{ (int) $vehicle->seats }} Seats
                                     </span>
                                 @endif
@@ -1550,7 +1563,7 @@
         <div class="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-end sm:justify-between">
 
             <div>
-                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-600">
+                <p class="mb-2 text-sm font-bold uppercase tracking-wider text-dura-800">
                     Explore India
                 </p>
 
@@ -1640,7 +1653,7 @@
                                 ></div>
 
                                 <span
-                                    class="absolute left-3 top-3 inline-flex items-center gap-1.5
+                                    class="absolute left-3 top-3 inline-flex items-center gap-2.5
                                            rounded-full bg-white/95 px-3 py-1.5 text-xs
                                            font-bold text-dura-700 shadow-dura-sm"
                                 >
@@ -1703,7 +1716,7 @@
                         type="button"
                         x-on:click="scrollTo(prev)"
                         x-bind:disabled="prev === null"
-                        class="inline-flex h-11 w-11 items-center justify-center
+                        class="inline-flex h-12 w-12 items-center justify-center
                                rounded-full border border-slate-200 bg-white
                                text-slate-700 shadow-dura-sm transition
                                hover:border-dura-200 hover:bg-dura-50
@@ -1721,7 +1734,7 @@
                         type="button"
                         x-on:click="scrollTo(next)"
                         x-bind:disabled="next === null"
-                        class="inline-flex h-11 w-11 items-center justify-center
+                        class="inline-flex h-12 w-12 items-center justify-center
                                rounded-full border border-slate-200 bg-white
                                text-slate-700 shadow-dura-sm transition
                                hover:border-dura-200 hover:bg-dura-50

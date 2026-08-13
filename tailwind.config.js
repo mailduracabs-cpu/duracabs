@@ -5,7 +5,6 @@ export default {
         './resources/**/*.blade.php',
         './resources/**/*.js',
         './resources/**/*.vue',
-        './node_modules/preline/dist/*.js',
     ],
 
     darkMode: 'class',
@@ -66,7 +65,5 @@ export default {
         },
     },
 
-    plugins: [
-        require('preline/plugin'),
-    ],
+    plugins: [],
 };
