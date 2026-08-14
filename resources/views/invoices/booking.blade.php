@@ -351,6 +351,32 @@
     );
 
     $onlineCharge = (float) ($fare['online_payment_charge'] ?? 0);
+
+    // Browser-safe logo URL. public_path() is a filesystem path and breaks in shared HTML view.
+    $logoUrl = asset('storage/images/Duracab-Logo-425x115.png');
+
+    // Friendly date/time formatter; keeps original value if it cannot be parsed.
+    $friendlyDateTime = static function ($date, $time = null): string {
+        $raw = trim((string) ($date ?? ''));
+        if ($raw === '') {
+            return '--';
+        }
+
+        if (!empty($time) && !str_contains($raw, ':')) {
+            $raw .= ' ' . trim((string) $time);
+        }
+
+        try {
+            return \Carbon\Carbon::parse($raw)->format('d M Y • h:i A');
+        } catch (\Throwable $e) {
+            return trim((string) $date . (!empty($time) ? ' • ' . (string) $time : ''));
+        }
+    };
+
+    // Self Drive admin pricing fields, when supplied by InvoiceService.
+    $deliveryPrice = (float) ($pricingBreakdown['delivery_price'] ?? $fare['delivery_price'] ?? 0);
+    $pickupPrice = (float) ($pricingBreakdown['pickup_price'] ?? $fare['pickup_price'] ?? 0);
+    $manualPrice = (float) ($pricingBreakdown['manual_price'] ?? $fare['manual_price'] ?? 0);
 @endphp
 
 <div class="invoice">
@@ -362,7 +388,7 @@
                 <td style="width: 55%;">
                     <img
                         class="logo"
-                        src="{{ public_path('storage/images/Duracab-Logo-425x115.png') }}"
+                        src="{{ $logoUrl }}"
                         alt="Dura Cabs"
                     >
 
@@ -439,7 +465,7 @@
                             <div class="value">{{ $trip['vehicle_name'] ?? '--' }}</div>
                         </div>
 
-                        @if(!empty($trip['vehicle_number']))
+                        @if(!$isSelfDrive && !empty($trip['vehicle_number']))
                             <div style="margin-top: 9px;">
                                 <span class="label">Vehicle Number</span>
                                 <div class="value">{{ $trip['vehicle_number'] }}</div>
@@ -469,10 +495,7 @@
                 <tr>
                     <th>Pickup Date & Time</th>
                     <td>
-                        {{ $trip['pickup_date'] ?? '--' }}
-                        @if(!empty($trip['pickup_time']))
-                            • {{ $trip['pickup_time'] }}
-                        @endif
+                        {{ $friendlyDateTime($trip['pickup_date'] ?? null, $trip['pickup_time'] ?? null) }}
                     </td>
                 </tr>
 
@@ -480,10 +503,7 @@
                     <tr>
                         <th>Return Date & Time</th>
                         <td>
-                            {{ $trip['return_date'] }}
-                            @if(!empty($trip['return_time']))
-                                • {{ $trip['return_time'] }}
-                            @endif
+                            {{ $friendlyDateTime($trip['return_date'] ?? null, $trip['return_time'] ?? null) }}
                         </td>
                     </tr>
                 @endif
@@ -537,6 +557,27 @@
                         <tr>
                             <td>Rent After Plan Discount</td>
                             <td>{{ $money($rentAfterPlanDiscount) }}</td>
+                        </tr>
+                    @endif
+
+                    @if($isSelfDrive && $showRow($deliveryPrice))
+                        <tr>
+                            <td>Doorstep Delivery</td>
+                            <td>{{ $money($deliveryPrice) }}</td>
+                        </tr>
+                    @endif
+
+                    @if($isSelfDrive && $showRow($pickupPrice))
+                        <tr>
+                            <td>Vehicle Return Pickup</td>
+                            <td>{{ $money($pickupPrice) }}</td>
+                        </tr>
+                    @endif
+
+                    @if($isSelfDrive && $showRow($manualPrice))
+                        <tr>
+                            <td>Manual Price <span style="color:#69778a;">(GST Included)</span></td>
+                            <td>{{ $money($manualPrice) }}</td>
                         </tr>
                     @endif
 
@@ -693,12 +734,16 @@
             <h2 class="section-title">Terms</h2>
 
             <ul class="terms">
-                <li>This is the final bill generated after booking completion.</li>
-                <li>GST is calculated only on base fare, selected extra services, extra hours and extra kilometres.</li>
-                <li>No GST is calculated on toll, parking or government/permit tax.</li>
-                <li>With Driver GST rate is 5%; Self Drive GST rate is 18%.</li>
+                <li>This invoice is generated from the booking's stored billing data.</li>
+                @if($isSelfDrive)
+                    <li>Self Drive GST rate is 18% where applicable.</li>
+                    <li>If a manual price is used, GST is included within that manual price and is not added again.</li>
+                    <li>Security deposit is shown separately when applicable.</li>
+                @else
+                    <li>With Driver GST rate is 5% where applicable.</li>
+                    <li>No GST is calculated on toll, parking or government/permit tax.</li>
+                @endif
                 <li>Online payment convenience charge is shown separately when applicable.</li>
-                <li>Unlimited KM package removes extra KM charges only; extra hours, late return, damage and other charges may still apply.</li>
             </ul>
         </div>
 
