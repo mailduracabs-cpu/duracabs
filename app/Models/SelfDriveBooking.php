@@ -34,6 +34,10 @@ class SelfDriveBooking extends Model
         'vehicle_id',
         'transporter_profile_id',
         'pickup_location',
+        'delivery_address',
+        'delivery_price',
+        'pickup_address',
+        'pickup_price',
         'pickup_latitude',
         'pickup_longitude',
         'start_datetime',
@@ -129,6 +133,8 @@ class SelfDriveBooking extends Model
         'permit_tax_amount',
         'gst_percent',
         'gst_amount',
+        'discount_amount',
+        'manual_price',
         'online_payment_charge',
     ];
 
@@ -171,6 +177,8 @@ class SelfDriveBooking extends Model
 
         'pickup_latitude' => 'decimal:7',
         'pickup_longitude' => 'decimal:7',
+        'delivery_price' => 'decimal:2',
+        'pickup_price' => 'decimal:2',
         'hourly_price' => 'decimal:2',
         'price_per_day' => 'decimal:2',
         'security_deposit' => 'decimal:2',
@@ -205,6 +213,8 @@ class SelfDriveBooking extends Model
         'permit_tax_amount' => 'decimal:2',
         'gst_percent' => 'decimal:2',
         'gst_amount' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
+        'manual_price' => 'decimal:2',
         'online_payment_charge' => 'decimal:2',
     ];
 

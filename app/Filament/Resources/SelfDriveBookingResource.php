@@ -88,7 +88,8 @@ class SelfDriveBookingResource extends Resource
     public static function form(Form $form): Form
     {
         return $form->schema([
-            Forms\Components\Section::make('Booking')
+            Forms\Components\Section::make('Booking Details')
+                ->description('Customer, rental date/time and only cars available for the selected period.')
                 ->schema([
                     Forms\Components\TextInput::make('booking_no')
                         ->label('Booking No')
@@ -100,17 +101,26 @@ class SelfDriveBookingResource extends Resource
                         ->label('Customer')
                         ->relationship('customer', 'name')
                         ->getOptionLabelFromRecordUsing(
-                            fn (User $record) =>
+                            fn (User $record): string =>
                                 ($record->name ?: 'No Name') . ' | ' .
                                 ($record->mobile ?: 'No Mobile')
                         )
-                        ->searchable(['name', 'mobile'])->preload()->required()
+                        ->searchable(['name', 'mobile'])
+                        ->preload()
+                        ->required()
                         ->createOptionForm([
-                            Forms\Components\TextInput::make('name')->required(),
-                            Forms\Components\TextInput::make('mobile')->tel()->required(),
+                            Forms\Components\TextInput::make('name')
+                                ->label('Customer Name')
+                                ->required()
+                                ->maxLength(150),
+                            Forms\Components\TextInput::make('mobile')
+                                ->label('Mobile Number')
+                                ->tel()
+                                ->required()
+                                ->maxLength(15),
                         ])
                         ->createOptionUsing(function (array $data): int {
-                            $mobile = preg_replace('/\D+/', '', $data['mobile']);
+                            $mobile = preg_replace('/\D+/', '', (string) $data['mobile']);
 
                             return User::query()->firstOrCreate(
                                 ['mobile' => $mobile],
@@ -121,27 +131,131 @@ class SelfDriveBookingResource extends Resource
                             )->id;
                         }),
 
-                    Forms\Components\Select::make('vehicle_id')
-                        ->label('Vehicle')
-                        ->options(fn () => Vehicle::query()
-                            ->with('transporter')
-                            ->where('is_active', true)
-                            ->get()
-                            ->mapWithKeys(function (Vehicle $vehicle): array {
-                                $name = trim(
-                                    ($vehicle->car_company_name ?? '') . ' ' .
-                                    ($vehicle->model_name ?? '')
-                                );
-                                $number = $vehicle->vehicle_number ?: 'No Number';
-                                $partner = $vehicle->transporter?->company_name ?: 'No Partner';
+                    Forms\Components\DatePicker::make('start_date')
+                        ->label('Start Date')
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            if ($record?->start_datetime) {
+                                $set('start_date', $record->start_datetime->format('Y-m-d'));
+                            }
+                        })
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::syncRentalDateTime($get, $set)),
 
-                                return [$vehicle->id => "{$name} | {$number} | {$partner}"];
-                            })->all())
-                        ->searchable()->preload()->required()->live()
+                    Forms\Components\TimePicker::make('start_time')
+                        ->label('Start Time')
+                        ->seconds(false)
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            if ($record?->start_datetime) {
+                                $set('start_time', $record->start_datetime->format('H:i'));
+                            }
+                        })
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::syncRentalDateTime($get, $set)),
+
+                    Forms\Components\DatePicker::make('end_date')
+                        ->label('End Date')
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            if ($record?->end_datetime) {
+                                $set('end_date', $record->end_datetime->format('Y-m-d'));
+                            }
+                        })
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::syncRentalDateTime($get, $set)),
+
+                    Forms\Components\TimePicker::make('end_time')
+                        ->label('End Time')
+                        ->seconds(false)
+                        ->required()
+                        ->native(false)
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            if ($record?->end_datetime) {
+                                $set('end_time', $record->end_datetime->format('H:i'));
+                            }
+                        })
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::syncRentalDateTime($get, $set)),
+
+                    Forms\Components\Select::make('vehicle_id')
+                        ->label('Available Car')
+                        ->options(function (Get $get, ?SelfDriveBooking $record): array {
+                            $start = static::buildDateTime(
+                                $get('start_date'),
+                                $get('start_time')
+                            );
+                            $end = static::buildDateTime(
+                                $get('end_date'),
+                                $get('end_time')
+                            );
+
+                            if (! $start || ! $end || $end->lte($start)) {
+                                return [];
+                            }
+
+                            $busyVehicleIds = SelfDriveBooking::query()
+                                ->activeBooking()
+                                ->overlapping($start, $end)
+                                ->when(
+                                    $record?->exists,
+                                    fn (Builder $query) =>
+                                        $query->whereKeyNot($record->getKey())
+                                )
+                                ->pluck('vehicle_id');
+
+                            return Vehicle::query()
+                                ->with('transporter')
+                                ->where('is_active', true)
+                                ->whereNotIn('id', $busyVehicleIds)
+                                ->orderBy('car_company_name')
+                                ->orderBy('model_name')
+                                ->get()
+                                ->mapWithKeys(function (Vehicle $vehicle): array {
+                                    $name = trim(
+                                        ($vehicle->car_company_name ?? '') . ' ' .
+                                        ($vehicle->model_name ?? '')
+                                    );
+                                    $number = $vehicle->vehicle_number ?: 'No Number';
+                                    $daily = (float) ($vehicle->daily_price ?? 0);
+                                    $hourly = (float) ($vehicle->hourly_price ?? 0);
+
+                                    $rate = $daily > 0
+                                        ? '₹' . number_format($daily, 0) . '/day'
+                                        : '₹' . number_format($hourly, 0) . '/hour';
+
+                                    return [
+                                        $vehicle->id =>
+                                            "{$name} | {$number} | {$rate}"
+                                    ];
+                                })
+                                ->all();
+                        })
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->live()
+                        ->helperText('Start and end date/time select karne ke baad sirf available cars dikhengi.')
                         ->afterStateUpdated(function ($state, Set $set, Get $get): void {
                             $vehicle = Vehicle::query()->find($state);
 
                             if (! $vehicle) {
+                                $set('transporter_profile_id', null);
+                                $set('hourly_price', 0);
+                                $set('price_per_day', 0);
+                                $set('security_deposit', 0);
+                                static::recalculateBooking($get, $set);
                                 return;
                             }
 
@@ -155,104 +269,285 @@ class SelfDriveBookingResource extends Resource
                             );
                             $set('extra_hour_rate', (float) ($vehicle->extra_hour_rate ?? 0));
                             $set('extra_km_rate', (float) ($vehicle->extra_km_rate ?? 0));
-                            static::recalculate($get, $set);
+
+                            static::recalculateBooking($get, $set);
                         }),
 
+                    Forms\Components\Hidden::make('start_datetime'),
+                    Forms\Components\Hidden::make('end_datetime'),
                     Forms\Components\Hidden::make('transporter_profile_id'),
-                ])->columns(3),
+                    Forms\Components\Hidden::make('minimum_booking_hours'),
+                    Forms\Components\Hidden::make('extra_hour_rate'),
+                    Forms\Components\Hidden::make('extra_km_rate'),
 
-            Forms\Components\Section::make('Pickup & Duration')
-                ->schema([
-                    Forms\Components\Textarea::make('pickup_location')
-                        ->required()->columnSpanFull(),
-                    Forms\Components\TextInput::make('pickup_latitude')->numeric(),
-                    Forms\Components\TextInput::make('pickup_longitude')->numeric(),
-                    Forms\Components\DateTimePicker::make('start_datetime')
-                        ->seconds(false)->required()->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) =>
-                            static::recalculate($get, $set)),
-                    Forms\Components\DateTimePicker::make('end_datetime')
-                        ->seconds(false)->required()->after('start_datetime')->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) =>
-                            static::recalculate($get, $set)),
                     Forms\Components\TextInput::make('booked_hours')
-                        ->numeric()->readOnly()->dehydrated(),
-                    Forms\Components\TextInput::make('total_days')
-                        ->numeric()->readOnly()->dehydrated(),
-                    Forms\Components\TextInput::make('minimum_booking_hours')
-                        ->numeric()->readOnly()->dehydrated(),
-                ])->columns(4),
+                        ->label('Total Hours')
+                        ->numeric()
+                        ->readOnly()
+                        ->dehydrated(),
 
-            Forms\Components\Section::make('Fare & Booking Payment')
+                    Forms\Components\TextInput::make('total_days')
+                        ->label('Total Days')
+                        ->numeric()
+                        ->readOnly()
+                        ->dehydrated(),
+                ])
+                ->columns(4),
+
+            Forms\Components\Section::make('Delivery / Pickup Service')
+                ->description('Optional. Enable only when customer wants doorstep delivery or return pickup.')
+                ->schema([
+                    Forms\Components\Toggle::make('delivery_required')
+                        ->label('Customer wants Delivery')
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            $set(
+                                'delivery_required',
+                                filled($record?->delivery_address)
+                                || (float) ($record?->delivery_price ?? 0) > 0
+                            );
+                        })
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            if (! $state) {
+                                $set('delivery_address', null);
+                                $set('delivery_price', 0);
+                            }
+                            static::recalculateBooking($get, $set);
+                        }),
+
+                    Forms\Components\Textarea::make('delivery_address')
+                        ->label('Delivery Address')
+                        ->rows(2)
+                        ->visible(fn (Get $get): bool =>
+                            (bool) $get('delivery_required'))
+                        ->required(fn (Get $get): bool =>
+                            (bool) $get('delivery_required'))
+                        ->columnSpan(2),
+
+                    Forms\Components\TextInput::make('delivery_price')
+                        ->label('Delivery Price')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->minValue(0)
+                        ->live()
+                        ->visible(fn (Get $get): bool =>
+                            (bool) $get('delivery_required'))
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::recalculateBooking($get, $set)),
+
+                    Forms\Components\Toggle::make('pickup_required')
+                        ->label('Customer wants Return Pickup')
+                        ->live()
+                        ->dehydrated(false)
+                        ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
+                            $set(
+                                'pickup_required',
+                                filled($record?->pickup_address)
+                                || (float) ($record?->pickup_price ?? 0) > 0
+                            );
+                        })
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            if (! $state) {
+                                $set('pickup_address', null);
+                                $set('pickup_price', 0);
+                            }
+                            static::recalculateBooking($get, $set);
+                        }),
+
+                    Forms\Components\Textarea::make('pickup_address')
+                        ->label('Return Pickup Address')
+                        ->rows(2)
+                        ->visible(fn (Get $get): bool =>
+                            (bool) $get('pickup_required'))
+                        ->required(fn (Get $get): bool =>
+                            (bool) $get('pickup_required'))
+                        ->columnSpan(2),
+
+                    Forms\Components\TextInput::make('pickup_price')
+                        ->label('Pickup Price')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->minValue(0)
+                        ->live()
+                        ->visible(fn (Get $get): bool =>
+                            (bool) $get('pickup_required'))
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::recalculateBooking($get, $set)),
+                ])
+                ->columns(4),
+
+            Forms\Components\Section::make('Price & GST')
+                ->description('Automatic database fare. GST is fixed at 18%. Manual Price is treated as GST-inclusive final fare.')
                 ->schema([
                     Forms\Components\TextInput::make('hourly_price')
-                        ->numeric()->prefix('₹')->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) =>
-                            static::recalculate($get, $set)),
+                        ->label('Hourly DB Rate')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
                     Forms\Components\TextInput::make('price_per_day')
-                        ->numeric()->prefix('₹'),
-                    Forms\Components\TextInput::make('security_deposit')
-                        ->numeric()->prefix('₹'),
+                        ->label('Daily DB Rate')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
                     Forms\Components\TextInput::make('total_amount')
-                        ->label('Booking Amount (Manual Editable)')
-                        ->numeric()->prefix('₹')->required()->live()
+                        ->label('Price as per Database')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('gst_percent')
+                        ->label('GST')
+                        ->numeric()
+                        ->suffix('%')
+                        ->default(18)
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('gst_amount')
+                        ->label('GST Amount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('discount_amount')
+                        ->label('Discount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->minValue(0)
+                        ->live()
                         ->afterStateUpdated(fn (Get $get, Set $set) =>
-                            static::syncPaymentFields($get, $set)),
+                            static::recalculateBooking($get, $set)),
+
+                    Forms\Components\TextInput::make('final_amount')
+                        ->label('Grand Total')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
+                    Forms\Components\TextInput::make('security_deposit')
+                        ->label('Security Deposit (Refundable)')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->default(0)
+                        ->minValue(0)
+                        ->helperText('Fare/GST se separate refundable amount.'),
+
+                    Forms\Components\TextInput::make('manual_price')
+                        ->label('Manual Price (Optional)')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->minValue(0)
+                        ->live()
+                        ->helperText('Entered amount is treated as GST-inclusive final fare. Leave blank for automatic price.')
+                        ->afterStateUpdated(fn (Get $get, Set $set) =>
+                            static::recalculateBooking($get, $set)),
+                ])
+                ->columns(3),
+
+            Forms\Components\Section::make('Payment')
+                ->schema([
                     Forms\Components\Select::make('payment_type')
+                        ->label('Payment Type')
                         ->options([
                             'advance' => '₹500 Advance',
                             'full' => 'Full Payment',
+                            'custom' => 'Custom Received Amount',
                         ])
-                        ->required()->default('advance')->native(false)->live()
+                        ->required()
+                        ->default('advance')
+                        ->native(false)
+                        ->live()
+                        ->afterStateUpdated(function ($state, Set $set, Get $get): void {
+                            if ($state !== 'custom') {
+                                $set('paid_amount', 0);
+                            }
+                            static::syncPaymentFields($get, $set);
+                        }),
+
+                    Forms\Components\TextInput::make('paid_amount')
+                        ->label('Custom Received Amount')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->minValue(0)
+                        ->default(0)
+                        ->live()
+                        ->visible(fn (Get $get): bool =>
+                            $get('payment_type') === 'custom')
                         ->afterStateUpdated(fn (Get $get, Set $set) =>
                             static::syncPaymentFields($get, $set)),
+
                     Forms\Components\Select::make('payment_method')
+                        ->label('Payment Method')
                         ->options(static::paymentMethods())
-                        ->required()->default('cash')->native(false),
+                        ->required()
+                        ->default('cash')
+                        ->native(false),
+
                     Forms\Components\TextInput::make('payment_reference')
-                        ->label('Transaction / Reference'),
+                        ->label('Payment Reference')
+                        ->placeholder('Optional'),
+
                     Forms\Components\TextInput::make('advance_amount')
-                        ->numeric()->prefix('₹')->readOnly()->dehydrated(),
-                    Forms\Components\TextInput::make('paid_amount')
-                        ->numeric()->prefix('₹')->readOnly()->dehydrated(),
+                        ->label('Advance')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
                     Forms\Components\TextInput::make('remaining_amount')
-                        ->numeric()->prefix('₹')->readOnly()->dehydrated(),
+                        ->label('Balance')
+                        ->numeric()
+                        ->prefix('₹')
+                        ->readOnly()
+                        ->dehydrated(),
+
                     Forms\Components\Select::make('payment_status')
+                        ->label('Payment Status')
                         ->options(static::paymentStatuses())
                         ->disabled()
                         ->dehydrated()
                         ->native(false),
-                    Forms\Components\TextInput::make('final_amount')
-                        ->label('Final Amount (Manual Editable)')
-                        ->numeric()->prefix('₹')->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) =>
-                            static::syncPaymentFields($get, $set)),
-                ])->columns(4),
+                ])
+                ->columns(4),
 
-            Forms\Components\Section::make('Workflow')
+            Forms\Components\Section::make('Booking Status')
                 ->schema([
                     Forms\Components\Select::make('status')
+                        ->label('Booking Status')
                         ->options(static::statusOptions())
-                        ->required()->default(SelfDriveBooking::STATUS_PENDING)
+                        ->required()
+                        ->default(SelfDriveBooking::STATUS_CONFIRMED)
                         ->native(false),
-                    Forms\Components\Select::make('booking_status')
-                        ->options(static::workflowOptions())
-                        ->default('pending_vendor_confirmation')->native(false),
-                    Forms\Components\Select::make('vendor_confirmation_status')
-                        ->options([
-                            'pending' => 'Pending',
-                            'confirmed' => 'Confirmed',
-                            'rejected' => 'Rejected',
-                        ])->default('pending')->native(false),
-                    Forms\Components\Select::make('document_status')
-                        ->options([
-                            'not_uploaded' => 'Not Uploaded',
-                            'under_verification' => 'Under Verification',
-                            'approved' => 'Approved',
-                            'rejected' => 'Rejected',
-                        ])->default('not_uploaded')->native(false),
-                ])->columns(4),
 
+                    Forms\Components\Hidden::make('booking_status')
+                        ->default('confirmed'),
+
+                    Forms\Components\Hidden::make('vendor_confirmation_status')
+                        ->default('confirmed'),
+
+                    Forms\Components\Hidden::make('document_status')
+                        ->default('not_uploaded'),
+
+                    Forms\Components\Hidden::make('settlement_status')
+                        ->default(SelfDriveBooking::SETTLEMENT_PENDING),
+                ])
+                ->columns(2),
+
+            /*
+             * Operational fields stay available only after a booking exists.
+             * They are intentionally hidden from the simple Create Booking form.
+             */
             Forms\Components\Section::make('Trip, KM & Final Charges')
                 ->schema([
                     Forms\Components\TextInput::make('start_km')->numeric(),
@@ -274,8 +569,14 @@ class SelfDriveBookingResource extends Resource
                             'pending' => 'Pending',
                             'balance_due' => 'Balance Due',
                             'completed' => 'Completed',
-                        ])->default('pending')->native(false),
-                ])->columns(4)->collapsed(),
+                        ])
+                        ->default('pending')
+                        ->native(false),
+                ])
+                ->columns(4)
+                ->collapsed()
+                ->visible(fn (?SelfDriveBooking $record): bool =>
+                    (bool) $record?->exists),
 
             Forms\Components\Section::make('OTP & Trip Times')
                 ->schema([
@@ -285,49 +586,193 @@ class SelfDriveBookingResource extends Resource
                     Forms\Components\TextInput::make('return_otp')->readOnly(),
                     Forms\Components\DateTimePicker::make('return_otp_verified_at')->readOnly(),
                     Forms\Components\DateTimePicker::make('trip_end_datetime')->readOnly(),
-                ])->columns(3)->collapsed(),
-				
-			Forms\Components\Section::make('Customer KYC Documents')
-    ->relationship('customer')
-    ->schema([
+                ])
+                ->columns(3)
+                ->collapsed()
+                ->visible(fn (?SelfDriveBooking $record): bool =>
+                    (bool) $record?->exists),
 
-        Forms\Components\TextInput::make('aadhar_number')
-            ->label('Aadhaar Number')
-            ->disabled(),
-
-        Forms\Components\FileUpload::make('aadhar_front')
-            ->label('Aadhaar Front')
-            ->disk('public')
-            ->image()
-            ->disabled(),
-
-        Forms\Components\FileUpload::make('aadhar_back')
-            ->label('Aadhaar Back')
-            ->disk('public')
-            ->image()
-            ->disabled(),
-
-        Forms\Components\TextInput::make('driving_licence_number')
-            ->label('Driving Licence Number')
-            ->disabled(),
-
-        Forms\Components\FileUpload::make('driving_licence_front')
-            ->label('Driving Licence Front')
-            ->disk('public')
-            ->image()
-            ->disabled(),
-
-        Forms\Components\FileUpload::make('driving_licence_back')
-            ->label('Driving Licence Back')
-            ->disk('public')
-            ->image()
-            ->disabled(),
-
-    ])
-    ->columns(2)
-    ->collapsible(),	
+            Forms\Components\Section::make('Customer KYC Documents')
+                ->relationship('customer')
+                ->schema([
+                    Forms\Components\TextInput::make('aadhar_number')
+                        ->label('Aadhaar Number')
+                        ->disabled(),
+                    Forms\Components\FileUpload::make('aadhar_front')
+                        ->label('Aadhaar Front')
+                        ->disk('public')
+                        ->image()
+                        ->disabled(),
+                    Forms\Components\FileUpload::make('aadhar_back')
+                        ->label('Aadhaar Back')
+                        ->disk('public')
+                        ->image()
+                        ->disabled(),
+                    Forms\Components\TextInput::make('driving_licence_number')
+                        ->label('Driving Licence Number')
+                        ->disabled(),
+                    Forms\Components\FileUpload::make('driving_licence_front')
+                        ->label('Driving Licence Front')
+                        ->disk('public')
+                        ->image()
+                        ->disabled(),
+                    Forms\Components\FileUpload::make('driving_licence_back')
+                        ->label('Driving Licence Back')
+                        ->disk('public')
+                        ->image()
+                        ->disabled(),
+                ])
+                ->columns(2)
+                ->collapsible()
+                ->collapsed()
+                ->visible(fn (?SelfDriveBooking $record): bool =>
+                    (bool) $record?->exists),
         ]);
     }
+
+    private static function buildDateTime(mixed $date, mixed $time): ?Carbon
+    {
+        if (blank($date) || blank($time)) {
+            return null;
+        }
+
+        try {
+            return Carbon::parse(
+                Carbon::parse($date)->format('Y-m-d')
+                . ' '
+                . Carbon::parse($time)->format('H:i:s')
+            );
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    public static function syncRentalDateTime(Get $get, Set $set): void
+    {
+        $start = static::buildDateTime(
+            $get('start_date'),
+            $get('start_time')
+        );
+        $end = static::buildDateTime(
+            $get('end_date'),
+            $get('end_time')
+        );
+
+        $set('start_datetime', $start?->format('Y-m-d H:i:s'));
+        $set('end_datetime', $end?->format('Y-m-d H:i:s'));
+
+        /*
+         * Date/time changed: force car re-selection because availability
+         * may have changed for the new window.
+         */
+        $set('vehicle_id', null);
+        $set('transporter_profile_id', null);
+        $set('hourly_price', 0);
+        $set('price_per_day', 0);
+
+        static::recalculateBooking($get, $set);
+    }
+
+    public static function recalculateBooking(Get $get, Set $set): void
+    {
+        $start = static::buildDateTime(
+            $get('start_date'),
+            $get('start_time')
+        );
+        $end = static::buildDateTime(
+            $get('end_date'),
+            $get('end_time')
+        );
+
+        if (! $start || ! $end || $end->lte($start)) {
+            $set('booked_hours', 0);
+            $set('total_days', 0);
+            $set('total_amount', 0);
+            $set('gst_amount', 0);
+            $set('final_amount', 0);
+            static::syncPaymentFields($get, $set);
+            return;
+        }
+
+        $minutes = max(1, $start->diffInMinutes($end));
+        $hours = max(1, (int) ceil($minutes / 60));
+        $minimum = max(1, (int) ($get('minimum_booking_hours') ?: 1));
+        $billableHours = max($hours, $minimum);
+
+        $hourly = max(0, (float) ($get('hourly_price') ?: 0));
+        $daily = max(0, (float) ($get('price_per_day') ?: 0));
+
+        /*
+         * Automatic database rate:
+         * - hourly rate when daily rate is unavailable;
+         * - otherwise choose the cheaper DB combination of whole days +
+         *   remaining hours versus charging all required 24-hour blocks.
+         */
+        if ($daily > 0) {
+            $fullDays = intdiv($billableHours, 24);
+            $remainingHours = $billableHours % 24;
+
+            $mixedRate = ($fullDays * $daily)
+                + (
+                    $remainingHours > 0
+                        ? min(
+                            $daily,
+                            $hourly > 0
+                                ? $remainingHours * $hourly
+                                : $daily
+                        )
+                        : 0
+                );
+
+            $allDailyRate = (int) ceil($billableHours / 24) * $daily;
+
+            $databasePrice = min(
+                $mixedRate > 0 ? $mixedRate : $allDailyRate,
+                $allDailyRate
+            );
+        } else {
+            $databasePrice = $billableHours * $hourly;
+        }
+
+        $delivery = max(0, (float) ($get('delivery_price') ?: 0));
+        $pickup = max(0, (float) ($get('pickup_price') ?: 0));
+        $discount = max(0, (float) ($get('discount_amount') ?: 0));
+
+        $gstPercent = 18.0;
+        $manual = $get('manual_price');
+        $manualPrice = filled($manual)
+            ? max(0, (float) $manual)
+            : null;
+
+        $set('booked_hours', $hours);
+        $set('total_days', max(1, (int) ceil($hours / 24)));
+        $set('gst_percent', $gstPercent);
+        $set('total_amount', round($databasePrice, 2));
+
+        if ($manualPrice !== null && $manualPrice > 0) {
+            /*
+             * Manual Price is GST inclusive. No extra GST is added.
+             */
+            $taxable = $manualPrice / 1.18;
+            $gstAmount = $manualPrice - $taxable;
+
+            $set('gst_amount', round($gstAmount, 2));
+            $set('final_amount', round($manualPrice, 2));
+        } else {
+            $taxableSubtotal = $databasePrice + $delivery + $pickup;
+            $gstAmount = $taxableSubtotal * ($gstPercent / 100);
+            $grandTotal = max(
+                0,
+                $taxableSubtotal + $gstAmount - $discount
+            );
+
+            $set('gst_amount', round($gstAmount, 2));
+            $set('final_amount', round($grandTotal, 2));
+        }
+
+        static::syncPaymentFields($get, $set);
+    }
+
 
     public static function table(Table $table): Table
     {
@@ -335,7 +780,6 @@ class SelfDriveBookingResource extends Resource
             ->defaultSort('id', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('booking_no')
-                    ->label('Booking No')
                     ->searchable()->sortable()->copyable()->weight('bold'),
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Customer')->searchable()
@@ -739,50 +1183,38 @@ class SelfDriveBookingResource extends Resource
             ]);
     }
 
-    public static function recalculate(Get $get, Set $set): void
-    {
-        $start = $get('start_datetime');
-        $end = $get('end_datetime');
-
-        if (! $start || ! $end) {
-            return;
-        }
-
-        $startAt = Carbon::parse($start);
-        $endAt = Carbon::parse($end);
-
-        if ($endAt->lte($startAt)) {
-            return;
-        }
-
-        $hours = max(1, (int) ceil($startAt->diffInMinutes($endAt) / 60));
-        $minimum = max(1, (int) ($get('minimum_booking_hours') ?: 1));
-        $billableHours = max($hours, $minimum);
-        $hourlyPrice = max(0, (float) ($get('hourly_price') ?: 0));
-
-        $set('booked_hours', $hours);
-        $set('total_days', max(1, (int) ceil($hours / 24)));
-        $set('total_amount', round($billableHours * $hourlyPrice, 2));
-        $set('final_amount', round($billableHours * $hourlyPrice, 2));
-
-        static::syncPaymentFields($get, $set);
-    }
-
     public static function syncPaymentFields(Get $get, Set $set): void
     {
         $payable = max(
             0,
-            (float) ($get('final_amount') ?: $get('total_amount') ?: 0)
+            (float) ($get('final_amount') ?: 0)
         );
-        $type = $get('payment_type') ?: 'advance';
-        $paid = $type === 'full' ? $payable : min(500, $payable);
 
-        $set('advance_amount', $type === 'advance' ? $paid : 0);
-        $set('paid_amount', $paid);
-        $set('remaining_amount', max(0, $payable - $paid));
-        $set('payment_status', $paid <= 0
-            ? 'pending'
-            : ($paid < $payable ? 'partial' : 'paid'));
+        $type = (string) ($get('payment_type') ?: 'advance');
+
+        if ($type === 'full') {
+            $paid = $payable;
+            $advance = 0;
+        } elseif ($type === 'custom') {
+            $paid = min(
+                $payable,
+                max(0, (float) ($get('paid_amount') ?: 0))
+            );
+            $advance = 0;
+        } else {
+            $paid = min(500, $payable);
+            $advance = $paid;
+        }
+
+        $set('advance_amount', round($advance, 2));
+        $set('paid_amount', round($paid, 2));
+        $set('remaining_amount', round(max(0, $payable - $paid), 2));
+        $set(
+            'payment_status',
+            $paid <= 0
+                ? 'pending'
+                : ($paid < $payable ? 'partial' : 'paid')
+        );
     }
 
     public static function paymentMethods(): array
