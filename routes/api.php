@@ -491,6 +491,16 @@ Route::prefix('bike-rental')->group(function (): void {
     */
 
     Route::prefix('self-drive')->group(function () {
+		
+		Route::post('/wallet/recharge/order', [
+    WalletController::class,
+    'createRechargeOrder',
+]);
+
+Route::post('/wallet/recharge/verify', [
+    WalletController::class,
+    'verifyRechargePayment',
+]);
 
         /*
         |----------------------------------------------------------------------
