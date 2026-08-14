@@ -8,10 +8,8 @@ use App\Filament\Resources\OrderResource\RelationManagers\InvoicesRelationManage
 use App\Models\Order;
 use App\Models\Brand;
 use App\Models\Price;
-use App\Models\SelfDrive\Price as SelfDrivePrice;
 use App\Models\Product;
 use App\Models\User;
-use App\Models\Vehicle;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -102,7 +100,6 @@ class OrderResource extends Resource
                             'return' => 'Round Trip / Multi-City',
                             'local' => 'Local',
                             'airport' => 'Airport',
-                            'self_drive' => 'Self Drive',
                         ])
                         ->default('one_way')
                         ->required()
@@ -121,13 +118,6 @@ class OrderResource extends Resource
                             $set('coupon_value', 0);
                             $set('grand_total', 0);
                             $set('items', []);
-                            $set('sd_vehicle_id', null);
-                            $set('sd_rental_plan', 'daily');
-                            $set('sd_rate', 0);
-                            $set('sd_booked_hours', 0);
-                            $set('sd_total_days', 0);
-                            $set('sd_security_deposit', 0);
-                            $set('sd_pickup_location', null);
                         }),
 
                     Forms\Components\Select::make('pickup_brand_id')
@@ -146,9 +136,6 @@ class OrderResource extends Resource
                         ->afterStateUpdated(function ($state, Set $set, Get $get): void {
                             $brand = $state ? Brand::query()->find($state) : null;
                             $set('cityFrom', $brand?->name);
-                            if ($get('ride_type') === 'self_drive') {
-                                $set('sd_pickup_location', $brand?->name);
-                            }
                             $set('selected_product_id', null);
                             $set('selected_price_id', null);
                             $set('productName', null);
@@ -205,34 +192,30 @@ class OrderResource extends Resource
                         ->label('Start Date')
                         ->required()
                         ->native(false)
-                        ->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+                        ->live(),
 
                     Forms\Components\TimePicker::make('time')
                         ->label('Start Time')
                         ->seconds(false)
                         ->required()
                         ->native(false)
-                        ->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+                        ->live(),
 
                     Forms\Components\DatePicker::make('dateTo')
                         ->label('End Date')
                         ->afterOrEqual('date')
-                        ->visible(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
-                        ->required(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->visible(fn (Get $get): bool => $get('ride_type') === 'return')
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'return')
                         ->native(false)
-                        ->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+                        ->live(),
 
                     Forms\Components\TimePicker::make('endTime')
                         ->label('End Time')
                         ->seconds(false)
-                        ->visible(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
-                        ->required(fn (Get $get): bool => in_array($get('ride_type'), ['return', 'self_drive'], true))
+                        ->visible(fn (Get $get): bool => $get('ride_type') === 'return')
+                        ->required(fn (Get $get): bool => $get('ride_type') === 'return')
                         ->native(false)
-                        ->live()
-                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
+                        ->live(),
 
                     Forms\Components\TagsInput::make('route_stops')
                         ->label('Additional Cities')
@@ -286,11 +269,8 @@ class OrderResource extends Resource
                         ->native(false)
                         ->live()
                         ->dehydrated(false)
-                        ->required(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
-                        ->helperText(fn (Get $get): string => $get('ride_type') === 'self_drive'
-                            ? 'Self Drive uses the dedicated Self Drive booking workflow to preserve availability, KYC and OTP checks.'
-                            : 'Only matching active products are shown.')
-                        ->disabled(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->required()
+                        ->helperText('Only matching active products are shown.')
                         ->afterStateUpdated(function ($state, Set $set): void {
                             $product = $state ? Product::query()->find($state) : null;
                             $set('productName', $product?->name);
@@ -335,8 +315,7 @@ class OrderResource extends Resource
                         ->native(false)
                         ->live()
                         ->dehydrated(false)
-                        ->required(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
-                        ->disabled(fn (Get $get): bool => $get('ride_type') === 'self_drive')
+                        ->required()
                         ->afterStateUpdated(function ($state, Set $set, Get $get): void {
                             $price = $state
                                 ? Price::query()->with('category')->find($state)
@@ -454,108 +433,7 @@ class OrderResource extends Resource
                         ->collapsed()
                         ->columnSpanFull(),
                 ])
-                ->columns(3)
-                ->visible(fn (Get $get): bool => $get('ride_type') !== 'self_drive'),
-
-            Forms\Components\Section::make('Self Drive Vehicle & Fare')
-                ->description('Select the actual vehicle and rental plan. Duration and fare are calculated from Laravel database pricing.')
-                ->schema([
-                    Forms\Components\TextInput::make('sd_pickup_location')
-                        ->label('Pickup Location')
-                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
-                        ->maxLength(255),
-
-                    Forms\Components\Select::make('sd_vehicle_id')
-                        ->label('Self Drive Vehicle')
-                        ->options(function (): array {
-                            return Vehicle::query()
-                                ->with('transporter')
-                                ->where('is_active', true)
-                                ->orderBy('car_company_name')
-                                ->orderBy('model_name')
-                                ->limit(300)
-                                ->get()
-                                ->mapWithKeys(function (Vehicle $vehicle): array {
-                                    $name = trim(($vehicle->car_company_name ?? '') . ' ' . ($vehicle->model_name ?? ''));
-                                    $number = $vehicle->vehicle_number ?: 'No Number';
-                                    $partner = $vehicle->transporter?->company_name ?: 'Partner';
-
-                                    return [$vehicle->id => trim("{$name} | {$number} | {$partner}", ' |')];
-                                })
-                                ->all();
-                        })
-                        ->searchable()
-                        ->preload()
-                        ->native(false)
-                        ->live()
-                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
-                        ->afterStateUpdated(function ($state, Get $get, Set $set): void {
-                            $set('sd_rental_plan', 'daily');
-                            static::loadSelfDriveVehiclePricing((int) ($state ?: 0), $set);
-                            static::recalculateSelfDrive($get, $set);
-                        }),
-
-                    Forms\Components\Select::make('sd_rental_plan')
-                        ->label('Rental Plan')
-                        ->options(function (Get $get): array {
-                            $vehicleId = (int) ($get('sd_vehicle_id') ?: 0);
-                            return static::selfDrivePlanOptions($vehicleId);
-                        })
-                        ->default('daily')
-                        ->native(false)
-                        ->live()
-                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
-                        ->afterStateUpdated(fn (Get $get, Set $set) => static::recalculateSelfDrive($get, $set)),
-
-                    Forms\Components\TextInput::make('sd_booked_hours')
-                        ->label('Duration Hours')
-                        ->numeric()
-                        ->suffix('hrs')
-                        ->readOnly()
-                        ->dehydrated(),
-
-                    Forms\Components\TextInput::make('sd_total_days')
-                        ->label('Duration Days')
-                        ->numeric()
-                        ->suffix('days')
-                        ->readOnly()
-                        ->dehydrated(),
-
-                    Forms\Components\TextInput::make('sd_rate')
-                        ->label('Database Rate')
-                        ->numeric()
-                        ->prefix('₹')
-                        ->readOnly()
-                        ->dehydrated(),
-
-                    Forms\Components\TextInput::make('sd_security_deposit')
-                        ->label('Security Deposit')
-                        ->numeric()
-                        ->prefix('₹')
-                        ->readOnly()
-                        ->dehydrated(),
-
-                    Forms\Components\TextInput::make('sd_calculated_amount')
-                        ->label('Calculated Rental Fare')
-                        ->numeric()
-                        ->prefix('₹')
-                        ->readOnly()
-                        ->dehydrated(),
-
-                    Forms\Components\TextInput::make('sd_total_amount')
-                        ->label('Final Booking Amount')
-                        ->numeric()
-                        ->prefix('₹')
-                        ->required(fn (Get $get): bool => $get('ride_type') === 'self_drive')
-                        ->live(),
-
-                    Forms\Components\Placeholder::make('sd_availability_note')
-                        ->label('Availability')
-                        ->content('Availability is checked again at Create Booking time to prevent overlapping vehicle bookings.')
-                        ->columnSpanFull(),
-                ])
-                ->columns(3)
-                ->visible(fn (Get $get): bool => $get('ride_type') === 'self_drive'),
+                ->columns(3),
 
             Forms\Components\Section::make('Payment & Status')
                 ->schema([
@@ -570,9 +448,7 @@ class OrderResource extends Resource
                         ->native(false)
                         ->live()
                         ->afterStateUpdated(function ($state, Set $set, Get $get): void {
-                            $bookingAmount = $get('ride_type') === 'self_drive'
-                                ? max(0, (float) ($get('sd_total_amount') ?? 0))
-                                : max(0, (float) ($get('grand_total') ?? 0));
+                            $bookingAmount = max(0, (float) ($get('grand_total') ?? 0));
 
                             if ($state === 'full') {
                                 $set('payment_request_amount', $bookingAmount);
@@ -589,9 +465,7 @@ class OrderResource extends Resource
                         ->prefix('₹')
                         ->default(500)
                         ->required()
-                        ->maxValue(fn (Get $get) => $get('ride_type') === 'self_drive'
-                            ? max(0, (float) ($get('sd_total_amount') ?? 0))
-                            : max(0, (float) ($get('grand_total') ?? 0)))
+                        ->maxValue(fn (Get $get) => max(0, (float) ($get('grand_total') ?? 0)))
                         ->helperText('After the booking is created, this amount can be used to generate the Razorpay payment link.'),
 
                     Forms\Components\Select::make('payment_method')
@@ -630,7 +504,6 @@ class OrderResource extends Resource
                             'closed' => 'success',
                             'refund' => 'info',
                         ])
-                        ->visible(fn (Get $get): bool => $get('ride_type') !== 'self_drive')
                         ->columnSpanFull(),
 
                     Forms\Components\TextInput::make('coupon_name')
@@ -644,157 +517,6 @@ class OrderResource extends Resource
                 ])
                 ->columns(3),
         ]);
-    }
-
-    public static function loadSelfDriveVehiclePricing(int $vehicleId, Set $set): void
-    {
-        $vehicle = $vehicleId > 0 ? Vehicle::query()->find($vehicleId) : null;
-
-        if (! $vehicle) {
-            $set('sd_rate', 0);
-            $set('sd_security_deposit', 0);
-            return;
-        }
-
-        $price = static::selfDrivePriceForVehicle($vehicle);
-
-        $set('sd_security_deposit', max(0, (float) (
-            $price?->security_deposit
-            ?? $vehicle->security_deposit
-            ?? 0
-        )));
-    }
-
-    public static function selfDrivePlanOptions(int $vehicleId): array
-    {
-        $vehicle = $vehicleId > 0 ? Vehicle::query()->find($vehicleId) : null;
-
-        if (! $vehicle) {
-            return [];
-        }
-
-        $price = static::selfDrivePriceForVehicle($vehicle);
-        $options = [];
-
-        $rates = [
-            'hourly' => (float) ($price?->hourly_price ?? $vehicle->hourly_price ?? 0),
-            'daily' => (float) ($price?->daily_price ?? $vehicle->daily_price ?? 0),
-            'weekly' => (float) ($price?->weekly_price ?? 0),
-            'monthly' => (float) ($price?->monthly_price ?? 0),
-        ];
-
-        foreach ($rates as $key => $rate) {
-            if ($rate <= 0) {
-                continue;
-            }
-
-            $options[$key] = Str::headline($key) . ' — ₹' . number_format($rate, 2);
-        }
-
-        return $options;
-    }
-
-    public static function recalculateSelfDrive(Get $get, Set $set): void
-    {
-        if ($get('ride_type') !== 'self_drive') {
-            return;
-        }
-
-        $vehicleId = (int) ($get('sd_vehicle_id') ?: 0);
-        $date = $get('date');
-        $time = $get('time');
-        $dateTo = $get('dateTo');
-        $endTime = $get('endTime');
-
-        if ($vehicleId <= 0 || ! $date || ! $time || ! $dateTo || ! $endTime) {
-            return;
-        }
-
-        try {
-            $start = Carbon::parse($date . ' ' . $time);
-            $end = Carbon::parse($dateTo . ' ' . $endTime);
-        } catch (\Throwable) {
-            return;
-        }
-
-        if ($end->lte($start)) {
-            $set('sd_booked_hours', 0);
-            $set('sd_total_days', 0);
-            $set('sd_rate', 0);
-            $set('sd_calculated_amount', 0);
-            $set('sd_total_amount', 0);
-            return;
-        }
-
-        $vehicle = Vehicle::query()->find($vehicleId);
-
-        if (! $vehicle) {
-            return;
-        }
-
-        $price = static::selfDrivePriceForVehicle($vehicle);
-        $hours = max(1, (int) ceil($start->diffInMinutes($end) / 60));
-        $days = max(1, (int) ceil($hours / 24));
-        $plan = (string) ($get('sd_rental_plan') ?: 'daily');
-
-        $rate = match ($plan) {
-            'hourly' => (float) ($price?->hourly_price ?? $vehicle->hourly_price ?? 0),
-            'weekly' => (float) ($price?->weekly_price ?? 0),
-            'monthly' => (float) ($price?->monthly_price ?? 0),
-            default => (float) ($price?->daily_price ?? $vehicle->daily_price ?? 0),
-        };
-
-        $units = match ($plan) {
-            'hourly' => $hours,
-            'weekly' => max(1, (int) ceil($days / 7)),
-            'monthly' => max(1, (int) ceil($days / 30)),
-            default => $days,
-        };
-
-        $minimumHours = max(1, (int) (
-            $price?->minimum_booking_hours
-            ?? $vehicle->minimum_booking_hours
-            ?? 1
-        ));
-
-        if ($plan === 'hourly') {
-            $units = max($units, $minimumHours);
-        }
-
-        $fare = round(max(0, $rate) * max(1, $units), 2);
-
-        $set('sd_booked_hours', $hours);
-        $set('sd_total_days', $days);
-        $set('sd_rate', $rate);
-        $set('sd_security_deposit', max(0, (float) (
-            $price?->security_deposit
-            ?? $vehicle->security_deposit
-            ?? 0
-        )));
-        $set('sd_calculated_amount', $fare);
-        $set('sd_total_amount', $fare);
-
-        if ($get('payment_request_type') === 'full') {
-            $set('payment_request_amount', $fare);
-        } elseif ($get('payment_request_type') === 'token') {
-            $set('payment_request_amount', min(500, $fare));
-        } elseif ((float) ($get('payment_request_amount') ?? 0) > $fare) {
-            $set('payment_request_amount', $fare);
-        }
-    }
-
-    private static function selfDrivePriceForVehicle(Vehicle $vehicle): ?SelfDrivePrice
-    {
-        $productId = (int) ($vehicle->product_id ?? 0);
-
-        if ($productId <= 0) {
-            return null;
-        }
-
-        return SelfDrivePrice::query()
-            ->where('product_id', $productId)
-            ->where('is_active', true)
-            ->first();
     }
 
     public static function table(Table $table): Table
@@ -1166,7 +888,6 @@ class OrderResource extends Resource
             'return' => 'Round Trip',
             'local' => 'Local',
             'airport' => 'Airport',
-            'self_drive' => 'Self Drive',
         ];
     }
 

@@ -77,8 +77,29 @@ class Order extends Model
             return (string) $this->booking_no;
         }
 
-        return 'DURA' . str_pad(
-            (string) $this->id,
+        return $this->buildBookingNumber();
+    }
+
+    /**
+     * Build the canonical booking number for With Driver bookings.
+     *
+     * One Way    => OW000123
+     * Round Trip => RT000123
+     * Local      => LC000123
+     * Airport    => AP000123
+     */
+    public function buildBookingNumber(): string
+    {
+        $prefix = match ((string) $this->ride_type) {
+            'one_way' => 'OW',
+            'return', 'round_trip' => 'RT',
+            'local' => 'LC',
+            'airport', 'airport_transfer' => 'AP',
+            default => 'BK',
+        };
+
+        return $prefix . str_pad(
+            (string) $this->getKey(),
             6,
             '0',
             STR_PAD_LEFT
@@ -151,16 +172,11 @@ class Order extends Model
         parent::boot();
 
         static::created(function (self $order): void {
-            if (empty($order->booking_no)) {
-                $order->forceFill([
-                    'booking_no' => 'DURA' . str_pad(
-                        (string) $order->id,
-                        6,
-                        '0',
-                        STR_PAD_LEFT
-                    ),
-                ])->saveQuietly();
-            }
+            // Booking number is generated centrally at model level so Admin,
+            // Website and Flutter/API bookings all use the same format.
+            $order->forceFill([
+                'booking_no' => $order->buildBookingNumber(),
+            ])->saveQuietly();
         });
 
         static::created(function ($order) {

@@ -332,8 +332,11 @@ class SelfDriveBooking extends Model
     protected static function booted(): void
     {
         static::creating(function (self $booking): void {
-            $booking->booking_no ??=
-                'SD' . now()->format('YmdHis') . random_int(10, 99);
+            /*
+             * booking_no is generated after insert so every creation source
+             * (Admin, Website, Flutter/API) uses the same database ID based
+             * format: SD000001, SD000002, ...
+             */
 
             $booking->status ??= self::STATUS_PENDING;
             $booking->booking_status ??=
@@ -347,6 +350,19 @@ class SelfDriveBooking extends Model
             $booking->syncVehicleData();
             $booking->syncDuration();
             $booking->syncPayment();
+        });
+
+        static::created(function (self $booking): void {
+            if (blank($booking->booking_no)) {
+                $booking->forceFill([
+                    'booking_no' => 'SD' . str_pad(
+                        (string) $booking->getKey(),
+                        6,
+                        '0',
+                        STR_PAD_LEFT
+                    ),
+                ])->saveQuietly();
+            }
         });
 
         static::updating(function (self $booking): void {

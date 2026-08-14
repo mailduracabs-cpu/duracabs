@@ -91,8 +91,10 @@ class SelfDriveBookingResource extends Resource
             Forms\Components\Section::make('Booking')
                 ->schema([
                     Forms\Components\TextInput::make('booking_no')
-                        ->default(fn () => 'SD' . now()->format('ymdHis') . strtoupper(Str::random(3)))
-                        ->required()->unique(ignoreRecord: true),
+                        ->label('Booking ID')
+                        ->placeholder('Auto generated after booking is saved')
+                        ->readOnly()
+                        ->dehydrated(false),
 
                     Forms\Components\Select::make('customer_id')
                         ->label('Customer')
