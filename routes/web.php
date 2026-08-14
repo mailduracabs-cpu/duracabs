@@ -230,6 +230,11 @@ Route::middleware('signed')->group(function () {
         [InvoiceController::class, 'shared']
     )->name('invoice.shared');
 
+    Route::get(
+        '/agreement/self-drive/share/{booking}',
+        [InvoiceController::class, 'sharedSelfDriveAgreement']
+    )->name('self-drive.agreement.shared');
+
 });
 
 /*

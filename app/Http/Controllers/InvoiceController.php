@@ -58,6 +58,28 @@ class InvoiceController extends Controller
         );
     }
 
+
+    public function sharedSelfDriveAgreement(
+        Request $request,
+        string $booking
+    ) {
+        $agreement = $this->resolveSelfDriveAgreement($booking);
+
+        abort_if(
+            ! $agreement,
+            Response::HTTP_NOT_FOUND,
+            'Self Drive booking not found.'
+        );
+
+        return view(
+            'agreements.self-drive',
+            [
+                'agreement' => $agreement,
+                'isSharedView' => true,
+            ]
+        );
+    }
+
     private function downloadPdf(array $invoice)
     {
         $fileName = sprintf(
@@ -122,6 +144,193 @@ class InvoiceController extends Controller
         }
 
         return null;
+    }
+
+    private function resolveSelfDriveAgreement(
+        string $booking
+    ): ?array {
+        $booking = trim($booking);
+
+        if ($booking === '') {
+            return null;
+        }
+
+        $record = $this->findSelfDriveBooking($booking);
+
+        if (! $record) {
+            return null;
+        }
+
+        $customer = (
+            isset($record->customer_id)
+            && $record->customer_id
+            && Schema::hasTable('users')
+        )
+            ? DB::table('users')
+                ->where('id', $record->customer_id)
+                ->first()
+            : null;
+
+        $vehicle = (
+            isset($record->vehicle_id)
+            && $record->vehicle_id
+            && Schema::hasTable('vehicles')
+        )
+            ? DB::table('vehicles')
+                ->where('id', $record->vehicle_id)
+                ->first()
+            : null;
+
+        $bookingNo = filled($record->booking_no ?? null)
+            ? (string) $record->booking_no
+            : 'SD' . str_pad(
+                (string) $record->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+
+        $start = $this->dateTimeParts(
+            $record->start_datetime ?? null
+        );
+
+        $end = $this->dateTimeParts(
+            $record->end_datetime ?? null
+        );
+
+        $pickup = $this->dateTimeParts(
+            $record->trip_start_datetime
+                ?? $record->start_datetime
+                ?? null
+        );
+
+        $return = $this->dateTimeParts(
+            $record->trip_end_datetime
+                ?? $record->end_datetime
+                ?? null
+        );
+
+        $vehicleName = trim(
+            (string) ($vehicle->car_company_name ?? '')
+            . ' '
+            . (string) ($vehicle->model_name ?? '')
+        );
+
+        $carColor = (string) (
+            $vehicle->color
+            ?? $vehicle->vehicle_color
+            ?? $vehicle->car_color
+            ?? ''
+        );
+
+        $bookingAmount = (float) (
+            $record->manual_price
+            ?? $record->final_amount
+            ?? $record->total_amount
+            ?? 0
+        );
+
+        return [
+            'booking_no' => $bookingNo,
+            'agreement_date' => now()->format('d M Y'),
+
+            'renter_name' => (string) (
+                $customer->name
+                ?? ''
+            ),
+            'id_number' => (string) (
+                $customer->aadhar_number
+                ?? ''
+            ),
+            'address' => (string) (
+                $customer->office_address
+                ?? ''
+            ),
+            'hotel' => (string) (
+                $record->hotel_name
+                ?? ''
+            ),
+            'room_no' => (string) (
+                $record->room_no
+                ?? ''
+            ),
+            'mobile' => (string) (
+                $customer->mobile
+                ?? ''
+            ),
+            'secondary_mobile' => (string) (
+                $record->secondary_mobile
+                ?? ''
+            ),
+
+            'car_number' => (string) (
+                $vehicle->vehicle_number
+                ?? ''
+            ),
+            'car_name' => $vehicleName,
+            'car_color' => $carColor,
+
+            'trip_plan' => (string) (
+                $record->trip_plan
+                ?? $record->pickup_location
+                ?? $record->delivery_address
+                ?? ''
+            ),
+
+            'start_date' => $start['date'],
+            'start_time' => $start['time'],
+            'end_date' => $end['date'],
+            'end_time' => $end['time'],
+
+            'booking_amount' => $bookingAmount,
+            'security_deposit' => (float) (
+                $record->security_deposit
+                ?? 0
+            ),
+
+            'primary_operator' => (string) (
+                $customer->name
+                ?? ''
+            ),
+            'operator_mobile' => (string) (
+                $customer->mobile
+                ?? ''
+            ),
+            'driving_licence_number' => (string) (
+                $customer->driving_licence_number
+                ?? ''
+            ),
+
+            'pickup_date' => $pickup['date'],
+            'pickup_time' => $pickup['time'],
+            'return_date' => $return['date'],
+            'return_time' => $return['time'],
+        ];
+    }
+
+    private function dateTimeParts(
+        mixed $value
+    ): array {
+        if (blank($value)) {
+            return [
+                'date' => '',
+                'time' => '',
+            ];
+        }
+
+        try {
+            $dateTime = \Carbon\Carbon::parse($value);
+
+            return [
+                'date' => $dateTime->format('d M Y'),
+                'time' => $dateTime->format('h:i A'),
+            ];
+        } catch (\Throwable) {
+            return [
+                'date' => (string) $value,
+                'time' => '',
+            ];
+        }
     }
 
     private function findTaxiBooking(

@@ -1366,6 +1366,23 @@ class SelfDriveBookingResource extends Resource
                     )
                     ->openUrlInNewTab(),
 
+                Tables\Actions\Action::make('rental_agreement_pdf')
+                    ->label('Rental Agreement PDF')
+                    ->icon('heroicon-o-document-text')
+                    ->color('info')
+                    ->visible(fn (): bool =>
+                        Route::has('self-drive.agreement.shared'))
+                    ->url(fn (SelfDriveBooking $record): string =>
+                        URL::temporarySignedRoute(
+                            'self-drive.agreement.shared',
+                            now()->addMinutes(30),
+                            [
+                                'booking' => $record->booking_no,
+                            ]
+                        )
+                    )
+                    ->openUrlInNewTab(),
+
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => ! static::isTransporterPanel()),
             ])
