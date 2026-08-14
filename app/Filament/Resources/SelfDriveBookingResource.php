@@ -27,9 +27,9 @@ class SelfDriveBookingResource extends Resource
 {
     protected static ?string $model = SelfDriveBooking::class;
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationGroup = 'Self Drive';
+    protected static ?string $navigationGroup = null;
     protected static ?string $navigationLabel = 'Self Drive Bookings';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 4;
 
     public static function isTransporterPanel(): bool
     {
