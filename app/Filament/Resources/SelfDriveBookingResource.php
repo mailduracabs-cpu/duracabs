@@ -93,9 +93,10 @@ class SelfDriveBookingResource extends Resource
                 ->schema([
                     Forms\Components\TextInput::make('booking_no')
                         ->label('Booking No')
-                        ->placeholder('Auto generated after booking is saved')
                         ->readOnly()
-                        ->dehydrated(false),
+                        ->dehydrated(false)
+                        ->visible(fn (?SelfDriveBooking $record): bool =>
+                            (bool) $record?->exists),
 
                     Forms\Components\Select::make('customer_id')
                         ->label('Customer')
@@ -149,7 +150,10 @@ class SelfDriveBookingResource extends Resource
                         ->label('Start Time')
                         ->seconds(false)
                         ->required()
-                        ->native(false)
+                        ->native()
+                        ->displayFormat('h:i A')
+                        ->format('H:i')
+                        ->suffixIcon('heroicon-m-clock')
                         ->live()
                         ->dehydrated(false)
                         ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
@@ -178,7 +182,10 @@ class SelfDriveBookingResource extends Resource
                         ->label('End Time')
                         ->seconds(false)
                         ->required()
-                        ->native(false)
+                        ->native()
+                        ->displayFormat('h:i A')
+                        ->format('H:i')
+                        ->suffixIcon('heroicon-m-clock')
                         ->live()
                         ->dehydrated(false)
                         ->afterStateHydrated(function (Set $set, ?SelfDriveBooking $record): void {
