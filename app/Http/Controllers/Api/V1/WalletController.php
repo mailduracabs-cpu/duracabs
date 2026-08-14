@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Models\User;
 use App\Services\OtpService;
+use App\Services\RazorpayService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -252,6 +253,317 @@ class WalletController extends BaseApiController
             $result['data'] ?? null,
             $result['message'] ?? 'Cashback credited successfully'
         );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Customer Razorpay Wallet Recharge
+    |--------------------------------------------------------------------------
+    */
+
+    public function createRechargeOrder(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'amount' => ['required', 'numeric', 'min:1', 'max:500000'],
+            'currency' => ['nullable', 'string', 'size:3'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error(
+                $validator->errors()->first(),
+                422,
+                $validator->errors()
+            );
+        }
+
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        $amount = round((float) $request->input('amount'), 2);
+        $currency = strtoupper(
+            trim((string) $request->input('currency', 'INR'))
+        );
+
+        if ($currency !== 'INR') {
+            return $this->error(
+                'Only INR wallet recharge is supported.',
+                422
+            );
+        }
+
+        $receipt = 'WLT-' . $user->id . '-' . now()->format('YmdHis')
+            . '-' . strtoupper(substr(md5(uniqid('', true)), 0, 6));
+
+        $result = RazorpayService::createOrder(
+            $amount,
+            $receipt,
+            [
+                'purpose' => 'wallet_recharge',
+                'user_id' => (string) $user->id,
+                'customer_mobile' => (string) ($user->mobile ?? ''),
+                'source' => 'dura_cabs_app',
+            ],
+            $currency
+        );
+
+        if (! ($result['status'] ?? false)) {
+            return $this->error(
+                $result['message'] ?? 'Unable to create wallet recharge order.',
+                422,
+                $result
+            );
+        }
+
+        $order = $result['data'] ?? [];
+
+        if (! is_array($order) || empty($order['id'])) {
+            return $this->error(
+                'Invalid Razorpay order response.',
+                502
+            );
+        }
+
+        $key = RazorpayService::publicKey();
+
+        if (! $key) {
+            return $this->error(
+                'Razorpay public key is not configured.',
+                500
+            );
+        }
+
+        Log::info('Wallet recharge Razorpay order created', [
+            'user_id' => $user->id,
+            'amount' => $amount,
+            'order_id' => $order['id'],
+            'receipt' => $receipt,
+        ]);
+
+        return $this->success([
+            'order_id' => (string) $order['id'],
+            'razorpay_order_id' => (string) $order['id'],
+            'key' => $key,
+            'amount' => $amount,
+            'amount_paise' => (int) round($amount * 100),
+            'currency' => $currency,
+            'receipt' => $receipt,
+        ], 'Wallet recharge order created successfully.');
+    }
+
+    public function verifyRechargePayment(
+        Request $request,
+        WalletService $walletService
+    ): JsonResponse {
+        $validator = Validator::make($request->all(), [
+            'razorpay_order_id' => ['required', 'string', 'max:100'],
+            'razorpay_payment_id' => ['required', 'string', 'max:100'],
+            'razorpay_signature' => ['required', 'string', 'max:255'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error(
+                $validator->errors()->first(),
+                422,
+                $validator->errors()
+            );
+        }
+
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error('Unauthenticated.', 401);
+        }
+
+        $orderId = trim((string) $request->input('razorpay_order_id'));
+        $paymentId = trim((string) $request->input('razorpay_payment_id'));
+        $signature = trim((string) $request->input('razorpay_signature'));
+
+        $signatureResult = RazorpayService::verifyPayment(
+            $orderId,
+            $paymentId,
+            $signature
+        );
+
+        if (! ($signatureResult['status'] ?? false)) {
+            return $this->error(
+                $signatureResult['message'] ?? 'Invalid Razorpay signature.',
+                422
+            );
+        }
+
+        $orderResult = RazorpayService::fetchOrder($orderId);
+
+        if (! ($orderResult['status'] ?? false)) {
+            return $this->error(
+                $orderResult['message'] ?? 'Unable to fetch Razorpay order.',
+                422
+            );
+        }
+
+        $order = $orderResult['data'] ?? null;
+
+        if (! is_array($order)) {
+            return $this->error('Invalid Razorpay order details.', 502);
+        }
+
+        $notes = is_array($order['notes'] ?? null)
+            ? $order['notes']
+            : [];
+
+        if (
+            (string) ($notes['purpose'] ?? '') !== 'wallet_recharge'
+            || (string) ($notes['user_id'] ?? '') !== (string) $user->id
+        ) {
+            Log::warning('Wallet recharge order ownership mismatch', [
+                'authenticated_user_id' => $user->id,
+                'order_id' => $orderId,
+                'notes' => $notes,
+            ]);
+
+            return $this->error(
+                'This wallet recharge order does not belong to your account.',
+                403
+            );
+        }
+
+        $paymentResult = RazorpayService::fetchPayment($paymentId);
+
+        if (! ($paymentResult['status'] ?? false)) {
+            return $this->error(
+                $paymentResult['message'] ?? 'Unable to fetch Razorpay payment.',
+                422
+            );
+        }
+
+        $payment = $paymentResult['data'] ?? null;
+
+        if (! is_array($payment)) {
+            return $this->error('Invalid Razorpay payment details.', 502);
+        }
+
+        if (
+            ! empty($payment['order_id'])
+            && ! hash_equals(
+                (string) $orderId,
+                (string) $payment['order_id']
+            )
+        ) {
+            return $this->error(
+                'Razorpay payment does not belong to this recharge order.',
+                422
+            );
+        }
+
+        $orderAmountPaise = (int) ($order['amount'] ?? 0);
+        $paymentAmountPaise = (int) ($payment['amount'] ?? 0);
+
+        if (
+            $orderAmountPaise <= 0
+            || $paymentAmountPaise <= 0
+            || $orderAmountPaise !== $paymentAmountPaise
+        ) {
+            return $this->error(
+                'Razorpay payment amount does not match the wallet recharge amount.',
+                422
+            );
+        }
+
+        $orderCurrency = strtoupper(
+            trim((string) ($order['currency'] ?? ''))
+        );
+        $paymentCurrency = strtoupper(
+            trim((string) ($payment['currency'] ?? ''))
+        );
+
+        if ($orderCurrency !== 'INR' || $paymentCurrency !== 'INR') {
+            return $this->error(
+                'Invalid wallet recharge currency.',
+                422
+            );
+        }
+
+        $paymentStatus = strtolower(
+            trim((string) ($payment['status'] ?? ''))
+        );
+
+        if ($paymentStatus === 'authorized') {
+            $captureResult = RazorpayService::capturePayment(
+                $paymentId,
+                $paymentAmountPaise / 100,
+                'INR'
+            );
+
+            if (! ($captureResult['status'] ?? false)) {
+                return $this->error(
+                    $captureResult['message']
+                        ?? 'Unable to capture Razorpay payment.',
+                    422
+                );
+            }
+
+            $payment = is_array($captureResult['data'] ?? null)
+                ? $captureResult['data']
+                : $payment;
+
+            $paymentStatus = strtolower(
+                trim((string) ($payment['status'] ?? ''))
+            );
+        }
+
+        if ($paymentStatus !== 'captured') {
+            return $this->error(
+                'Razorpay payment has not been captured.',
+                422
+            );
+        }
+
+        $amount = round($paymentAmountPaise / 100, 2);
+        $reference = 'razorpay_wallet:' . $paymentId;
+
+        $walletResult = $walletService->addMoney(
+            $user,
+            $amount,
+            'razorpay',
+            $reference,
+            [
+                'purpose' => 'wallet_recharge',
+                'razorpay_order_id' => $orderId,
+                'razorpay_payment_id' => $paymentId,
+                'razorpay_signature' => $signature,
+                'receipt' => (string) ($order['receipt'] ?? ''),
+                'currency' => 'INR',
+            ]
+        );
+
+        if (! ($walletResult['status'] ?? false)) {
+            return $this->error(
+                $walletResult['message'] ?? 'Unable to credit wallet.',
+                (int) ($walletResult['code'] ?? 422),
+                $walletResult['errors'] ?? null
+            );
+        }
+
+        $balanceResult = $walletService->balance($user);
+
+        Log::info('Customer wallet recharge completed', [
+            'user_id' => $user->id,
+            'amount' => $amount,
+            'order_id' => $orderId,
+            'payment_id' => $paymentId,
+            'reference' => $reference,
+        ]);
+
+        return $this->success([
+            'transaction' => $walletResult['data'] ?? null,
+            'wallet' => $balanceResult['data'] ?? null,
+            'amount' => $amount,
+            'razorpay_order_id' => $orderId,
+            'razorpay_payment_id' => $paymentId,
+        ], 'Wallet recharged successfully.');
     }
 
     /*
