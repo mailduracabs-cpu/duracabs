@@ -829,33 +829,35 @@ class OrderResource extends Resource
         ];
     }
 
-    public static function getEloquentQuery(): Builder
-    {
-        $query = parent::getEloquentQuery()->with([
+   public static function getEloquentQuery(): Builder
+{
+    $query = parent::getEloquentQuery()
+        ->with([
             'user',
             'items',
-        ]);
+        ])
+        ->where(function (Builder $builder): void {
+            $builder
+                ->whereNull('ride_type')
+                ->orWhere('ride_type', '!=', 'self_drive');
+        });
 
-        $user = auth()->user();
+    $user = auth()->user();
 
-        if (! $user) {
-            return $query->whereRaw('1 = 0');
-        }
-
-        if ($user->hasRole('Admin')) {
-            return $query;
-        }
-
-        if ($user->hasRole('Transporter')) {
-            return $query->where('transporter_id', $user->id);
-        }
-
-        if ($user->hasRole('Driver')) {
-            return $query->where('driver_id', $user->id);
-        }
-
-        return $query->where('user_id', $user->id);
+    if (! $user) {
+        return $query->whereRaw('1 = 0');
     }
+
+    if ($user->hasRole('Admin')) {
+        return $query;
+    }
+
+    if ($user->hasRole('Transporter')) {
+        return $query->where('transporter_id', $user->id);
+    }
+
+    return $query->whereRaw('1 = 0');
+}
 
     public static function bookingNumber(Order $record): string
     {
