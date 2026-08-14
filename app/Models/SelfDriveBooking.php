@@ -4,11 +4,13 @@ namespace App\Models;
 
 use App\Models\FleetManagement\TransporterProfile;
 use App\Services\FinalBillingService;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class SelfDriveBooking extends Model
 {
@@ -414,6 +416,131 @@ class SelfDriveBooking extends Model
                 $booking->syncPayment();
             }
         });
+
+        static::updated(function (self $booking): void {
+            if (! $booking->wasChanged('status')) {
+                return;
+            }
+
+            try {
+                $booking->sendStatusWhatsApp();
+            } catch (\Throwable $e) {
+                Log::error('Self Drive status WhatsApp failed.', [
+                    'booking_id' => $booking->id,
+                    'booking_no' => $booking->booking_no,
+                    'status' => $booking->status,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
+    }
+
+    public function sendStatusWhatsApp(): void
+    {
+        $this->loadMissing(['customer', 'vehicle', 'transporter']);
+
+        $mobile = trim((string) (
+            $this->customer?->mobile
+            ?? ''
+        ));
+
+        if ($mobile === '') {
+            Log::warning('Self Drive status WhatsApp skipped: customer mobile missing.', [
+                'booking_id' => $this->id,
+                'booking_no' => $this->booking_no,
+                'status' => $this->status,
+            ]);
+            return;
+        }
+
+        $customerName = trim((string) (
+            $this->customer?->name
+            ?? 'Customer'
+        )) ?: 'Customer';
+
+        $vehicleName = trim(
+            (string) ($this->vehicle?->car_company_name ?? '')
+            . ' '
+            . (string) ($this->vehicle?->model_name ?? '')
+        );
+
+        if ($vehicleName === '') {
+            $vehicleName = 'Self Drive Vehicle';
+        }
+
+        $pickup = trim((string) (
+            $this->pickup_location
+            ?: $this->delivery_address
+            ?: 'N/A'
+        ));
+
+        $travelDate = $this->start_datetime
+            ? Carbon::parse($this->start_datetime)->format('d F Y')
+            : 'N/A';
+
+        $travelTime = $this->start_datetime
+            ? Carbon::parse($this->start_datetime)->format('h:i A')
+            : 'N/A';
+
+        $common = [
+            'mobile' => $mobile,
+            'customer_mobile' => $mobile,
+            'customer_name' => $customerName,
+            'booking_id' => (string) ($this->booking_no ?: $this->id),
+            'service_type' => 'Self Drive Car Rental',
+            'vehicle_name' => $vehicleName,
+            'pickup' => $pickup,
+            'route' => $pickup,
+            'travel_date' => $travelDate,
+            'travel_time' => $travelTime,
+            'total_amount' => number_format(
+                (float) ($this->final_amount ?: $this->total_amount ?: 0),
+                2,
+                '.',
+                ''
+            ),
+            'payment_status' => ucfirst(
+                (string) ($this->payment_status ?: 'pending')
+            ),
+            'refund_amount' => number_format(
+                (float) ($this->refund_amount ?? 0),
+                2,
+                '.',
+                ''
+            ),
+        ];
+
+        $event = match ((string) $this->status) {
+            self::STATUS_CONFIRMED => 'selfdrive.booking.confirmed',
+            self::STATUS_RUNNING => 'trip.started',
+            self::STATUS_COMPLETED => 'trip.completed',
+            self::STATUS_CANCELLED,
+            self::STATUS_REJECTED => 'booking.cancelled',
+            default => null,
+        };
+
+        if (! $event) {
+            return;
+        }
+
+        $result = WhatsAppService::dispatchEvent(
+            $event,
+            $common
+        );
+
+        if (! (bool) (
+            $result['status']
+            ?? $result['success']
+            ?? false
+        )) {
+            Log::warning('Self Drive status WhatsApp was not accepted.', [
+                'booking_id' => $this->id,
+                'booking_no' => $this->booking_no,
+                'status' => $this->status,
+                'event' => $event,
+                'result' => $result,
+            ]);
+        }
     }
 
     public function syncVehicleData(): void
