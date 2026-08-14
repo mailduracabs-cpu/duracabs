@@ -72,7 +72,7 @@
                         </div>
 
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Enter 6 Digit OTP
+                            Enter 4 Digit OTP
                         </label>
 
                         <input type="number"
@@ -84,11 +84,7 @@
                             <p class="text-xs text-red-600 mt-2">{{ $message }}</p>
                         @enderror
 
-                        @if ($generatedOtp)
-                            <p class="mt-3 text-xs text-gray-500 text-center">
-                                Testing OTP: <strong>{{ $generatedOtp }}</strong>
-                            </p>
-                        @endif
+                        
 
                         <button type="submit"
                                 class="w-full mt-6 py-4 rounded-2xl bg-blue-600 text-white font-semibold text-base hover:bg-blue-700 shadow-md">
