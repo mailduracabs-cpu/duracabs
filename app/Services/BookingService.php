@@ -380,6 +380,25 @@ class BookingService
             ? preg_replace('/\D+/', '', $mobile)
             : null;
 
+        // Flutter My Bookings currently sends the customer mobile number,
+        // while self-drive bookings are linked by customer_id. Resolve a
+        // dedicated self-drive user ID from the mobile without changing the
+        // existing taxi/website booking filter behaviour.
+        $selfDriveUserId = $userId;
+
+        if (! $selfDriveUserId && $mobile && $this->tableExists('users')) {
+            $selfDriveUserId = DB::table('users')
+                ->whereRaw(
+                    "RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(mobile, ' ', ''), '-', ''), '+', ''), '91', ''), 10) = ?",
+                    [substr($mobile, -10)]
+                )
+                ->value('id');
+
+            $selfDriveUserId = $selfDriveUserId
+                ? (int) $selfDriveUserId
+                : null;
+        }
+
         $bookings = collect();
 
         if ($this->tableExists('orders')) {
@@ -446,8 +465,15 @@ class BookingService
                 ])
                 ->orderByDesc('self_drive_bookings.id');
 
-            if ($userId) {
-                $query->where('self_drive_bookings.customer_id', $userId);
+            if ($selfDriveUserId) {
+                $query->where(
+                    'self_drive_bookings.customer_id',
+                    $selfDriveUserId
+                );
+            } elseif ($mobile) {
+                // A mobile was supplied but no matching customer exists.
+                // Never expose another customer's self-drive bookings.
+                $query->whereRaw('1 = 0');
             }
 
             $selfDrive = $query->limit($limit)->get()->map(function ($booking) {
