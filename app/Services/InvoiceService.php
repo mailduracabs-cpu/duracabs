@@ -343,6 +343,55 @@ class InvoiceService
                     ?? $booking->transporter?->name
                     ?? '',
             ],
+            'agreement' => [
+                'booking_no' => $booking->booking_no
+                    ?: $this->fallbackBookingNumber((int) $booking->id),
+                'renter_name' => $booking->customer?->name ?? '',
+                'id_number' => $booking->customer?->aadhar_number ?? '',
+                'address' => $booking->customer?->office_address ?? '',
+                'hotel' => $booking->getAttribute('hotel_name') ?? '',
+                'room_no' => $booking->getAttribute('room_no') ?? '',
+                'mobile' => $booking->customer?->mobile ?? '',
+                'secondary_mobile' => $booking->getAttribute('secondary_mobile') ?? '',
+                'car_number' => $booking->vehicle?->vehicle_number ?? '',
+                'car_name' => trim(
+                    ($booking->vehicle?->car_company_name ?? '')
+                    . ' '
+                    . ($booking->vehicle?->model_name ?? '')
+                ),
+                'car_color' => $booking->vehicle?->color
+                    ?? $booking->vehicle?->vehicle_color
+                    ?? '',
+                'trip_plan' => $booking->getAttribute('trip_plan')
+                    ?? $booking->pickup_location
+                    ?? '',
+                'start_date' => $booking->start_datetime?->format('d M Y') ?? '',
+                'start_time' => $booking->start_datetime?->format('h:i A') ?? '',
+                'end_date' => $booking->end_datetime?->format('d M Y') ?? '',
+                'end_time' => $booking->end_datetime?->format('h:i A') ?? '',
+                'booking_amount' => (float) (
+                    $booking->final_amount
+                    ?: $booking->total_amount
+                    ?: 0
+                ),
+                'security_deposit' => (float) ($booking->security_deposit ?? 0),
+                'primary_operator' => $booking->customer?->name ?? '',
+                'operator_mobile' => $booking->customer?->mobile ?? '',
+                'driving_licence_number' =>
+                    $booking->customer?->driving_licence_number ?? '',
+                'pickup_date' => $booking->trip_start_datetime?->format('d M Y')
+                    ?? $booking->start_datetime?->format('d M Y')
+                    ?? '',
+                'pickup_time' => $booking->trip_start_datetime?->format('h:i A')
+                    ?? $booking->start_datetime?->format('h:i A')
+                    ?? '',
+                'return_date' => $booking->trip_end_datetime?->format('d M Y')
+                    ?? $booking->end_datetime?->format('d M Y')
+                    ?? '',
+                'return_time' => $booking->trip_end_datetime?->format('h:i A')
+                    ?? $booking->end_datetime?->format('h:i A')
+                    ?? '',
+            ],
             'extra_services' => $extraServices,
             'fare' => array_merge(
                 $billing,
