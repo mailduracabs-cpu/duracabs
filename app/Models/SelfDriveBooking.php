@@ -343,18 +343,23 @@ class SelfDriveBooking extends Model
     {
         static::creating(function (self $booking): void {
             /*
-             * booking_no is generated after insert so every creation source
-             * (Admin, Website, Flutter/API) uses the same database ID based
-             * format: SD000001, SD000002, ...
+             * booking_no column is NOT NULL in the database.
+             * The final SD000001-style number needs the database ID,
+             * which does not exist until after insert.
+             *
+             * Therefore save a unique temporary value for the INSERT,
+             * then replace it in the created event below.
              */
+            if (blank($booking->booking_no)) {
+                $booking->booking_no =
+                    'TMP' . strtoupper(bin2hex(random_bytes(6)));
+            }
 
             $booking->status ??= self::STATUS_PENDING;
-            $booking->booking_status ??=
-                'pending_vendor_confirmation';
+            $booking->booking_status ??= 'pending_vendor_confirmation';
             $booking->vendor_confirmation_status ??= 'pending';
             $booking->document_status ??= 'not_uploaded';
-            $booking->settlement_status ??=
-                self::SETTLEMENT_PENDING;
+            $booking->settlement_status ??= self::SETTLEMENT_PENDING;
             $booking->refund_status ??= 'not_applicable';
 
             $booking->syncVehicleData();
@@ -363,7 +368,19 @@ class SelfDriveBooking extends Model
         });
 
         static::created(function (self $booking): void {
-            if (blank($booking->booking_no)) {
+            /*
+             * Convert only our temporary booking number to the final,
+             * customer-facing booking number.
+             *
+             * Example:
+             * ID 1   => SD000001
+             * ID 27  => SD000027
+             * ID 123 => SD000123
+             */
+            if (
+                blank($booking->booking_no)
+                || str_starts_with((string) $booking->booking_no, 'TMP')
+            ) {
                 $booking->forceFill([
                     'booking_no' => 'SD' . str_pad(
                         (string) $booking->getKey(),
