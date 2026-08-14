@@ -825,6 +825,11 @@ Route::prefix('bike-rental')->group(function (): void {
             'payment',
         ]);
 
+        Route::post('/payment/wallet', [
+            PaymentController::class,
+            'walletPayment',
+        ]);
+
         Route::post('/wallet/refund', [
             WalletController::class,
             'refund',
@@ -1294,10 +1299,6 @@ Route::prefix('bike-rental')->group(function (): void {
             AdminApiController::class,
             'deleteAiImage',
         ]);
-		Route::post('/payment/wallet', [
-    PaymentController::class,
-    'walletPayment',
-]);
 
         Route::post('/ai-image/replace', [
             AdminApiController::class,
