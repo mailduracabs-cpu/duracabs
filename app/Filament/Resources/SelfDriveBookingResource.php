@@ -20,6 +20,8 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -876,6 +878,11 @@ class SelfDriveBookingResource extends Resource
                         $record->syncPayment();
                         $record->save();
 
+                        $record->sendSelfDriveTemplate(
+                            'selfdrive_payment_received',
+                            ['received_amount' => number_format($amount, 2, '.', '')]
+                        );
+
                         Notification::make()
                             ->title('Payment updated')
                             ->body('₹' . number_format($amount, 2) . ' received.')
@@ -1060,6 +1067,11 @@ class SelfDriveBookingResource extends Resource
                             'status' => SelfDriveBooking::STATUS_CONFIRMED,
                         ]);
 
+                        $record->sendSelfDriveTemplate(
+                            'selfdrive_pickup_otp',
+                            ['otp' => $otp]
+                        );
+
                         Notification::make()
                             ->title("Pickup OTP: {$otp}")
                             ->body('OTP verification ke baad customer Start KM aur pickup photos upload karega.')
@@ -1178,6 +1190,11 @@ class SelfDriveBookingResource extends Resource
                             'booking_status' => 'end_otp_generated',
                             'status' => SelfDriveBooking::STATUS_RETURN_PENDING,
                         ]);
+
+                        $record->sendSelfDriveTemplate(
+                            'selfdrive_return_otp',
+                            ['otp' => $otp]
+                        );
 
                         Notification::make()->title("End OTP: {$otp}")
                             ->success()->persistent()->send();
@@ -1332,6 +1349,22 @@ class SelfDriveBookingResource extends Resource
                         $record->refreshTripAmounts();
                         $record->save();
                     }),
+
+                Tables\Actions\Action::make('invoice_pdf')
+                    ->label('Invoice PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->visible(fn (): bool => Route::has('invoice.shared'))
+                    ->url(fn (SelfDriveBooking $record): string =>
+                        URL::temporarySignedRoute(
+                            'invoice.shared',
+                            now()->addMinutes(30),
+                            [
+                                'booking' => $record->booking_no,
+                            ]
+                        )
+                    )
+                    ->openUrlInNewTab(),
 
                 Tables\Actions\DeleteAction::make()
                     ->visible(fn () => ! static::isTransporterPanel()),
