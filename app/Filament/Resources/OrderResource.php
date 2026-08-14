@@ -29,7 +29,7 @@ class OrderResource extends Resource
     protected static ?string $model = Order::class;
     protected static ?int $navigationSort = 3;
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
-    protected static ?string $navigationLabel = 'Bookings';
+    protected static ?string $navigationLabel = 'With Driver Bookings';
 
     public static function form(Form $form): Form
     {
@@ -627,14 +627,12 @@ class OrderResource extends Resource
                 . (string) ($record->cityTo ?: $record->cityFrom ?: 'Destination')
             );
 
-            $serviceType = $record->ride_type === 'self_drive'
-                ? 'Self Drive Car Rental'
-                : match ($record->ride_type) {
-                    'return' => 'Round Trip Taxi',
-                    'local' => 'Local Taxi',
-                    'airport' => 'Airport Taxi',
-                    default => 'One Way Taxi',
-                };
+            $serviceType = match ($record->ride_type) {
+                'return', 'round_trip' => 'Round Trip Taxi',
+                'local' => 'Local Taxi',
+                'airport' => 'Airport Taxi',
+                default => 'One Way Taxi',
+            };
 
             $vehicleName = trim((string) (
                 $record->productName
@@ -674,9 +672,7 @@ class OrderResource extends Resource
 
             $result = match ($state) {
                 'confirm' => WhatsAppService::dispatchEvent(
-                    $record->ride_type === 'self_drive'
-                        ? 'selfdrive.booking.confirmed'
-                        : 'booking.confirmed',
+                    'booking.confirmed',
                     $commonPayload
                 ),
 
@@ -698,9 +694,7 @@ class OrderResource extends Resource
                 ),
 
                 'refund' => WhatsAppService::dispatchEvent(
-                    $record->ride_type === 'self_drive'
-                        ? 'security.refunded'
-                        : 'refund.processed',
+                    'refund.processed',
                     array_merge($commonPayload, [
                         'refund_amount' => number_format(
                             (float) (

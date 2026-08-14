@@ -28,7 +28,7 @@ class SelfDriveBookingResource extends Resource
     protected static ?string $model = SelfDriveBooking::class;
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
     protected static ?string $navigationGroup = 'Self Drive';
-    protected static ?string $navigationLabel = 'Bookings';
+    protected static ?string $navigationLabel = 'Self Drive Bookings';
     protected static ?int $navigationSort = 2;
 
     public static function isTransporterPanel(): bool
@@ -91,7 +91,7 @@ class SelfDriveBookingResource extends Resource
             Forms\Components\Section::make('Booking')
                 ->schema([
                     Forms\Components\TextInput::make('booking_no')
-                        ->label('Booking ID')
+                        ->label('Booking No')
                         ->placeholder('Auto generated after booking is saved')
                         ->readOnly()
                         ->dehydrated(false),
@@ -335,6 +335,7 @@ class SelfDriveBookingResource extends Resource
             ->defaultSort('id', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('booking_no')
+                    ->label('Booking No')
                     ->searchable()->sortable()->copyable()->weight('bold'),
                 Tables\Columns\TextColumn::make('customer.name')
                     ->label('Customer')->searchable()

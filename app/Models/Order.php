@@ -455,45 +455,6 @@ class Order extends Model
                             $message .= "🚗 *Thank you for choosing Dura Cabs — Safe • Reliable • Affordable Rides*";
                             break;
                             
-                        case 'self_drive':
-                            // Self Drive format
-                            $plan = $order->plan ?? 'N/A';
-                            $bookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
-                            $dateStr = '';
-                            if ($order->date) {
-                                $dateStr = date('d/m/Y', strtotime($order->date));
-                                if ($order->dateTo) {
-                                    $dateStr .= ' to ' . date('d/m/Y', strtotime($order->dateTo));
-                                }
-                            }
-                            $pickup = 'Duracab Office';
-                            $drop = 'Duracab Office';
-                            
-                            $message = "🎉 *Congratulations! Your Booking is Confirmed* 🎉\n\n";
-                            $message .= "🆔 *Booking ID:* " . $order->booking_number . "\n\n";
-                            $message .= "👤 *Name:* " . $customerName . "\n\n";
-                            $message .= "📞 *Mobile:* " . $mobile . "\n\n";
-                            $message .= "🚖 *Booking Details*\n\n";
-                            $message .= "*• Type:* Self Drive ($plan)\n\n";
-                            $message .= "*• Booking For:* " . $bookingFor . "\n\n";
-                            $message .= "*• Date:* " . $dateStr . "\n\n";
-                            $message .= "*• Time:* " . $timeStr . "\n\n";
-                            $message .= "*• Taxi Type:* " . $taxiType . " (" . $taxiCount . ")\n\n";
-                            $message .= "*• Pickup:* " . $pickup . "\n\n";
-                            $message .= "*• Drop:* " . $drop . "\n\n";
-                            $message .= "💰 *Payment Details*\n\n";
-                            $message .= "*• Payment Mode:* " . $paymentMode . "\n\n";
-                            $message .= "*• Total Amount:* ₹" . number_format($bookingAmount, 2) . "/-\n\n";
-                            $message .= "*• Advance Paid:* ₹" . number_format($advance, 2) . "/-\n\n";
-                            $message .= "*• Balance:* ₹" . number_format($balance, 2) . "/-\n\n";
-                            $message .= "📌 Note: Check Your Invoice And Read All Terms And Conditions.\n\n";
-                            $message .= "🧾 *Invoice:* " . $invoiceLink . "\n\n";
-                            $message .= "📞* Need Help?*\n\n";
-                            $message .= "Call us at +91 70888 73331\n\n";
-                            $message .= "or Chat with us on WhatsApp 👉 https://wa.me/message/2D2MKVLRGWDOJ1\n\n";
-                            $message .= "🚗 *Thank you for choosing Dura Cabs — Safe • Reliable • Affordable Rides*";
-                            break;
-                            
                         case 'local':
                         default:
                             // Local trip format (default)
@@ -575,19 +536,6 @@ class Order extends Model
                                 }
                                 $adminPickup = ($address ? $address->pickup_address : null) ?? $order->booking_from ?? 'N/A';
                                 $adminDrop = ($address ? $address->drop_address : null) ?? $order->booking_to ?? 'N/A';
-                                break;
-                            case 'self_drive':
-                                $plan = $order->plan ?? 'N/A';
-                                $adminTripType = 'Self Drive (' . $plan . ')';
-                                $adminBookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
-                                if ($order->date) {
-                                    $adminDateStr = date('d/m/Y', strtotime($order->date));
-                                    if ($order->dateTo) {
-                                        $adminDateStr .= ' to ' . date('d/m/Y', strtotime($order->dateTo));
-                                    }
-                                }
-                                $adminPickup = 'Duracab Office';
-                                $adminDrop = 'Duracab Office';
                                 break;
                             case 'local':
                             default:
@@ -693,10 +641,6 @@ class Order extends Model
                                 if ($order->cityFrom) $cities[] = $order->cityFrom;
                                 if ($order->cityTo) $cities[] = $order->cityTo;
                                 $bookingFor = implode(' :', $cities);
-                                break;
-                            case 'self_drive':
-                                $bookingType = "Self Drive Trip";
-                                $bookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
                                 break;
                             default:
                                 $bookingType = ucfirst($order->ride_type ?? 'Trip');
@@ -884,19 +828,6 @@ class Order extends Model
                             $pickup = ($address ? $address->pickup_address : null) ?? $order->booking_from ?? 'N/A';
                             $drop = ($address ? $address->drop_address : null) ?? $order->booking_to ?? 'N/A';
                             break;
-                        case 'self_drive':
-                            $plan = $order->plan ?? 'N/A';
-                            $tripType = 'Self Drive (' . $plan . ')';
-                            $bookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
-                            if ($order->date) {
-                                $dateStr = date('d/m/Y', strtotime($order->date));
-                                if ($order->dateTo) {
-                                    $dateStr .= ' to ' . date('d/m/Y', strtotime($order->dateTo));
-                                }
-                            }
-                            $pickup = 'Duracab Office';
-                            $drop = 'Duracab Office';
-                            break;
                         case 'local':
                         default:
                             $plan = $order->plan ?? '';
@@ -995,9 +926,6 @@ class Order extends Model
                             break;
                         case 'local':
                             $bookingTypeLabel = 'local';
-                            break;
-                        case 'self_drive':
-                            $bookingTypeLabel = 'self drive';
                             break;
                         default:
                             $bookingTypeLabel = $order->ride_type ?? 'booking';
@@ -1163,48 +1091,6 @@ class Order extends Model
                             $message .= "🚗 *Thank you for choosing Dura Cabs — Safe • Reliable • Affordable Rides*";
                             break;
                             
-                        case 'self_drive':
-                            $plan = $order->plan ?? 'N/A';
-                            $bookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
-                            $dateStr = '';
-                            if ($order->date) {
-                                $dateStr = date('d/m/Y', strtotime($order->date));
-                                if ($order->dateTo) {
-                                    $dateStr .= ' to ' . date('d/m/Y', strtotime($order->dateTo));
-                                }
-                            }
-                            $pickup = 'Duracab Office';
-                            $drop = 'Duracab Office';
-                            
-                            $message = "🎉 📢 *New Booking Alert*\n\n";
-                            $message .= "Dear Vendor Partner,\n\n";
-                            $message .= "You have received a *new booking* from *Dura Cabs.* 🚘\n\n";
-                            $message .= "Please check your vendor panel or contact the support team for full trip details.\n\n";
-                            $message .= "🎉 *Booking Details* 🎉\n\n";
-                            $message .= "🆔 *Booking ID:* " . $order->booking_number . "\n\n";
-                            $message .= "👤 *Name:* " . $customerName . "\n\n";
-                            $message .= "📞 *Mobile:* " . $customerMobile . "\n\n";
-                            $message .= "🚖 *Booking Details*\n\n";
-                            $message .= "*• Type:* Self Drive (" . $plan . ")\n\n";
-                            $message .= "*• Booking For:* " . $bookingFor . "\n\n";
-                            $message .= "*• Date:* " . $dateStr . "\n\n";
-                            $message .= "*• Time:* " . $timeStr . "\n\n";
-                            $message .= "*• Taxi Type:* " . $taxiType . " (" . $taxiCount . ")\n\n";
-                            $message .= "*• Pickup:* " . $pickup . "\n\n";
-                            $message .= "*• Drop:* " . $drop . "\n\n";
-                            $message .= "💰 *Payment Details*\n\n";
-                            $message .= "*• Payment Mode:* " . $paymentMode . "\n\n";
-                            $message .= "*• Total Amount:* ₹" . number_format($bookingAmount, 2) . "/-\n\n";
-                            $message .= "*• Advance Paid:* ₹" . number_format($advance, 2) . "/-\n\n";
-                            $message .= "*• Balance:* ₹" . number_format($balance, 2) . "/-\n\n";
-                            $message .= "📌 Note: Check Your Invoice And Read All Terms And Conditions.\n\n";
-                            $message .= "🧾 *Invoice:* " . $invoiceLink . "\n\n";
-                            $message .= "📞* Need Help?*\n\n";
-                            $message .= "Call us at +91 70888 73331\n\n";
-                            $message .= "or Chat with us on WhatsApp 👉 https://wa.me/message/2D2MKVLRGWDOJ1\n\n";
-                            $message .= "🚗 *Thank you for choosing Dura Cabs — Safe • Reliable • Affordable Rides*";
-                            break;
-                            
                         case 'local':
                         default:
                             $plan = $order->plan ?? '';
@@ -1283,10 +1169,6 @@ class Order extends Model
                             if ($order->cityFrom) $cities[] = $order->cityFrom;
                             if ($order->cityTo) $cities[] = $order->cityTo;
                             $bookingFor = implode(' :', $cities);
-                            break;
-                        case 'self_drive':
-                            $bookingTypeLabel = 'Self Drive';
-                            $bookingFor = $order->cityTo ?? $order->cityFrom ?? 'N/A';
                             break;
                         default:
                             $bookingTypeLabel = ucfirst($order->ride_type ?? 'Booking');
