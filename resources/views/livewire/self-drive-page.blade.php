@@ -95,9 +95,9 @@
                     Self Drive • Verified Cars • Flexible Plans
                 </span>
 
-                <h2 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
+                <h1 class="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-6xl">
                     {{ $heroTitle }}
-                </h2>
+                </h1>
 
                 <p class="mx-auto mt-4 max-w-3xl text-sm font-medium leading-7 text-slate-300 sm:text-base">
                     {{ $heroSubtitle }}
