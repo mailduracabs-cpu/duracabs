@@ -116,22 +116,51 @@ class SelfDriveBookingResource extends Resource
                                 ->label('Customer Name')
                                 ->required()
                                 ->maxLength(150),
+
                             Forms\Components\TextInput::make('mobile')
                                 ->label('Mobile Number')
                                 ->tel()
                                 ->required()
                                 ->maxLength(15),
+
+                            Forms\Components\TextInput::make('email')
+                                ->label('Email (Optional)')
+                                ->email()
+                                ->maxLength(255)
+                                ->helperText('Blank chhodne par system automatic internal email generate karega.'),
                         ])
                         ->createOptionUsing(function (array $data): int {
-                            $mobile = preg_replace('/\D+/', '', (string) $data['mobile']);
+                            $mobile = preg_replace('/\D+/', '', (string) ($data['mobile'] ?? ''));
 
-                            return User::query()->firstOrCreate(
-                                ['mobile' => $mobile],
-                                [
-                                    'name' => $data['name'],
-                                    'password' => bcrypt(Str::random(24)),
-                                ]
-                            )->id;
+                            if ($mobile === '') {
+                                throw ValidationException::withMessages([
+                                    'mobile' => 'Valid mobile number required hai.',
+                                ]);
+                            }
+
+                            $existingUser = User::query()
+                                ->where('mobile', $mobile)
+                                ->first();
+
+                            if ($existingUser) {
+                                return (int) $existingUser->id;
+                            }
+
+                            $email = filled($data['email'] ?? null)
+                                ? strtolower(trim((string) $data['email']))
+                                : $mobile . '@customer.duracabs.local';
+
+                            if (User::query()->where('email', $email)->exists()) {
+                                $email = $mobile . '+' . Str::lower(Str::random(6))
+                                    . '@customer.duracabs.local';
+                            }
+
+                            return (int) User::query()->create([
+                                'name' => trim((string) ($data['name'] ?? 'Customer')),
+                                'mobile' => $mobile,
+                                'email' => $email,
+                                'password' => bcrypt(Str::random(24)),
+                            ])->id;
                         }),
 
                     Forms\Components\DatePicker::make('start_date')

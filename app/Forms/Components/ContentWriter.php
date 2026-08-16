@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Forms\Components;
 
+use App\Models\Page;
 use Filament\Forms\Components\Actions;
 use Filament\Forms\Components\Actions\Action;
 use Filament\Forms\Components\FileUpload;
@@ -87,7 +88,14 @@ final class ContentWriter extends Section
                             ])
                             ->default('page')
                             ->native(false)
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(
+                                fn (Get $get, Set $set): mixed => self::autoFillLinksAndCta(
+                                    $get,
+                                    $set,
+                                ),
+                            ),
 
                         TextInput::make('author_name')
                             ->label('Author Name')
@@ -492,6 +500,12 @@ final class ContentWriter extends Section
                                 'ContactPage' => 'Contact Page',
                             ])
                             ->default('WebPage')
+                            ->required()
+                            ->dehydrateStateUsing(
+                                fn (?string $state): string => filled($state)
+                                    ? $state
+                                    : 'WebPage',
+                            )
                             ->searchable()
                             ->native(false),
 
@@ -536,6 +550,30 @@ final class ContentWriter extends Section
         return Tab::make('Links & CTA')
             ->icon('heroicon-o-link')
             ->schema([
+                Actions::make([
+                    Action::make('autoFillLinksAndCta')
+                        ->label('Auto Fill Links & CTA')
+                        ->icon('heroicon-o-sparkles')
+                        ->color('primary')
+                        ->action(
+                            fn (Get $get, Set $set): mixed => self::autoFillLinksAndCta(
+                                $get,
+                                $set,
+                                true,
+                            ),
+                        ),
+                ])
+                    ->fullWidth(),
+
+                Placeholder::make('links_cta_auto_fill_status')
+                    ->label('Automatic Linking')
+                    ->content(
+                        fn (Get $get): string => filled($get('slug'))
+                            ? 'Page name, slug, page type aur city ke basis par Links & CTA automatically fill honge. Manual values ko normal auto-fill overwrite nahi karega.'
+                            : 'Page Name / Slug enter karte hi Links & CTA auto-fill ho jayenge.',
+                    )
+                    ->columnSpanFull(),
+
                 Repeater::make('internal_links')
                     ->label('Internal Links')
                     ->addActionLabel('Add Internal Link')
@@ -718,6 +756,140 @@ final class ContentWriter extends Section
                 ])
                     ->fullWidth(),
             ]);
+    }
+
+    public static function autoFillLinksAndCta(
+        Get $get,
+        Set $set,
+        bool $force = false,
+    ): void {
+        $name = trim((string) $get('name'));
+        $slug = trim((string) $get('slug'));
+        $contentType = trim((string) ($get('content_type') ?: 'page'));
+        $brandId = $get('brand_id');
+
+        if ($name === '' || $slug === '') {
+            return;
+        }
+
+        $pageUrl = self::publicUrlFor($contentType, $slug);
+
+        $existingInternalLinks = $get('internal_links');
+
+        if ($force || ! is_array($existingInternalLinks) || $existingInternalLinks === []) {
+            $query = Page::query()
+                ->select(['id', 'name', 'slug', 'content_type', 'brand_id'])
+                ->whereNotNull('slug')
+                ->where('slug', '!=', '')
+                ->where('slug', '!=', $slug);
+
+            if (filled($brandId)) {
+                $query->orderByRaw(
+                    'CASE WHEN brand_id = ? THEN 0 ELSE 1 END',
+                    [(int) $brandId],
+                );
+            }
+
+            $related = $query
+                ->latest('updated_at')
+                ->limit(6)
+                ->get();
+
+            $internalLinks = $related
+                ->map(
+                    fn (Page $page): array => [
+                        'name' => trim((string) $page->name),
+                        'url' => self::publicUrlFor(
+                            (string) ($page->content_type ?: 'page'),
+                            (string) $page->slug,
+                        ),
+                        'title' => trim((string) $page->name),
+                    ],
+                )
+                ->filter(fn (array $item): bool => $item['name'] !== '')
+                ->values()
+                ->all();
+
+            $set('internal_links', $internalLinks);
+
+            if ($force || ! is_array($get('related_pages')) || $get('related_pages') === []) {
+                $set(
+                    'related_pages',
+                    collect($internalLinks)
+                        ->take(4)
+                        ->map(
+                            fn (array $item): array => [
+                                'name' => $item['name'],
+                                'url' => $item['url'],
+                            ],
+                        )
+                        ->values()
+                        ->all(),
+                );
+            }
+        }
+
+        $existingCta = $get('cta');
+
+        if ($force || ! is_array($existingCta) || $existingCta === []) {
+            $ctaCopy = self::ctaCopyFor($contentType, $name);
+
+            $set('cta', [[
+                'title' => $ctaCopy['title'],
+                'description' => $ctaCopy['description'],
+                'button_text' => $ctaCopy['button_text'],
+                'button_url' => $pageUrl,
+                'style' => 'primary',
+            ]]);
+        }
+    }
+
+    private static function publicUrlFor(string $contentType, string $slug): string
+    {
+        $baseUrl = rtrim((string) config('app.url'), '/');
+        $cleanSlug = ltrim(trim($slug), '/');
+
+        $prefix = match ($contentType) {
+            'blog' => 'blog',
+            'tour_package' => 'tour',
+            default => 'pages',
+        };
+
+        return $baseUrl . '/' . $prefix . '/' . $cleanSlug;
+    }
+
+    /**
+     * @return array{title: string, description: string, button_text: string}
+     */
+    private static function ctaCopyFor(string $contentType, string $name): array
+    {
+        return match ($contentType) {
+            'route_page' => [
+                'title' => 'Book ' . $name,
+                'description' => 'Check available cabs, current fare and travel options for this route.',
+                'button_text' => 'Check Fare & Book',
+            ],
+            'service_page' => [
+                'title' => 'Find Self Drive Cars',
+                'description' => 'Select your pickup date and time to check available self drive cars.',
+                'button_text' => 'Search Cars',
+            ],
+            'tour_package' => [
+                'title' => 'Plan ' . $name,
+                'description' => 'Check trip details and continue with your tour booking enquiry.',
+                'button_text' => 'View Tour & Book',
+            ],
+            'blog' => [
+                'title' => 'Plan Your Trip with Dura Cabs',
+                'description' => 'Use Dura Cabs to check suitable travel options for your journey.',
+                'button_text' => 'Book a Cab',
+            ],
+            default => [
+                'title' => 'Book ' . $name,
+                'description' => 'Check available travel options and continue with your Dura Cabs booking.',
+                'button_text' => 'Book Now',
+            ],
+        };
     }
 
     private function calculateSeoScore(Get $get): int

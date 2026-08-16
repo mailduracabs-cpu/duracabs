@@ -90,18 +90,17 @@
                     </a>
 
                     {{-- Checkout --}}
-                    <a
-                        href="/checkout"
-                        rel="nofollow"
-                        class="{{ $navLink }} {{ request()->is('checkout') ? $active : $idle }}"
-                        @if(request()->is('checkout')) aria-current="page" @endif
-                    >
-                        <i
-                            class="fa-solid fa-receipt mr-2 text-xs"
-                            aria-hidden="true"
-                        ></i>
-                        Checkout
-                    </a>
+<a
+    href="/checkout"
+    class="{{ $navLink }} {{ request()->is('checkout') ? $active : $idle }}"
+    @if(request()->is('checkout')) aria-current="page" @endif
+>
+    <i
+        class="fa-solid fa-receipt mr-2 text-xs"
+        aria-hidden="true"
+    ></i>
+    Checkout
+</a>
 
                     {{-- Contact --}}
                     <a

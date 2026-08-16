@@ -107,6 +107,8 @@ class PageResource extends Resource
                                             $name,
                                         );
                                     }
+
+                                    ContentWriter::autoFillLinksAndCta($get, $set);
                                 },
                             ),
 
@@ -144,6 +146,8 @@ class PageResource extends Resource
                                             (string) $state,
                                         ),
                                     );
+
+                                    ContentWriter::autoFillLinksAndCta($get, $set);
                                 },
                             ),
 
@@ -176,6 +180,8 @@ class PageResource extends Resource
                                             (string) $get('slug'),
                                         ),
                                     );
+
+                                    ContentWriter::autoFillLinksAndCta($get, $set);
                                 },
                             )
                             ->helperText(
@@ -215,7 +221,14 @@ class PageResource extends Resource
                             ->relationship('brand', 'name')
                             ->searchable()
                             ->preload()
-                            ->native(false),
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(
+                                fn (Get $get, Set $set): mixed => ContentWriter::autoFillLinksAndCta(
+                                    $get,
+                                    $set,
+                                ),
+                            ),
 
                         FileUpload::make('image')
                             ->label('Featured Image')
@@ -489,6 +502,11 @@ class PageResource extends Resource
                             ])
                             ->default('WebPage')
                             ->required()
+                            ->dehydrateStateUsing(
+                                fn (?string $state): string => filled($state)
+                                    ? $state
+                                    : 'WebPage',
+                            )
                             ->native(false)
                             ->helperText(
                                 'Page type ke hisaab se select karein. FAQ aur Breadcrumb schemas alag se automatically output honge.',
