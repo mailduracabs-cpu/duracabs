@@ -841,7 +841,11 @@ public function tabValue($val){
             : $this->buildFallbackSeoTitle($ride, $routeName, $tripLabel, $contentType);
 
         $lowestFare = $ride->ride_type === 'self_drive'
-            ? ($selectedVehicle ? (float) $selectedVehicle->hourly_price : null)
+            ? (
+                $selectedVehicle && (float) $selectedVehicle->hourly_price > 0
+                    ? (float) $selectedVehicle->hourly_price
+                    : ((float) $ride->price > 0 ? (float) $ride->price : null)
+            )
             : $prices->min('price');
         $fareText = $lowestFare
             ? ' Fares start from ' . Number::currency((float) $lowestFare, 'INR') . '.'
