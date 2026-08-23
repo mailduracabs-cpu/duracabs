@@ -126,7 +126,7 @@
     @section('keywords', trim((string) ($pageKeywords ?? '')))
     @section('image', $pageImage ?? '')
     @section('canonical', url()->current())
-    @section('robots', 'noindex, follow')
+    @section('robots', ($isRouteHub ?? false) ? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' : 'noindex, follow')
     @section('og_type', 'website')
 
     @php
@@ -172,6 +172,71 @@
             );
         }
     @endphp
+
+    {{-- =========================================================
+        CLEAN /routes SEO HUB
+        - Only the clean /routes URL is indexable.
+        - Filter/search URLs remain noindex, follow.
+        - Links below are real <a href> links for crawler discovery.
+    ========================================================== --}}
+    @if ($isRouteHub ?? false)
+        <section class="mb-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div class="bg-gradient-to-br from-sky-50 via-white to-blue-50 px-5 py-8 sm:px-8 sm:py-10">
+                <div class="mx-auto max-w-4xl text-center">
+                    <p class="text-xs font-extrabold uppercase tracking-[0.18em] text-sky-700">Cab Route Directory</p>
+                    <h1 class="mt-3 text-3xl font-black leading-tight text-slate-950 sm:text-4xl">
+                        Popular One Way Cab Routes in India
+                    </h1>
+                    <p class="mx-auto mt-4 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
+                        Explore popular city-to-city taxi routes with Dura Cabs. Choose an origin city below to discover active one way cab routes, compare available vehicle options and continue to the individual route page for fare and booking details.
+                    </p>
+                </div>
+            </div>
+
+            @if (($routeHubGroups ?? collect())->isNotEmpty())
+                <div class="p-5 sm:p-8">
+                    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                        @foreach ($routeHubGroups as $group)
+                            <section class="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+                                <div class="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p class="text-[11px] font-extrabold uppercase tracking-[0.14em] text-sky-700">From</p>
+                                        <h2 class="mt-1 text-xl font-black text-slate-900">
+                                            {{ $group['city_name'] }} Cab Routes
+                                        </h2>
+                                    </div>
+                                    <span class="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-extrabold text-slate-600 ring-1 ring-slate-200">
+                                        {{ $group['route_count'] }} routes
+                                    </span>
+                                </div>
+
+                                <div class="mt-4 grid gap-2">
+                                    @foreach ($group['routes'] as $hubRoute)
+                                        <a
+                                            href="{{ $hubRoute['url'] }}"
+                                            class="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 transition hover:border-sky-200 hover:text-sky-700 hover:shadow-sm"
+                                        >
+                                            <span class="min-w-0 truncate">{{ $hubRoute['name'] }}</span>
+                                            <i class="fa-solid fa-arrow-right shrink-0 text-xs text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-sky-600" aria-hidden="true"></i>
+                                        </a>
+                                    @endforeach
+                                </div>
+                            </section>
+                        @endforeach
+                    </div>
+
+                    <div class="mt-7 rounded-2xl border border-sky-100 bg-sky-50/70 px-5 py-4 text-sm leading-6 text-slate-600">
+                        Dura Cabs route pages are connected through this directory and related-route links, helping travellers and search engines discover useful city-to-city taxi options without changing any existing route URL.
+                    </div>
+                </div>
+            @else
+                <div class="p-6 text-center text-sm text-slate-600">
+                    Route directory is being updated. Please use the booking search above to find an available cab.
+                </div>
+            @endif
+        </section>
+    @endif
+
     <section class="ride-shell rides-premium-shell font-poppins rounded-3xl py-3 sm:py-5">
         <div class="mx-auto max-w-7xl px-1 sm:px-3">
             @if ($nameTo)
@@ -1503,20 +1568,22 @@
 
             </div>
         </div>
-        <section class="max-w-4xl mx-auto px-4 py-10 bg-white">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-6">
-                Explore Flexible Ride Options with Duracabs – From Local Cabs to Intercity One Way Taxi Services
-            </h1>
+        @unless ($isRouteHub ?? false)
+            <section class="max-w-4xl mx-auto px-4 py-10 bg-white">
+                <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-6">
+                    Explore Flexible Ride Options with Duracabs – From Local Cabs to Intercity One Way Taxi Services
+                </h1>
 
-            <p class="text-base md:text-lg text-gray-700 mb-4">
-                Duracabs brings you an extensive selection of ride categories to suit your travel needs—whether you're
-                looking for a convenient
-                <strong class="font-semibold">taxi service</strong> nearby or planning a long-distance journey like a
-                <strong class="font-semibold">Delhi to Agra taxi</strong> or
-                <strong class="font-semibold">Agra to Delhi taxi</strong>. Our platform makes
-                <strong class="font-semibold">online cab booking</strong> fast, easy, and reliable.
-            </p>
-        </section>
+                <p class="text-base md:text-lg text-gray-700 mb-4">
+                    Duracabs brings you an extensive selection of ride categories to suit your travel needs—whether you're
+                    looking for a convenient
+                    <strong class="font-semibold">taxi service</strong> nearby or planning a long-distance journey like a
+                    <strong class="font-semibold">Delhi to Agra taxi</strong> or
+                    <strong class="font-semibold">Agra to Delhi taxi</strong>. Our platform makes
+                    <strong class="font-semibold">online cab booking</strong> fast, easy, and reliable.
+                </p>
+            </section>
+        @endunless
 
     </section>
     <section class="max-w-5xl mx-auto px-4 py-10 bg-white">

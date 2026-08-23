@@ -1689,8 +1689,123 @@ class RidesPage extends Component
         $this->resetPage();
     }
 
+    /**
+     * True only for the clean public /routes directory.
+     *
+     * Search/filter/result URLs must stay separate from the SEO route hub so
+     * that query-state pages can remain noindex while the canonical /routes
+     * directory is crawlable and indexable.
+     */
+    private function isCleanRouteHub(): bool
+    {
+        return blank($this->tab)
+            && blank($this->cityFrom)
+            && blank($this->cityTo)
+            && blank($this->nameFrom)
+            && blank($this->nameTo)
+            && empty($this->selected_categories)
+            && empty($this->selected_brands)
+            && blank($this->query2)
+            && blank($this->date)
+            && blank($this->dateto)
+            && blank($this->time)
+            && blank($this->endTime)
+            && blank($this->vehicle_id)
+            && ! request()->has('page');
+    }
+
+    /**
+     * Build a compact, crawl-friendly directory of important one-way routes.
+     *
+     * We deliberately avoid printing all route URLs on one page. The strongest
+     * origin cities receive a useful set of direct links and the individual
+     * route pages continue the crawl graph through their related-route links.
+     */
+    private function routeHubGroups(): \Illuminate\Support\Collection
+    {
+        return Cache::remember(
+            'seo:route-hub-groups:v1',
+            now()->addHours(6),
+            function () {
+                $originIds = Product::query()
+                    ->where('is_active', 1)
+                    ->where('ride_type', 'one_way')
+                    ->whereNotNull('brand_id')
+                    ->whereNotNull('slug')
+                    ->where('slug', '!=', '')
+                    ->selectRaw('brand_id, COUNT(*) as route_count')
+                    ->groupBy('brand_id')
+                    ->orderByDesc('route_count')
+                    ->limit(24)
+                    ->pluck('brand_id');
+
+                if ($originIds->isEmpty()) {
+                    return collect();
+                }
+
+                $products = Product::query()
+                    ->with('brand:id,name,slug')
+                    ->select([
+                        'id',
+                        'brand_id',
+                        'booking_to',
+                        'name',
+                        'slug',
+                        'ride_type',
+                        'url_type',
+                        'updated_at',
+                    ])
+                    ->where('is_active', 1)
+                    ->where('ride_type', 'one_way')
+                    ->whereIn('brand_id', $originIds)
+                    ->whereNotNull('slug')
+                    ->where('slug', '!=', '')
+                    ->orderByDesc('updated_at')
+                    ->get();
+
+                return $products
+                    ->groupBy('brand_id')
+                    ->map(function ($routes) {
+                        /** @var \App\Models\Product|null $first */
+                        $first = $routes->first();
+
+                        if (! $first) {
+                            return null;
+                        }
+
+                        return [
+                            'city_id' => (int) $first->brand_id,
+                            'city_name' => trim((string) (
+                                $first->brand?->name ?: 'Popular City'
+                            )),
+                            'route_count' => $routes->count(),
+                            'routes' => $routes
+                                ->take(12)
+                                ->map(fn (Product $product) => [
+                                    'name' => trim((string) $product->name),
+                                    'url' => $product->public_url,
+                                    'updated_at' => $product->updated_at,
+                                ])
+                                ->values(),
+                        ];
+                    })
+                    ->filter()
+                    ->sortByDesc('route_count')
+                    ->values();
+            }
+        );
+    }
+
     private function seoData(): array
     {
+        if ($this->isCleanRouteHub()) {
+            return [
+                'pageTitle' => 'Cab Routes in India | One Way Taxi Routes | Dura Cabs',
+                'pageDescription' => 'Explore popular one way cab routes across India with Dura Cabs. Browse city-to-city taxi routes, compare available cab options and book online.',
+                'pageImage' => 'https://www.duracabs.com/img/logo/duracabs_logo.jpeg',
+            ];
+        }
+
         $from = trim((string) $this->nameTo);
         $to = trim((string) (
             $this->nameFrom
@@ -1737,6 +1852,10 @@ class RidesPage extends Component
     public function render()
     {
         $isSelfDrive = $this->tab === 'self_drive';
+        $isRouteHub = $this->isCleanRouteHub();
+        $routeHubGroups = $isRouteHub
+            ? $this->routeHubGroups()
+            : collect();
 
         if ($isSelfDrive) {
             $this->refreshSelfDriveAvailabilityState();
@@ -1896,6 +2015,8 @@ class RidesPage extends Component
 
         return view('livewire.rides-page', [
             'rides' => $ridesQuery->paginate(perPage: 9),
+            'isRouteHub' => $isRouteHub,
+            'routeHubGroups' => $routeHubGroups,
             'isSelfDriveListing' => $isSelfDrive,
             'selectedVehicleBooked' => $this->selectedVehicleBooked,
             'selfDrivePeriodInvalid' => $this->selfDrivePeriodInvalid,
