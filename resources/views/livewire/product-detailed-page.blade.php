@@ -1073,56 +1073,176 @@
 
             <div class="grid gap-8 lg:grid-cols-[minmax(0,1.7fr)_minmax(280px,0.8fr)]">
                 <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
-                    <div class="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700">
-                        <span class="rounded-full bg-sky-50 px-3 py-1 ring-1 ring-sky-100">One Way Taxi</span>
-                        <span class="text-slate-300">•</span>
-                        <span>Dura Cabs</span>
-                    </div>
 
-                    <h2 class="mt-4 text-2xl font-black leading-tight text-slate-950 sm:text-3xl lg:text-4xl">
-                        {{ $routeName }} {{ $tripLabel }} – Affordable Booking with Dura Cabs
-                    </h2>
+                    {{-- =========================================================
+                        ROUTE-SPECIFIC SEO INTRO
+                        Generated from actual pickup/drop/service/fare data.
+                        Admin content remains the primary long-form content below.
+                    ========================================================== --}}
+                    @if (!empty($routeSeoContent))
+                        <div class="mb-7">
+                            <div class="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700">
+                                <span class="rounded-full bg-sky-50 px-3 py-1 ring-1 ring-sky-100">
+                                    {{ $routeSeoContent['eyebrow'] ?? 'Route Information' }}
+                                </span>
 
+                                <span class="text-slate-300">•</span>
+
+                                <span>{{ $tripLabel }}</span>
+
+                                <span class="text-slate-300">•</span>
+
+                                <span>Dura Cabs</span>
+                            </div>
+
+                            <h2 class="mt-4 text-2xl font-black leading-tight text-slate-950 sm:text-3xl">
+                                {{ $routeSeoContent['heading'] ?? ($routeName . ' ' . $tripLabel) }}
+                            </h2>
+
+                            @if (!empty($routeSeoContent['intro']))
+                                <p class="mt-4 text-[15px] leading-7 text-slate-600">
+                                    {{ $routeSeoContent['intro'] }}
+                                </p>
+                            @endif
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            @if (!empty($routeSeoContent['overview']))
+                                <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                                    <h3 class="text-lg font-extrabold text-slate-900">
+                                        {{ $routeSeoContent['overview_heading'] ?? 'Route Overview' }}
+                                    </h3>
+
+                                    <p class="mt-2 text-sm leading-6 text-slate-600">
+                                        {{ $routeSeoContent['overview'] }}
+                                    </p>
+                                </section>
+                            @endif
+
+                            @if (!empty($routeSeoContent['fare']))
+                                <section class="rounded-2xl border border-emerald-100 bg-emerald-50/60 p-5">
+                                    <h3 class="text-lg font-extrabold text-slate-900">
+                                        {{ $routeSeoContent['fare_heading'] ?? 'Cab Fare' }}
+                                    </h3>
+
+                                    <p class="mt-2 text-sm leading-6 text-slate-600">
+                                        {{ $routeSeoContent['fare'] }}
+                                    </p>
+                                </section>
+                            @endif
+                        </div>
+
+                        @if (!empty($routeSeoContent['booking']))
+                            <section class="mt-4 rounded-2xl border border-sky-100 bg-sky-50/70 p-5">
+                                <h3 class="text-lg font-extrabold text-slate-900">
+                                    {{ $routeSeoContent['booking_heading'] ?? 'How to Book' }}
+                                </h3>
+
+                                <p class="mt-2 text-sm leading-6 text-slate-600">
+                                    {{ $routeSeoContent['booking'] }}
+                                </p>
+                            </section>
+                        @endif
+                    @endif
+
+                    {{-- =========================================================
+                        ADMIN-WRITTEN UNIQUE CONTENT
+
+                        Important:
+                        - Existing content is preserved.
+                        - Any H1 entered from admin is converted to H2.
+                        - Main page therefore continues to have only one H1.
+                    ========================================================== --}}
                     @php
-    $routeDescription = str($ride->description)->sanitizeHtml();
+                        $routeDescription = str($ride->description ?? '')->sanitizeHtml();
 
-    // Main page H1 sirf ek rahe.
-    // Admin description ke H1 ko H2 me convert karein.
-    $routeDescription = preg_replace(
-        ['/<h1(\s[^>]*)?>/i', '/<\/h1>/i'],
-        ['<h2$1>', '</h2>'],
-        $routeDescription
-    );
-@endphp
+                        $routeDescription = preg_replace(
+                            ['/<h1(\s[^>]*)?>/i', '/<\/h1>/i'],
+                            ['<h2$1>', '</h2>'],
+                            $routeDescription
+                        );
+                    @endphp
 
-<div class="route-rich-content mt-7">
-    {!! $routeDescription !!}
-</div>
+                    @if (filled(strip_tags((string) $routeDescription)))
+                        <div class="route-rich-content mt-8 border-t border-slate-200 pt-7">
+                            {!! $routeDescription !!}
+                        </div>
+                    @endif
 
+                    {{-- =========================================================
+                        ACTUAL PAGE FACTS
+                        Do not present km_limit/hr_limit as real road
+                        distance or journey duration.
+                    ========================================================== --}}
                     <div class="mt-8 rounded-2xl border border-sky-100 bg-sky-50/70 p-5">
                         <div class="flex items-center gap-3">
                             <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-800 shadow-sm ring-1 ring-sky-100">
-                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                                 </svg>
                             </div>
+
                             <div>
-                                <h2 class="text-lg font-extrabold text-slate-900">Quick Route Facts</h2>
-                                <p class="text-sm text-slate-600">Useful journey details for {{ $ride->name }}.</p>
+                                <h2 class="text-lg font-extrabold text-slate-900">
+                                    {{ ($routeSeoContent['is_route'] ?? false) ? 'Route Details' : 'Service Details' }}
+                                </h2>
+
+                                <p class="text-sm text-slate-600">
+                                    Useful booking information for {{ $routeName }}.
+                                </p>
                             </div>
                         </div>
 
-                        <dl class="mt-5 grid gap-3 sm:grid-cols-2">
+                        <dl class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            @if (!empty($routeSeoContent['pickup']))
+                                <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                                    <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Pickup</dt>
+                                    <dd class="mt-1 font-bold text-slate-900">{{ $routeSeoContent['pickup'] }}</dd>
+                                </div>
+                            @endif
+
+                            @if (!empty($routeSeoContent['drop']))
+                                <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                                    <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Destination</dt>
+                                    <dd class="mt-1 font-bold text-slate-900">{{ $routeSeoContent['drop'] }}</dd>
+                                </div>
+                            @endif
+
                             <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-                                <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Destination</dt>
-                                <dd class="mt-1 font-bold text-slate-900">{{ $ride->name }}</dd>
+                                <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Trip Type</dt>
+                                <dd class="mt-1 font-bold text-slate-900">{{ $routeSeoContent['trip_type'] ?? $tripLabel }}</dd>
                             </div>
-                            <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
-                                <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Estimated route</dt>
-                                <dd class="mt-1 font-bold text-slate-900">{{ $ride->hr_limit }} Hours · {{ $ride->km_limit }} KM</dd>
-                            </div>
+
+                            @if (!empty($routeSeoContent['starting_fare']))
+                                <div class="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                                    <dt class="text-xs font-bold uppercase tracking-wide text-slate-500">Starting Fare</dt>
+                                    <dd class="mt-1 font-bold text-emerald-700">{{ $routeSeoContent['starting_fare'] }}</dd>
+                                </div>
+                            @endif
                         </dl>
+
+                        @if (((float) ($ride->km_limit ?? 0) > 0) || ((float) ($ride->hr_limit ?? 0) > 0))
+                            <div class="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                                <p class="text-xs font-semibold leading-5 text-amber-900">
+                                    Package limits:
+                                    @if ((float) ($ride->km_limit ?? 0) > 0)
+                                        {{ rtrim(rtrim(number_format((float) $ride->km_limit, 2), '0'), '.') }} KM
+                                    @endif
+
+                                    @if ((float) ($ride->km_limit ?? 0) > 0 && (float) ($ride->hr_limit ?? 0) > 0)
+                                        ·
+                                    @endif
+
+                                    @if ((float) ($ride->hr_limit ?? 0) > 0)
+                                        {{ rtrim(rtrim(number_format((float) $ride->hr_limit, 2), '0'), '.') }} Hours
+                                    @endif
+
+                                    . These are booking/package limits and should not be treated as the actual road distance or journey duration.
+                                </p>
+                            </div>
+                        @endif
                     </div>
+
                 </article>
 
                 <aside class="space-y-5">

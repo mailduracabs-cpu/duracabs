@@ -854,6 +854,14 @@ public function tabValue($val){
         $seoDescription = filled($ride->meta_description)
             ? trim((string) $ride->meta_description)
             : $this->buildFallbackSeoDescription($routeName, $tripLabel, $contentType, $fareText);
+			$routeSeoContent = $this->buildRouteSeoContent(
+    ride: $ride,
+    routeName: $routeName,
+    tripLabel: $tripLabel,
+    pickupName: $pickupName,
+    dropName: $dropName,
+    lowestFare: $lowestFare,
+);
 
         $canonicalUrl = match ((string) $ride->ride_type) {
             'self_drive' => route('self-drive.show', ['slug' => $ride->slug]),
@@ -993,6 +1001,7 @@ public function tabValue($val){
             'allCities' => Brand::query()->orderBy('name')->get(['id', 'name']),
             'seoTitle' => $seoTitle,
             'seoDescription' => $seoDescription,
+			'routeSeoContent' => $routeSeoContent,
             'metaKeywords' => $metaKeywords,
             'robots' => $robots,
             'canonicalUrl' => $canonicalUrl,
@@ -1045,6 +1054,108 @@ public function tabValue($val){
             default => "Book {$routeName} {$tripLabel} with verified drivers, clean cars and transparent pricing.{$fareText} Check available cabs and reserve online with Dura Cabs.",
         };
     }
+
+private function buildRouteSeoContent(
+    Product $ride,
+    string $routeName,
+    string $tripLabel,
+    string $pickupName,
+    string $dropName,
+    mixed $lowestFare,
+): array {
+    $pickup = trim($pickupName);
+    $drop = trim($dropName);
+
+    $fare = $lowestFare && (float) $lowestFare > 0
+        ? Number::currency((float) $lowestFare, 'INR')
+        : null;
+
+    $isOneWay = (string) $ride->ride_type === 'one_way'
+        && $pickup !== ''
+        && $drop !== '';
+
+    /*
+     * These blocks are intentionally built from real Product/route data.
+     * Do not invent route distance or travel duration when they are not
+     * explicitly stored in the Product record.
+     */
+    if ($isOneWay) {
+        $intro = "Book a {$pickup} to {$drop} cab with Dura Cabs for a convenient one way journey. "
+            . "Compare available cab categories, select your pickup date and time, "
+            . "check the applicable fare and complete your booking online.";
+
+        if ($fare) {
+            $intro .= " Current listed fares for {$pickup} to {$drop} start from {$fare}, subject to the selected vehicle and trip details.";
+        }
+
+        $overview = "The {$routeName} taxi service is suitable for travellers looking for a dedicated cab from {$pickup} to {$drop}. "
+            . "Vehicle options and final pricing depend on live availability, cab category, taxes and applicable route charges.";
+
+        $bookingText = "To book your {$pickup} to {$drop} taxi, choose an available vehicle, select the pickup date and time, "
+            . "verify your mobile number, review the fare details and continue to checkout.";
+
+        $fareText = $fare
+            ? "The currently listed starting fare for {$routeName} is {$fare}. Final fare may vary according to vehicle category, tolls, taxes, parking and other applicable charges shown before booking."
+            : "Fare for {$routeName} depends on the selected vehicle and trip details. Choose a cab on this page to check the latest available price.";
+
+        return [
+            'eyebrow' => 'Route Information',
+            'heading' => "{$pickup} to {$drop} Cab Booking",
+            'intro' => $intro,
+
+            'overview_heading' => "{$pickup} to {$drop} Taxi Service",
+            'overview' => $overview,
+
+            'booking_heading' => "How to Book {$pickup} to {$drop} Cab",
+            'booking' => $bookingText,
+
+            'fare_heading' => "{$pickup} to {$drop} Cab Fare",
+            'fare' => $fareText,
+
+            'pickup' => $pickup,
+            'drop' => $drop,
+            'trip_type' => $tripLabel,
+            'starting_fare' => $fare,
+
+            'is_route' => true,
+        ];
+    }
+
+    /*
+     * Fallback for local, airport, round-trip, self-drive or other product
+     * types. Still uses the actual page/service name instead of generic text.
+     */
+    $intro = "Explore {$routeName} {$tripLabel} booking with Dura Cabs. "
+        . "Check available vehicle options, applicable pricing and booking details before confirming your trip.";
+
+    if ($fare) {
+        $intro .= " Current listed fares start from {$fare}.";
+    }
+
+    return [
+        'eyebrow' => 'Service Information',
+        'heading' => "{$routeName} {$tripLabel}",
+        'intro' => $intro,
+
+        'overview_heading' => "About {$routeName}",
+        'overview' => "Dura Cabs provides {$tripLabel} booking options for {$routeName}, subject to live vehicle availability and applicable booking conditions.",
+
+        'booking_heading' => "How to Book {$routeName}",
+        'booking' => "Select an available vehicle, enter the required trip details, verify your mobile number, review the fare and continue to checkout.",
+
+        'fare_heading' => "{$routeName} Fare",
+        'fare' => $fare
+            ? "Current listed fares start from {$fare}. Final pricing depends on the selected vehicle, booking details and applicable charges."
+            : "Pricing depends on the selected vehicle and booking details. Check the available options on this page for the latest fare.",
+
+        'pickup' => $pickup ?: null,
+        'drop' => $drop ?: null,
+        'trip_type' => $tripLabel,
+        'starting_fare' => $fare,
+
+        'is_route' => false,
+    ];
+}
 
     private function resolveCanonicalUrl(Product $ride, string $urlType): string
     {

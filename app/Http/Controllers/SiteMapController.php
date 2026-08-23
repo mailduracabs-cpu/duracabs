@@ -260,7 +260,7 @@ final class SiteMapController extends Controller
     private function priorityForProduct(Product $product): string
     {
         return match ((string) $product->ride_type) {
-            'one_way', 'self_drive', 'bike_rental' => '0.9',
+            'one_way', 'self_drive', 'bike_rental' => '1.0',
             'return', 'round_trip', 'local', 'tour', 'airport' => '0.8',
             default => '0.7',
         };
