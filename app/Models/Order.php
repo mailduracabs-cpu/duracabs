@@ -52,7 +52,15 @@ class Order extends Model
     public function user() {
         return $this->belongsTo(User::class);
     }
+public function driver()
+{
+    return $this->belongsTo(User::class, 'driver_id');
+}
 
+public function transporter()
+{
+    return $this->belongsTo(User::class, 'transporter_id');
+}
     public function vehicle() {
         return $this->belongsTo(Vehicle::class);
     }
