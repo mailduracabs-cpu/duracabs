@@ -944,7 +944,6 @@ class SelfDriveBookingResource extends Resource
                             ->visible(fn (Get $get): bool =>
                                 $get('method') !== 'razorpay_link'),
                     ])
-                    ->columns(2)
                     ->action(function (SelfDriveBooking $record, array $data): void {
                         $record->loadMissing(['customer', 'vehicle']);
 
