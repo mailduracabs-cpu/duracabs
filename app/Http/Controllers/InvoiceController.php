@@ -1075,7 +1075,15 @@ class InvoiceController extends Controller
     private function decodeJson(
         $value
     ): array {
-        if (! is_string($value)) {
+        if (is_array($value)) {
+            return $value;
+        }
+
+        if (is_object($value)) {
+            return (array) $value;
+        }
+
+        if (! is_string($value) || trim($value) === '') {
             return [];
         }
 
@@ -1113,9 +1121,15 @@ class InvoiceController extends Controller
     private function paidAmount(
         object $order
     ): float {
-        if (
-            isset($order->paid_amount)
-        ) {
+        $extra = $this->decodeJson(
+            $order->extraOptions ?? null
+        );
+
+        if (array_key_exists('paid_amount', $extra)) {
+            return (float) $extra['paid_amount'];
+        }
+
+        if (isset($order->paid_amount)) {
             return (float) $order->paid_amount;
         }
 
@@ -1133,11 +1147,16 @@ class InvoiceController extends Controller
     private function remainingAmount(
         object $order
     ): float {
-        if (
-            isset($order->remaining_amount)
-        ) {
-            return (float) $order
-                ->remaining_amount;
+        $extra = $this->decodeJson(
+            $order->extraOptions ?? null
+        );
+
+        if (array_key_exists('remaining_amount', $extra)) {
+            return (float) $extra['remaining_amount'];
+        }
+
+        if (isset($order->remaining_amount)) {
+            return (float) $order->remaining_amount;
         }
 
         return max(
