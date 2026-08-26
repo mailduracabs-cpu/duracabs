@@ -31,26 +31,143 @@ class EditOrder extends EditRecord
     {
         $extraOptions = $this->extraOptions();
 
+        /*
+         * Restore virtual select fields used by OrderResource.
+         * These fields are dehydrated(false), so their IDs are not stored
+         * in the orders table. Rebuild them from the actual saved values.
+         */
+        $cityFrom = trim((string) ($data['cityFrom'] ?? ''));
+        $cityTo = trim((string) ($data['cityTo'] ?? ''));
+        $productName = trim((string) ($data['productName'] ?? ''));
+        $taxiType = trim((string) ($data['taxi_type'] ?? ''));
+        $rideType = (string) ($data['ride_type'] ?? 'one_way');
+
+        $pickupBrand = null;
+
+        if ($cityFrom !== '') {
+            $pickupBrand = \App\Models\Brand::query()
+                ->where('name', $cityFrom)
+                ->first();
+
+            if (! $pickupBrand) {
+                $shortCity = trim(explode(',', $cityFrom)[0] ?? '');
+
+                if ($shortCity !== '') {
+                    $pickupBrand = \App\Models\Brand::query()
+                        ->where(function ($query) use ($shortCity) {
+                            $query
+                                ->where('name', $shortCity)
+                                ->orWhere('name', 'like', $shortCity . ',%');
+                        })
+                        ->first();
+                }
+            }
+        }
+
+        $data['pickup_brand_id'] = $pickupBrand?->id;
+
+        $dropBrand = null;
+
+        if ($cityTo !== '') {
+            $dropBrand = \App\Models\Brand::query()
+                ->where('name', $cityTo)
+                ->first();
+
+            if (! $dropBrand) {
+                $shortCityTo = trim(explode(',', $cityTo)[0] ?? '');
+
+                if ($shortCityTo !== '') {
+                    $dropBrand = \App\Models\Brand::query()
+                        ->where(function ($query) use ($shortCityTo) {
+                            $query
+                                ->where('name', $shortCityTo)
+                                ->orWhere('name', 'like', $shortCityTo . ',%');
+                        })
+                        ->first();
+                }
+            }
+        }
+
+        $data['drop_brand_id'] = $dropBrand?->id;
+
+        $product = null;
+
+        if ($productName !== '') {
+            $rideTypes = $rideType === 'return'
+                ? ['return', 'round_trip']
+                : [$rideType];
+
+            $product = \App\Models\Product::query()
+                ->when(
+                    $pickupBrand,
+                    fn ($query) => $query->where('brand_id', $pickupBrand->id)
+                )
+                ->whereIn('ride_type', $rideTypes)
+                ->where('name', $productName)
+                ->first();
+
+            if (! $product) {
+                $product = \App\Models\Product::query()
+                    ->where('name', $productName)
+                    ->first();
+            }
+        }
+
+        $data['selected_product_id'] = $product?->id;
+
+        $price = null;
+
+        if ($product && $taxiType !== '') {
+            $price = \App\Models\Price::query()
+                ->with('category')
+                ->where('product_id', $product->id)
+                ->whereHas('category', function ($query) use ($taxiType) {
+                    $query->where('slug', $taxiType);
+                })
+                ->orderBy('price')
+                ->first();
+        }
+
+        if (! $price && $product) {
+            $productPrices = \App\Models\Price::query()
+                ->with('category')
+                ->where('product_id', $product->id)
+                ->orderBy('price')
+                ->get();
+
+            if ($productPrices->count() === 1) {
+                $price = $productPrices->first();
+            }
+        }
+
+        $data['selected_price_id'] = $price?->id;
+
         $data['route_stops'] = array_values(array_filter(
             Arr::wrap($extraOptions['route_stops'] ?? []),
             static fn ($stop): bool => filled($stop)
         ));
 
-        $fareType = $extraOptions['fare_type'];
+        $fareType = $extraOptions['fare_type'] ?? 'normal';
 
-$data['fare_type'] = in_array(
-    $fareType,
-    ['normal', 'all_inclusive'],
-    true
-)
-    ? $fareType
-    : 'normal';
+        $data['fare_type'] = in_array(
+            $fareType,
+            ['normal', 'all_inclusive'],
+            true
+        )
+            ? $fareType
+            : 'normal';
 
-        $data['calculated_amount'] = $this->money(
-            $extraOptions['calculated_amount']
-                ?? $data['grand_total']
-                ?? 0
+        $storedCalculatedAmount = $this->money(
+            $extraOptions['calculated_amount'] ?? 0
         );
+
+        $data['calculated_amount'] = $storedCalculatedAmount > 0
+            ? $storedCalculatedAmount
+            : $this->money(
+                $price?->price
+                    ?? $data['grand_total']
+                    ?? 0
+            );
 
         $data['fare_override_reason'] = (string) (
             $extraOptions['fare_override_reason']
