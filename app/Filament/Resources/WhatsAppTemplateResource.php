@@ -518,6 +518,207 @@ class WhatsAppTemplateResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('submit_selected_to_meta')
+                        ->label('Submit selected to Meta')
+                        ->icon('heroicon-o-paper-airplane')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Submit selected templates to Meta?')
+                        ->modalDescription(
+                            'Sirf Not Submitted ya Rejected templates submit honge. '
+                            . 'Pending aur Approved templates automatically skip honge.'
+                        )
+                        ->modalSubmitActionLabel('Submit Selected')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function ($records): void {
+                            $submitted = 0;
+                            $skipped = 0;
+                            $failed = 0;
+                            $errors = [];
+
+                            foreach ($records as $record) {
+                                if (! $record instanceof WhatsAppTemplate) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                if (! in_array(
+                                    $record->meta_status,
+                                    [
+                                        WhatsAppTemplate::META_STATUS_NOT_SUBMITTED,
+                                        WhatsAppTemplate::META_STATUS_REJECTED,
+                                    ],
+                                    true
+                                )) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                try {
+                                    $result = WhatsAppService::submitTemplate($record);
+
+                                    if ($result['status'] ?? false) {
+                                        $submitted++;
+                                        continue;
+                                    }
+
+                                    $failed++;
+                                    $errors[] =
+                                        $record->template_name
+                                        . ': '
+                                        . (string) (
+                                            $result['message']
+                                            ?? 'Meta submission failed.'
+                                        );
+                                } catch (\Throwable $exception) {
+                                    $failed++;
+                                    $errors[] =
+                                        $record->template_name
+                                        . ': '
+                                        . $exception->getMessage();
+                                }
+                            }
+
+                            $body =
+                                "Submitted: {$submitted} | "
+                                . "Skipped: {$skipped} | "
+                                . "Failed: {$failed}";
+
+                            if ($errors !== []) {
+                                $body .= "\n\n" . implode(
+                                    "\n",
+                                    array_slice($errors, 0, 5)
+                                );
+
+                                if (count($errors) > 5) {
+                                    $body .=
+                                        "\n... and "
+                                        . (count($errors) - 5)
+                                        . ' more errors.';
+                                }
+                            }
+
+                            $notification = Notification::make()
+                                ->title(
+                                    $failed > 0
+                                        ? 'Bulk Meta submission completed with errors'
+                                        : 'Bulk Meta submission completed'
+                                )
+                                ->body($body);
+
+                            if ($failed > 0) {
+                                $notification
+                                    ->warning()
+                                    ->persistent()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $notification
+                                ->success()
+                                ->send();
+                        }),
+
+                    Tables\Actions\BulkAction::make('sync_selected_meta_status')
+                        ->label('Sync selected Meta status')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Sync selected templates from Meta?')
+                        ->modalDescription(
+                            'Not Submitted templates skip honge. '
+                            . 'Pending, Approved aur Rejected templates ka latest Meta status sync hoga.'
+                        )
+                        ->modalSubmitActionLabel('Sync Selected')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function ($records): void {
+                            $synced = 0;
+                            $skipped = 0;
+                            $failed = 0;
+                            $errors = [];
+
+                            foreach ($records as $record) {
+                                if (! $record instanceof WhatsAppTemplate) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                if (
+                                    $record->meta_status
+                                        === WhatsAppTemplate::META_STATUS_NOT_SUBMITTED
+                                    && blank($record->meta_template_id)
+                                ) {
+                                    $skipped++;
+                                    continue;
+                                }
+
+                                try {
+                                    $result = WhatsAppService::syncTemplateStatus($record);
+
+                                    if ($result['status'] ?? false) {
+                                        $synced++;
+                                        continue;
+                                    }
+
+                                    $failed++;
+                                    $errors[] =
+                                        $record->template_name
+                                        . ': '
+                                        . (string) (
+                                            $result['message']
+                                            ?? 'Meta status sync failed.'
+                                        );
+                                } catch (\Throwable $exception) {
+                                    $failed++;
+                                    $errors[] =
+                                        $record->template_name
+                                        . ': '
+                                        . $exception->getMessage();
+                                }
+                            }
+
+                            $body =
+                                "Synced: {$synced} | "
+                                . "Skipped: {$skipped} | "
+                                . "Failed: {$failed}";
+
+                            if ($errors !== []) {
+                                $body .= "\n\n" . implode(
+                                    "\n",
+                                    array_slice($errors, 0, 5)
+                                );
+
+                                if (count($errors) > 5) {
+                                    $body .=
+                                        "\n... and "
+                                        . (count($errors) - 5)
+                                        . ' more errors.';
+                                }
+                            }
+
+                            $notification = Notification::make()
+                                ->title(
+                                    $failed > 0
+                                        ? 'Bulk Meta sync completed with errors'
+                                        : 'Bulk Meta sync completed'
+                                )
+                                ->body($body);
+
+                            if ($failed > 0) {
+                                $notification
+                                    ->warning()
+                                    ->persistent()
+                                    ->send();
+
+                                return;
+                            }
+
+                            $notification
+                                ->success()
+                                ->send();
+                        }),
+
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
