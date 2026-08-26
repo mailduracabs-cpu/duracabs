@@ -77,15 +77,13 @@ class OrderResource extends Resource
                             $mobile = preg_replace('/\\D+/', '', (string) ($data['mobile'] ?? ''));
 
                             return User::query()->firstOrCreate(
-    ['mobile' => $mobile],
-    [
-        'name' => $data['name'],
-        'email' => filled($data['email'] ?? null)
-            ? trim((string) $data['email'])
-            : $mobile . '@guest.duracabs.com',
-        'password' => bcrypt(Str::random(32)),
-    ]
-)->id;
+                                ['mobile' => $mobile],
+                                [
+                                    'name' => $data['name'],
+                                    'email' => $data['email'] ?? null,
+                                    'password' => bcrypt(Str::random(32)),
+                                ]
+                            )->id;
                         })
                         ->required()
                         ->columnSpan(2),
@@ -446,33 +444,6 @@ class OrderResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columns(3),
-				Forms\Components\Section::make('Driver / Vendor Assignment')
-    ->description('Assign transporter, driver and vehicle to this booking.')
-    ->schema([
-
-        Forms\Components\Select::make('transporter_id')
-            ->label('Vendor / Transporter')
-            ->relationship('transporter', 'name')
-            ->searchable()
-            ->preload()
-            ->native(false),
-
-        Forms\Components\Select::make('driver_id')
-            ->label('Driver')
-            ->relationship('driver', 'name')
-            ->searchable()
-            ->preload()
-            ->native(false),
-
-        Forms\Components\Select::make('vehicle_id')
-            ->label('Vehicle')
-            ->relationship('vehicle', 'vehicle_number')
-            ->searchable()
-            ->preload()
-            ->native(false),
-
-    ])
-    ->columns(3),
 
             Forms\Components\Section::make('Payment & Status')
                 ->schema([
