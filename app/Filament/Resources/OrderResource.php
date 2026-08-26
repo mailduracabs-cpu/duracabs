@@ -201,6 +201,16 @@ class OrderResource extends Resource
                         ->native(false)
                         ->live(),
 
+                    Forms\Components\TextInput::make('booking_from')
+                        ->label('Pickup Location')
+                        ->placeholder('e.g. Agra Cantt Railway Station')
+                        ->maxLength(255),
+
+                    Forms\Components\TextInput::make('booking_to')
+                        ->label('Drop Location')
+                        ->placeholder('e.g. Hotel / Airport / Railway Station')
+                        ->maxLength(255),
+
                     Forms\Components\DatePicker::make('dateTo')
                         ->label('End Date')
                         ->afterOrEqual('date')
