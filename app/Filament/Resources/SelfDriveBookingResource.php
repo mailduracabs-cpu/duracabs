@@ -7,6 +7,8 @@ use App\Models\FleetManagement\TransporterProfile;
 use App\Models\SelfDriveBooking;
 use App\Models\User;
 use App\Models\Vehicle;
+use App\Services\RazorpayService;
+use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Filament\Facades\Filament;
 use Filament\Forms;
@@ -899,40 +901,184 @@ class SelfDriveBookingResource extends Resource
                     ->visible(fn () => ! static::isTransporterPanel()),
 
                 Tables\Actions\Action::make('receive_payment')
-                    ->label('Receive Payment')->icon('heroicon-o-banknotes')
+                    ->label('Receive Payment')
+                    ->icon('heroicon-o-banknotes')
                     ->color('success')
                     ->visible(fn (SelfDriveBooking $record) =>
                         ! static::isTransporterPanel()
                         && (float) $record->remaining_amount > 0
                         && ! in_array($record->status, ['cancelled', 'rejected'], true))
                     ->form([
-                        Forms\Components\TextInput::make('amount')
-                            ->numeric()->prefix('₹')->required()->minValue(1),
-                        Forms\Components\Select::make('method')
-                            ->options(static::paymentMethods())->required()->native(false),
-                        Forms\Components\TextInput::make('reference'),
-                    ])
-                    ->action(function (SelfDriveBooking $record, array $data): void {
-                        $amount = (float) $data['amount'];
-                        $balance = (float) $record->remaining_amount;
+                        Forms\Components\Placeholder::make('payment_summary')
+                            ->label('Payment Summary')
+                            ->content(function (SelfDriveBooking $record): string {
+                                return 'Rental: ₹' . number_format($record->effectiveRentalAmount(), 2)
+                                    . ' | Security: ₹' . number_format((float) ($record->security_deposit ?? 0), 2)
+                                    . ' | Paid: ₹' . number_format((float) ($record->paid_amount ?? 0), 2)
+                                    . ' | Balance: ₹' . number_format((float) ($record->remaining_amount ?? 0), 2);
+                            })
+                            ->columnSpanFull(),
 
-                        if ($amount > $balance) {
+                        Forms\Components\TextInput::make('amount')
+                            ->label('Amount')
+                            ->numeric()
+                            ->prefix('₹')
+                            ->required()
+                            ->minValue(1)
+                            ->maxValue(fn (SelfDriveBooking $record): float =>
+                                max(1, (float) $record->remaining_amount))
+                            ->helperText(fn (SelfDriveBooking $record): string =>
+                                'Maximum current balance: ₹'
+                                . number_format((float) $record->remaining_amount, 2)),
+
+                        Forms\Components\Select::make('method')
+                            ->label('Method')
+                            ->options(static::paymentMethods())
+                            ->required()
+                            ->native(false)
+                            ->live(),
+
+                        Forms\Components\TextInput::make('reference')
+                            ->label('Reference')
+                            ->placeholder('UPI / Bank / Card reference (optional)')
+                            ->visible(fn (Get $get): bool =>
+                                $get('method') !== 'razorpay_link'),
+                    ])
+                    ->columns(2)
+                    ->action(function (SelfDriveBooking $record, array $data): void {
+                        $record->loadMissing(['customer', 'vehicle']);
+
+                        $amount = round((float) $data['amount'], 2);
+                        $balance = round((float) $record->remaining_amount, 2);
+                        $method = (string) $data['method'];
+
+                        if ($amount <= 0) {
+                            throw ValidationException::withMessages([
+                                'amount' => 'Valid payment amount required hai.',
+                            ]);
+                        }
+
+                        if ($amount > $balance + 0.009) {
                             throw ValidationException::withMessages([
                                 'amount' => 'Amount current balance se zyada nahi ho sakta.',
                             ]);
                         }
 
+                        /*
+                         * RAZORPAY PAYMENT LINK:
+                         * Creating/sending a link does NOT mark payment as received.
+                         * Razorpay webhook will update paid/balance after actual payment.
+                         */
+                        if ($method === 'razorpay_link') {
+                            $referenceId = 'SDPL-'
+                                . $record->id
+                                . '-'
+                                . now()->format('YmdHis');
+
+                            $result = RazorpayService::createPaymentLink(
+                                amount: $amount,
+                                referenceId: $referenceId,
+                                description: 'Dura Cabs Self Drive - ' . $record->booking_no,
+                                customer: [
+                                    'name' => $record->customer?->name ?? 'Customer',
+                                    'contact' => $record->customer?->mobile ?? '',
+                                    'email' => $record->customer?->email ?? '',
+                                ],
+                                notes: [
+                                    'booking_id' => (string) $record->id,
+                                    'booking_no' => (string) $record->booking_no,
+                                    'booking_source' => 'self_drive',
+                                    'requested_amount' => number_format($amount, 2, '.', ''),
+                                ],
+                            );
+
+                            if (! (bool) ($result['status'] ?? false)) {
+                                throw ValidationException::withMessages([
+                                    'amount' => (string) (
+                                        $result['message']
+                                        ?? 'Razorpay payment link create nahi ho saka.'
+                                    ),
+                                ]);
+                            }
+
+                            $linkData = is_array($result['data'] ?? null)
+                                ? $result['data']
+                                : [];
+
+                            $paymentLink = trim((string) ($linkData['short_url'] ?? ''));
+                            $paymentLinkId = trim((string) ($linkData['id'] ?? ''));
+
+                            if ($paymentLink === '') {
+                                throw ValidationException::withMessages([
+                                    'amount' => 'Razorpay ne valid payment URL return nahi kiya.',
+                                ]);
+                            }
+
+                            /*
+                             * Store latest link reference only.
+                             * IMPORTANT: do not change paid_amount/payment_status here.
+                             */
+                            $record->payment_method = 'razorpay';
+                            $record->payment_reference = $paymentLinkId !== ''
+                                ? $paymentLinkId
+                                : $paymentLink;
+                            $record->save();
+
+                            $mobile = trim((string) ($record->customer?->mobile ?? ''));
+                            $whatsAppSent = false;
+
+                            if ($mobile !== '') {
+                                $wa = WhatsAppService::sendByKey(
+                                    templateKey: 'payment_reminder',
+                                    number: $mobile,
+                                    bodyParameters: [
+                                        (string) ($record->customer?->name ?? 'Customer'),
+                                        (string) ($record->booking_no ?: $record->id),
+                                        number_format($amount, 2, '.', ''),
+                                        $paymentLink,
+                                    ]
+                                );
+
+                                $whatsAppSent = (bool) (
+                                    $wa['status']
+                                    ?? $wa['success']
+                                    ?? false
+                                );
+                            }
+
+                            Notification::make()
+                                ->title(
+                                    $whatsAppSent
+                                        ? 'Payment link sent'
+                                        : 'Payment link created'
+                                )
+                                ->body(
+                                    '₹' . number_format($amount, 2)
+                                    . ' Razorpay link: '
+                                    . $paymentLink
+                                    . (
+                                        $whatsAppSent
+                                            ? ' | WhatsApp sent.'
+                                            : ' | WhatsApp template send failed/not configured.'
+                                    )
+                                )
+                                ->success()
+                                ->persistent()
+                                ->send();
+
+                            return;
+                        }
+
+                        /*
+                         * CASH / UPI / BANK / CARD:
+                         * Admin is confirming that money has actually been received.
+                         */
                         $record->paid_amount =
                             (float) $record->paid_amount + $amount;
-                        $record->payment_method = $data['method'];
+                        $record->payment_method = $method;
                         $record->payment_reference = $data['reference'] ?? null;
                         $record->syncPayment();
 
-                        /*
-                         * Booking can become Completed only after:
-                         * 1) trip has actually ended, and
-                         * 2) full payable amount has been received.
-                         */
                         if (
                             $record->payment_status === 'paid'
                             && (float) $record->remaining_amount <= 0.009
@@ -955,9 +1101,15 @@ class SelfDriveBookingResource extends Resource
                         );
 
                         Notification::make()
-                            ->title('Payment updated')
-                            ->body('₹' . number_format($amount, 2) . ' received.')
-                            ->success()->send();
+                            ->title('Payment received')
+                            ->body(
+                                '₹' . number_format($amount, 2)
+                                . ' received via '
+                                . Str::headline($method)
+                                . '.'
+                            )
+                            ->success()
+                            ->send();
                     }),
 
                 Tables\Actions\Action::make('vendor_confirm')
@@ -1544,6 +1696,7 @@ class SelfDriveBookingResource extends Resource
             'upi' => 'UPI',
             'card' => 'Card',
             'bank_transfer' => 'Bank Transfer',
+            'razorpay_link' => 'Razorpay Payment Link',
             'online' => 'Online / Razorpay',
         ];
     }
