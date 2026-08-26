@@ -179,7 +179,9 @@ class InvoiceService
             'payment_method' =>
                 $order->payment_method ?? 'cash',
             'paid_amount' =>
-                $order->paid_amount ?? 0,
+                $extra['paid_amount']
+                ?? $order->paid_amount
+                ?? 0,
         ]);
 
         return [
@@ -240,6 +242,39 @@ class InvoiceService
             'fare' => array_merge(
                 $billing,
                 [
+                    /*
+                     * Admin-entered order total is authoritative.
+                     * Taxi advances are stored in extraOptions because the
+                     * orders table does not necessarily have paid_amount.
+                     */
+                    'grand_total' => (float) (
+                        $order->grand_total
+                        ?? $extra['final_amount']
+                        ?? $billing['grand_total']
+                        ?? 0
+                    ),
+                    'paid_amount' => (float) (
+                        $extra['paid_amount']
+                        ?? $order->paid_amount
+                        ?? 0
+                    ),
+                    'remaining_amount' => max(
+                        0,
+                        round(
+                            (float) (
+                                $order->grand_total
+                                ?? $extra['final_amount']
+                                ?? $billing['grand_total']
+                                ?? 0
+                            )
+                            - (float) (
+                                $extra['paid_amount']
+                                ?? $order->paid_amount
+                                ?? 0
+                            ),
+                            2
+                        )
+                    ),
                     'parking_amount' =>
                         (float) (
                             $extra['parking_amount']
