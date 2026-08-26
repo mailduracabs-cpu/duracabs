@@ -19,13 +19,15 @@ class WhatsAppTemplateSeeder extends Seeder
 
             $this->template(
                 name: 'OTP Login',
-                templateName: 'otp_login_v1',
+                templateName: 'otp_login_v2',
                 category: WhatsAppTemplate::CATEGORY_AUTHENTICATION,
                 body: <<<'BODY'
 Your Dura Cabs verification code is {{1}}.
 
 This code is valid for {{2}} minutes.
 Do not share this code with anyone.
+
+Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'otp', '123456'),
@@ -35,18 +37,22 @@ BODY,
 
             $this->template(
                 name: 'Customer Account Created',
-                templateName: 'account_created_v1',
+                templateName: 'account_created_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Welcome to Dura Cabs. Your customer account has been created successfully.
+🎉 *Welcome to Dura Cabs!*
 
-Customer ID: {{2}}
-Registered Mobile: {{3}}
+Your customer account has been created successfully.
 
-You can now book rides and manage your trips through Dura Cabs.
+🆔 Customer ID: {{2}}
+📱 Registered Mobile: {{3}}
 
-For assistance, please call +91 70888 73331.
+🚖 You can now book rides and manage your trips with Dura Cabs.
+
+📞 Need help? Call +91 70888 73331
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -57,18 +63,22 @@ BODY,
 
             $this->template(
                 name: 'Customer Inquiry Received',
-                templateName: 'customer_inquiry_received_v1',
+                templateName: 'customer_inquiry_received_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Thank you for contacting Dura Cabs. We have received your inquiry.
+📩 *We have received your enquiry.*
 
-Inquiry ID: {{2}}
-Service: {{3}}
-Route: {{4}}
-Travel Date: {{5}}
+🆔 Enquiry ID: {{2}}
+🚖 Service: {{3}}
+📍 Route: {{4}}
+📅 Travel Date: {{5}}
 
-Our team will contact you shortly with the relevant details.
+⏳ Our team will contact you shortly with the relevant details.
+
+📞 Assistance: +91 70888 73331
+
+🙏 Thank you for contacting Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -81,21 +91,23 @@ BODY,
 
             $this->template(
                 name: 'Booking Received',
-                templateName: 'booking_received_v1',
+                templateName: 'booking_received_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs booking request has been received successfully.
+📩 *Your Dura Cabs booking request has been received!*
 
-Booking ID: {{2}}
-Service: {{3}}
-Route: {{4}}
-Travel Date: {{5}}
-Total Amount: INR {{6}}
+🆔 Booking ID: {{2}}
+🚖 Service: {{3}}
+📍 Route: {{4}}
+📅 Travel Date: {{5}}
+💰 Estimated Amount: INR {{6}}
 
-Our team will review your booking and update you shortly.
+⏳ Our team is reviewing your booking. We will notify you once it is confirmed.
 
-For assistance, please call +91 70888 73331.
+📞 Assistance: +91 70888 73331
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -109,21 +121,24 @@ BODY,
 
             $this->template(
                 name: 'Booking Confirmed',
-                templateName: 'booking_confirmed_v1',
+                templateName: 'booking_confirmed_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs booking has been confirmed.
+✅ *Your Dura Cabs Booking is Confirmed!*
 
-Booking ID: {{2}}
-Service: {{3}}
-Vehicle: {{4}}
-Route: {{5}}
-Travel Date: {{6}}
-Travel Time: {{7}}
-Total Amount: INR {{8}}
+🆔 Booking ID: {{2}}
+🚖 Service: {{3}}
+🚘 Vehicle: {{4}}
+📍 Route: {{5}}
+📅 Travel Date: {{6}}
+🕐 Pickup Time: {{7}}
+💰 Total Fare: INR {{8}}
 
-Thank you for choosing Dura Cabs.
+📱 Please keep your registered mobile number available before pickup.
+
+🙏 Thank you for choosing Dura Cabs.
+🚕 We wish you a safe and comfortable journey.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -139,16 +154,20 @@ BODY,
 
             $this->template(
                 name: 'Booking Rejected',
-                templateName: 'booking_rejected_v1',
+                templateName: 'booking_rejected_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-We regret to inform you that your Dura Cabs booking request could not be accepted.
+⚠️ *Booking Update*
 
-Booking ID: {{2}}
-Reason: {{3}}
+Unfortunately, we could not confirm your Dura Cabs booking request.
 
-Please contact our support team at +91 70888 73331 for alternative options.
+🆔 Booking ID: {{2}}
+📝 Reason: {{3}}
+
+📞 Please call +91 70888 73331 and our team will help you with alternative options.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -159,16 +178,20 @@ BODY,
 
             $this->template(
                 name: 'Booking Cancelled',
-                templateName: 'booking_cancelled_v1',
+                templateName: 'booking_cancelled_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs booking has been cancelled.
+❌ *Your Dura Cabs booking has been cancelled.*
 
-Booking ID: {{2}}
-Reason: {{3}}
+🆔 Booking ID: {{2}}
+📝 Reason: {{3}}
 
-For assistance, please call +91 70888 73331.
+💳 If any refund is applicable, it will be processed as per the booking terms.
+
+📞 Assistance: +91 70888 73331
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -179,20 +202,22 @@ BODY,
 
             $this->template(
                 name: 'Driver Assigned',
-                templateName: 'driver_assigned_v1',
+                templateName: 'driver_assigned_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-A driver has been assigned to your Dura Cabs booking.
+🚕 *Driver Assigned Successfully*
 
-Booking ID: {{2}}
-Driver Name: {{3}}
-Driver Mobile: {{4}}
-Vehicle: {{5}}
-Vehicle Number: {{6}}
-Pickup Time: {{7}}
+🆔 Booking ID: {{2}}
+👨‍✈️ Driver: {{3}}
+📞 Driver Mobile: {{4}}
+🚘 Vehicle: {{5}}
+🔢 Vehicle Number: {{6}}
+🕐 Pickup Time: {{7}}
 
-Please contact the driver only if required.
+📱 Please keep your phone available before pickup.
+
+🙏 Have a safe journey with Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -207,18 +232,20 @@ BODY,
 
             $this->template(
                 name: 'Trip Started',
-                templateName: 'trip_started_v1',
+                templateName: 'trip_started_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs trip has started.
+🚖 *Your Dura Cabs trip has started.*
 
-Booking ID: {{2}}
-Route: {{3}}
-Driver: {{4}}
-Vehicle: {{5}}
+🆔 Booking ID: {{2}}
+📍 Route: {{3}}
+👨‍✈️ Driver: {{4}}
+🚘 Vehicle: {{5}}
 
-We wish you a safe and comfortable journey.
+🛣️ We wish you a safe and comfortable journey.
+
+🙏 Thank you for travelling with Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -231,18 +258,19 @@ BODY,
 
             $this->template(
                 name: 'Trip Completed',
-                templateName: 'trip_completed_v1',
+                templateName: 'trip_completed_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs trip has been completed successfully.
+✅ *Your Dura Cabs trip has been completed successfully.*
 
-Booking ID: {{2}}
-Route: {{3}}
-Total Amount: INR {{4}}
-Payment Status: {{5}}
+🆔 Booking ID: {{2}}
+📍 Route: {{3}}
+💰 Total Amount: INR {{4}}
+💳 Payment Status: {{5}}
 
-Thank you for travelling with Dura Cabs.
+🙏 Thank you for travelling with Dura Cabs.
+⭐ We hope to serve you again soon.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -255,18 +283,18 @@ BODY,
 
             $this->template(
                 name: 'Payment Received',
-                templateName: 'payment_received_v1',
+                templateName: 'payment_received_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-We have received your payment successfully.
+✅ *Payment Received Successfully*
 
-Booking ID: {{2}}
-Paid Amount: INR {{3}}
-Remaining Amount: INR {{4}}
-Payment Status: {{5}}
+🆔 Booking ID: {{2}}
+💰 Amount Paid: INR {{3}}
+💳 Remaining Amount: INR {{4}}
+📌 Payment Status: {{5}}
 
-Thank you for choosing Dura Cabs.
+🙏 Thank you for your payment and for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -279,17 +307,21 @@ BODY,
 
             $this->template(
                 name: 'Payment Reminder',
-                templateName: 'payment_reminder_v1',
+                templateName: 'payment_reminder_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
+
+⏰ *Payment Reminder*
 
 A payment is pending for your Dura Cabs booking.
 
-Booking ID: {{2}}
-Pending Amount: INR {{3}}
-Payment Link: {{4}}
+🆔 Booking ID: {{2}}
+💰 Pending Amount: INR {{3}}
+🔗 Payment Link: {{4}}
 
-Please complete the payment to avoid any interruption to your booking.
+⚠️ Please complete the payment to avoid any interruption to your booking.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -301,16 +333,18 @@ BODY,
 
             $this->template(
                 name: 'Invoice Ready',
-                templateName: 'invoice_ready_v1',
+                templateName: 'invoice_ready_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs invoice is ready.
+🧾 *Your Dura Cabs invoice is ready.*
 
-Booking ID: {{2}}
-Invoice Link: {{3}}
+🆔 Booking ID: {{2}}
+🔗 Invoice: {{3}}
 
-Thank you for choosing Dura Cabs.
+📄 Please keep the invoice for your records.
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -321,18 +355,19 @@ BODY,
 
             $this->template(
                 name: 'Review Request',
-                templateName: 'review_request_v1',
+                templateName: 'review_request_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Thank you for travelling with Dura Cabs.
+🙏 Thank you for travelling with Dura Cabs.
 
-Booking ID: {{2}}
+🆔 Booking ID: {{2}}
 
-Please share your experience using the link below:
+⭐ *How was your experience?*
+Please share your feedback here:
 {{3}}
 
-Your feedback helps us improve our services.
+💙 Your feedback helps us improve our service.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -343,17 +378,19 @@ BODY,
 
             $this->template(
                 name: 'Refund Processed',
-                templateName: 'refund_processed_v1',
+                templateName: 'refund_processed_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your refund has been processed.
+✅ *Your refund has been processed.*
 
-Booking ID: {{2}}
-Refund Amount: INR {{3}}
-Refund Status: {{4}}
+🆔 Booking ID: {{2}}
+💰 Refund Amount: INR {{3}}
+📌 Refund Status: {{4}}
 
-The amount will be credited according to your payment provider's processing timeline.
+🏦 The amount may take some time to reflect depending on your bank or payment provider.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -371,20 +408,22 @@ BODY,
 
             $this->template(
                 name: 'Self Drive Booking Received',
-                templateName: 'selfdrive_booking_received_v1',
+                templateName: 'selfdrive_booking_received_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs self-drive booking request has been received.
+📩 *Your Dura Cabs Self-Drive Booking Request has been received!*
 
-Booking ID: {{2}}
-Vehicle: {{3}}
-Pickup Date and Time: {{4}}
-Return Date and Time: {{5}}
-Rental Amount: INR {{6}}
-Security Deposit: INR {{7}}
+🆔 Booking ID: {{2}}
+🚙 Vehicle: {{3}}
+📅 Pickup: {{4}}
+🔁 Return: {{5}}
+💰 Rental Amount: INR {{6}}
+🔐 Security Deposit: INR {{7}}
 
-Our team will review your booking and update you shortly.
+⏳ Our team is reviewing your booking and will notify you once it is confirmed.
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -399,20 +438,33 @@ BODY,
 
             $this->template(
                 name: 'Self Drive Booking Confirmed',
-                templateName: 'selfdrive_booking_confirmed_v1',
+                templateName: 'selfdrive_booking_confirmed_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs self-drive booking has been confirmed.
+✅ *Your Dura Cabs Self-Drive Booking is Confirmed!*
 
-Booking ID: {{2}}
-Vehicle: {{3}}
-Pickup Date and Time: {{4}}
-Return Date and Time: {{5}}
-Pickup Location: {{6}}
-Security Deposit: INR {{7}}
+🆔 Booking ID: {{2}}
+🚙 Vehicle: {{3}}
+📅 Pickup: {{4}}
+🔁 Return: {{5}}
+📍 Pickup Location: {{6}}
 
-Please carry all required original documents at the time of pickup.
+💰 Rental Amount: INR {{7}}
+🔐 Security Deposit: INR {{8}}
+✅ Amount Paid: INR {{9}}
+💳 Balance Due: INR {{10}}
+📌 Payment Status: {{11}}
+
+📄 *Documents Required at Pickup*
+• Original Driving Licence
+• Aadhaar Card / Valid ID Proof
+
+⚠️ Please carry all required original documents at vehicle pickup.
+
+🚘 Drive safely and follow all traffic rules.
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -421,24 +473,32 @@ BODY,
                     $this->variable(4, 'pickup_datetime', '05 August 2026, 10:00 AM'),
                     $this->variable(5, 'return_datetime', '07 August 2026, 10:00 AM'),
                     $this->variable(6, 'pickup_location', 'Agra, Uttar Pradesh'),
-                    $this->variable(7, 'security_deposit', '5000.00'),
+                    $this->variable(7, 'total_amount', '11040.00'),
+                    $this->variable(8, 'security_deposit', '5000.00'),
+                    $this->variable(9, 'paid_amount', '5000.00'),
+                    $this->variable(10, 'remaining_amount', '6040.00'),
+                    $this->variable(11, 'payment_status', 'Partially Paid'),
                 ]
             ),
 
             $this->template(
                 name: 'Self Drive Pickup Reminder',
-                templateName: 'selfdrive_pickup_reminder_v1',
+                templateName: 'selfdrive_pickup_reminder_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-This is a reminder for your upcoming self-drive vehicle pickup.
+⏰ *Self-Drive Pickup Reminder*
 
-Booking ID: {{2}}
-Vehicle: {{3}}
-Pickup Date and Time: {{4}}
-Pickup Location: {{5}}
+🆔 Booking ID: {{2}}
+🚙 Vehicle: {{3}}
+📅 Pickup: {{4}}
+📍 Pickup Location: {{5}}
 
-Please arrive on time and carry all required original documents.
+📄 Please carry your original Driving Licence and valid ID proof.
+
+⏱️ Kindly arrive on time for a smooth vehicle handover.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -451,18 +511,20 @@ BODY,
 
             $this->template(
                 name: 'Self Drive Return Reminder',
-                templateName: 'selfdrive_return_reminder_v1',
+                templateName: 'selfdrive_return_reminder_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-This is a reminder to return your self-drive vehicle on time.
+⏰ *Self-Drive Return Reminder*
 
-Booking ID: {{2}}
-Vehicle: {{3}}
-Return Date and Time: {{4}}
-Return Location: {{5}}
+🆔 Booking ID: {{2}}
+🚙 Vehicle: {{3}}
+📅 Return: {{4}}
+📍 Return Location: {{5}}
 
-Late return charges may apply according to the booking terms.
+⚠️ Please return the vehicle on time. Late return or additional usage charges may apply as per booking terms.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -475,17 +537,19 @@ BODY,
 
             $this->template(
                 name: 'Security Deposit Refunded',
-                templateName: 'security_refunded_v1',
+                templateName: 'security_refunded_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your self-drive security deposit refund has been processed.
+✅ *Security Deposit Refund Processed*
 
-Booking ID: {{2}}
-Refund Amount: INR {{3}}
-Refund Status: {{4}}
+🆔 Booking ID: {{2}}
+💰 Refund Amount: INR {{3}}
+📌 Refund Status: {{4}}
 
-The amount will be credited according to your payment provider's processing timeline.
+🏦 The amount may take some time to reflect depending on your bank or payment provider.
+
+🙏 Thank you for choosing Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'customer_name', 'Sanjay Singh'),
@@ -503,17 +567,19 @@ BODY,
 
             $this->template(
                 name: 'Vendor Registration Received',
-                templateName: 'vendor_registration_received_v1',
+                templateName: 'vendor_registration_received_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs vendor registration request has been received.
+📩 *Your Dura Cabs vendor registration has been received.*
 
-Registration ID: {{2}}
-Business Name: {{3}}
-City: {{4}}
+🆔 Registration ID: {{2}}
+🏢 Business Name: {{3}}
+📍 City: {{4}}
 
-Our team will review your information and documents and update you shortly.
+🔍 Our team will review your details and documents and update you shortly.
+
+🙏 Thank you for partnering with Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -525,17 +591,19 @@ BODY,
 
             $this->template(
                 name: 'Vendor Registration Approved',
-                templateName: 'vendor_registration_approved_v1',
+                templateName: 'vendor_registration_approved_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Dura Cabs vendor registration has been approved.
+🎉 *Congratulations! Your Dura Cabs vendor account has been approved.*
 
-Vendor ID: {{2}}
-Business Name: {{3}}
-Login Mobile: {{4}}
+🆔 Vendor ID: {{2}}
+🏢 Business Name: {{3}}
+📱 Login Mobile: {{4}}
 
-You may now access the vendor panel and manage your vehicles and bookings.
+✅ You can now access the vendor panel and manage your vehicles and assigned bookings.
+
+🤝 Welcome to Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -547,16 +615,20 @@ BODY,
 
             $this->template(
                 name: 'Vendor Registration Rejected',
-                templateName: 'vendor_registration_rejected_v1',
+                templateName: 'vendor_registration_rejected_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
+
+⚠️ *Vendor Registration Update*
 
 Your Dura Cabs vendor registration could not be approved.
 
-Registration ID: {{2}}
-Reason: {{3}}
+🆔 Registration ID: {{2}}
+📝 Reason: {{3}}
 
-Please review the required information and contact our support team if you need assistance.
+📞 Please review the required information and contact our support team if you need assistance.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -567,21 +639,23 @@ BODY,
 
             $this->template(
                 name: 'Vendor New Booking',
-                templateName: 'vendor_new_booking_v1',
+                templateName: 'vendor_new_booking_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-A new Dura Cabs booking has been assigned to you.
+🆕 *New Dura Cabs Booking Assigned*
 
-Booking ID: {{2}}
-Customer: {{3}}
-Customer Mobile: {{4}}
-Vehicle: {{5}}
-Route: {{6}}
-Travel Date: {{7}}
-Travel Time: {{8}}
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📞 Customer Mobile: {{4}}
+🚘 Vehicle: {{5}}
+📍 Route: {{6}}
+📅 Travel Date: {{7}}
+🕐 Travel Time: {{8}}
 
-Please review and respond to the booking from the vendor panel.
+⚠️ Please review the booking and confirm availability from the vendor panel.
+
+🙏 Dura Cabs Operations
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -597,18 +671,18 @@ BODY,
 
             $this->template(
                 name: 'Vendor Booking Cancelled',
-                templateName: 'vendor_booking_cancelled_v1',
+                templateName: 'vendor_booking_cancelled_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-A booking assigned to you has been cancelled.
+❌ *Assigned Booking Cancelled*
 
-Booking ID: {{2}}
-Customer: {{3}}
-Route: {{4}}
-Reason: {{5}}
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📍 Route: {{4}}
+📝 Reason: {{5}}
 
-Please check the vendor panel for complete details.
+ℹ️ No further action is required unless instructed by Dura Cabs Operations.
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -621,18 +695,20 @@ BODY,
 
             $this->template(
                 name: 'Vendor Payment Released',
-                templateName: 'vendor_payment_released_v1',
+                templateName: 'vendor_payment_released_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-A payment has been released for your completed Dura Cabs booking.
+💸 *Vendor Payment Released*
 
-Booking ID: {{2}}
-Released Amount: INR {{3}}
-Payment Reference: {{4}}
-Payment Status: {{5}}
+🆔 Booking ID: {{2}}
+💰 Released Amount: INR {{3}}
+🔖 Payment Reference: {{4}}
+📌 Payment Status: {{5}}
 
-Please check your account or vendor panel for further details.
+🏦 Please check your account or vendor panel for settlement details.
+
+🙏 Dura Cabs Accounts
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -645,18 +721,20 @@ BODY,
 
             $this->template(
                 name: 'Vendor Attach Taxi Status',
-                templateName: 'vendor_attach_taxi_status_v1',
+                templateName: 'vendor_attach_taxi_status_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-Your Attach Taxi request has been updated.
+🚘 *Attach Taxi Request Updated*
 
-Request ID: {{2}}
-Vehicle: {{3}}
-Status: {{4}}
-Remarks: {{5}}
+🆔 Request ID: {{2}}
+🚖 Vehicle: {{3}}
+📌 Status: {{4}}
+📝 Remarks: {{5}}
 
-Please check the vendor panel for complete details.
+📲 Please check the vendor panel for complete details.
+
+🙏 Dura Cabs
 BODY,
                 variables: [
                     $this->variable(1, 'vendor_name', 'Dura Vendor'),
@@ -668,6 +746,132 @@ BODY,
             ),
 
             /*
+             |--------------------------------------------------------------------------
+             | Recipient-specific Operational Templates
+             |--------------------------------------------------------------------------
+            */
+
+            $this->template(
+                name: 'Vendor Self Drive Booking',
+                templateName: 'vendor_selfdrive_booking_v2',
+                body: <<<'BODY'
+👋 Hello {{1}},
+
+🚙 *New Self-Drive Booking Assigned*
+
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📞 Customer Mobile: {{4}}
+🚘 Vehicle: {{5}}
+📅 Pickup: {{6}}
+🔁 Return: {{7}}
+📍 Pickup Location: {{8}}
+
+⚠️ Please ensure the vehicle is ready and review the booking in the vendor panel.
+
+🙏 Dura Cabs Operations
+BODY,
+                variables: [
+                    $this->variable(1, 'vendor_name', 'Dura Vendor'),
+                    $this->variable(2, 'booking_id', 'SD1001'),
+                    $this->variable(3, 'customer_name', 'Sanjay Singh'),
+                    $this->variable(4, 'customer_mobile', '7088873331'),
+                    $this->variable(5, 'vehicle_name', 'Mahindra Thar'),
+                    $this->variable(6, 'pickup_datetime', '05 August 2026, 10:00 AM'),
+                    $this->variable(7, 'return_datetime', '07 August 2026, 10:00 AM'),
+                    $this->variable(8, 'pickup_location', 'Agra, Uttar Pradesh'),
+                ]
+            ),
+
+            $this->template(
+                name: 'Internal Self Drive Booking',
+                templateName: 'admin_selfdrive_booking_v2',
+                body: <<<'BODY'
+🚙 *Self-Drive Booking Update*
+
+🆔 Booking ID: {{1}}
+👤 Customer: {{2}}
+📞 Mobile: {{3}}
+🚘 Vehicle: {{4}}
+📅 Pickup: {{5}}
+🔁 Return: {{6}}
+📍 Pickup Location: {{7}}
+💰 Rental Amount: INR {{8}}
+🔐 Security Deposit: INR {{9}}
+📌 Payment Status: {{10}}
+
+⚠️ Please review the booking in the admin panel.
+BODY,
+                footer: 'Dura Cabs Operations',
+                variables: [
+                    $this->variable(1, 'booking_id', 'SD1001'),
+                    $this->variable(2, 'customer_name', 'Sanjay Singh'),
+                    $this->variable(3, 'customer_mobile', '7088873331'),
+                    $this->variable(4, 'vehicle_name', 'Mahindra Thar'),
+                    $this->variable(5, 'pickup_datetime', '05 August 2026, 10:00 AM'),
+                    $this->variable(6, 'return_datetime', '07 August 2026, 10:00 AM'),
+                    $this->variable(7, 'pickup_location', 'Agra, Uttar Pradesh'),
+                    $this->variable(8, 'total_amount', '11040.00'),
+                    $this->variable(9, 'security_deposit', '5000.00'),
+                    $this->variable(10, 'payment_status', 'Partially Paid'),
+                ]
+            ),
+
+            $this->template(
+                name: 'Internal Payment Received',
+                templateName: 'admin_payment_received_v2',
+                body: <<<'BODY'
+💳 *Payment Received*
+
+🆔 Booking ID: {{1}}
+👤 Customer: {{2}}
+📞 Mobile: {{3}}
+💰 Amount Paid: INR {{4}}
+💳 Balance Due: INR {{5}}
+📌 Payment Status: {{6}}
+🔖 Payment Reference: {{7}}
+
+✅ Please verify the payment and settlement details in the admin panel.
+BODY,
+                footer: 'Dura Cabs Accounts',
+                variables: [
+                    $this->variable(1, 'booking_id', 'DC1001'),
+                    $this->variable(2, 'customer_name', 'Sanjay Singh'),
+                    $this->variable(3, 'customer_mobile', '7088873331'),
+                    $this->variable(4, 'paid_amount', '500.00'),
+                    $this->variable(5, 'remaining_amount', '4000.00'),
+                    $this->variable(6, 'payment_status', 'Partially Paid'),
+                    $this->variable(7, 'payment_reference', 'PAY1001'),
+                ]
+            ),
+
+            $this->template(
+                name: 'Internal Refund Processed',
+                templateName: 'admin_refund_processed_v2',
+                body: <<<'BODY'
+💸 *Refund / Security Deposit Update*
+
+🆔 Booking ID: {{1}}
+👤 Customer: {{2}}
+📞 Mobile: {{3}}
+💰 Refund Amount: INR {{4}}
+📌 Refund Status: {{5}}
+🔖 Refund Reference: {{6}}
+
+✅ Please verify the settlement in the admin panel.
+BODY,
+                footer: 'Dura Cabs Accounts',
+                variables: [
+                    $this->variable(1, 'booking_id', 'DC1001'),
+                    $this->variable(2, 'customer_name', 'Sanjay Singh'),
+                    $this->variable(3, 'customer_mobile', '7088873331'),
+                    $this->variable(4, 'refund_amount', '500.00'),
+                    $this->variable(5, 'refund_status', 'Processed'),
+                    $this->variable(6, 'refund_reference', 'RF1001'),
+                ]
+            ),
+
+            /*
             |--------------------------------------------------------------------------
             | Driver Templates
             |--------------------------------------------------------------------------
@@ -675,21 +879,23 @@ BODY,
 
             $this->template(
                 name: 'Driver New Trip Assigned',
-                templateName: 'driver_new_trip_v1',
+                templateName: 'driver_new_trip_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-A new Dura Cabs trip has been assigned to you.
+🚖 *New Dura Cabs Trip Assigned*
 
-Booking ID: {{2}}
-Customer: {{3}}
-Customer Mobile: {{4}}
-Route: {{5}}
-Travel Date: {{6}}
-Travel Time: {{7}}
-Vehicle: {{8}}
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📞 Customer Mobile: {{4}}
+📍 Route: {{5}}
+📅 Travel Date: {{6}}
+🕐 Travel Time: {{7}}
+🚘 Vehicle: {{8}}
 
-Please review the complete trip details before departure.
+⚠️ Please review the complete trip details and reach the pickup point on time.
+
+🙏 Drive safely — Dura Cabs.
 BODY,
                 variables: [
                     $this->variable(1, 'driver_name', 'Raj Kumar'),
@@ -705,18 +911,18 @@ BODY,
 
             $this->template(
                 name: 'Driver Trip Cancelled',
-                templateName: 'driver_trip_cancelled_v1',
+                templateName: 'driver_trip_cancelled_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-The following Dura Cabs trip has been cancelled.
+❌ *Trip Cancelled*
 
-Booking ID: {{2}}
-Customer: {{3}}
-Route: {{4}}
-Reason: {{5}}
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📍 Route: {{4}}
+📝 Reason: {{5}}
 
-No further action is required unless instructed by the operations team.
+ℹ️ No further action is required unless instructed by Dura Cabs Operations.
 BODY,
                 variables: [
                     $this->variable(1, 'driver_name', 'Raj Kumar'),
@@ -729,19 +935,21 @@ BODY,
 
             $this->template(
                 name: 'Driver Trip Reminder',
-                templateName: 'driver_trip_reminder_v1',
+                templateName: 'driver_trip_reminder_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-This is a reminder for your upcoming Dura Cabs trip.
+⏰ *Upcoming Trip Reminder*
 
-Booking ID: {{2}}
-Customer: {{3}}
-Pickup Location: {{4}}
-Travel Date: {{5}}
-Travel Time: {{6}}
+🆔 Booking ID: {{2}}
+👤 Customer: {{3}}
+📍 Pickup Location: {{4}}
+📅 Travel Date: {{5}}
+🕐 Travel Time: {{6}}
 
-Please arrive at the pickup location on time.
+⚠️ Please reach the pickup location on time and keep your phone available.
+
+🙏 Dura Cabs Operations
 BODY,
                 variables: [
                     $this->variable(1, 'driver_name', 'Raj Kumar'),
@@ -755,17 +963,19 @@ BODY,
 
             $this->template(
                 name: 'Driver Trip Completed',
-                templateName: 'driver_trip_completed_v1',
+                templateName: 'driver_trip_completed_v2',
                 body: <<<'BODY'
-Hello {{1}},
+👋 Hello {{1}},
 
-The Dura Cabs trip has been marked as completed.
+✅ *Trip Marked as Completed*
 
-Booking ID: {{2}}
-Route: {{3}}
-Completion Time: {{4}}
+🆔 Booking ID: {{2}}
+📍 Route: {{3}}
+🕐 Completion Time: {{4}}
 
-Thank you for completing the trip professionally.
+🙏 Thank you for completing the trip professionally and safely.
+
+Dura Cabs Operations
 BODY,
                 variables: [
                     $this->variable(1, 'driver_name', 'Raj Kumar'),
@@ -786,18 +996,18 @@ BODY,
 
             $this->template(
                 name: 'Internal New Inquiry',
-                templateName: 'admin_new_inquiry_v1',
+                templateName: 'admin_new_inquiry_v2',
                 body: <<<'BODY'
-A new customer inquiry has been received.
+📩 *New Customer Enquiry*
 
-Inquiry ID: {{1}}
-Customer: {{2}}
-Mobile: {{3}}
-Service: {{4}}
-Route: {{5}}
-Travel Date: {{6}}
+🆔 Enquiry ID: {{1}}
+👤 Customer: {{2}}
+📞 Mobile: {{3}}
+🚖 Service: {{4}}
+📍 Route: {{5}}
+📅 Travel Date: {{6}}
 
-Please review the inquiry and complete the required follow-up.
+⚠️ Action Required: Please review the enquiry and complete the required follow-up.
 BODY,
                 footer: 'Dura Cabs Operations',
                 variables: [
@@ -812,17 +1022,17 @@ BODY,
 
             $this->template(
                 name: 'Internal New Customer',
-                templateName: 'admin_new_customer_v1',
+                templateName: 'admin_new_customer_v2',
                 body: <<<'BODY'
-A new customer account has been created.
+👤 *New Customer Registered*
 
-Customer ID: {{1}}
-Name: {{2}}
-Mobile: {{3}}
-Email: {{4}}
-Registration Time: {{5}}
+🆔 Customer ID: {{1}}
+👤 Name: {{2}}
+📞 Mobile: {{3}}
+📧 Email: {{4}}
+🕐 Registration Time: {{5}}
 
-Please review the customer profile if any follow-up is required.
+ℹ️ Please review the customer profile if any follow-up is required.
 BODY,
                 footer: 'Dura Cabs Operations',
                 variables: [
@@ -836,17 +1046,17 @@ BODY,
 
             $this->template(
                 name: 'Internal New Vendor Registration',
-                templateName: 'admin_new_vendor_registration_v1',
+                templateName: 'admin_new_vendor_registration_v2',
                 body: <<<'BODY'
-A new vendor registration has been received.
+🏢 *New Vendor Registration Received*
 
-Vendor ID: {{1}}
-Vendor Name: {{2}}
-Mobile: {{3}}
-City: {{4}}
-Business Name: {{5}}
+🆔 Vendor ID: {{1}}
+👤 Vendor Name: {{2}}
+📞 Mobile: {{3}}
+📍 City: {{4}}
+🏢 Business Name: {{5}}
 
-Please review the submitted information and documents.
+⚠️ Action Required: Please review the submitted profile and documents.
 BODY,
                 footer: 'Dura Cabs Operations',
                 variables: [
@@ -860,19 +1070,19 @@ BODY,
 
             $this->template(
                 name: 'Internal New Booking',
-                templateName: 'admin_new_booking_v1',
+                templateName: 'admin_new_booking_v2',
                 body: <<<'BODY'
-A new Dura Cabs booking has been received.
+🆕 *New Dura Cabs Booking Received*
 
-Booking ID: {{1}}
-Customer: {{2}}
-Mobile: {{3}}
-Service: {{4}}
-Route: {{5}}
-Travel Date: {{6}}
-Total Amount: INR {{7}}
+🆔 Booking ID: {{1}}
+👤 Customer: {{2}}
+📞 Mobile: {{3}}
+🚖 Service: {{4}}
+📍 Route: {{5}}
+📅 Travel Date: {{6}}
+💰 Total Amount: INR {{7}}
 
-Please review and process the booking.
+⚠️ Action Required: Please review and process the booking in the admin panel.
 BODY,
                 footer: 'Dura Cabs Operations',
                 variables: [
@@ -888,18 +1098,18 @@ BODY,
 
             $this->template(
                 name: 'Internal Attach Taxi Request',
-                templateName: 'admin_attach_taxi_request_v1',
+                templateName: 'admin_attach_taxi_request_v2',
                 body: <<<'BODY'
-A new Attach Taxi request has been submitted.
+🚘 *New Attach Taxi Request*
 
-Request ID: {{1}}
-Vendor: {{2}}
-Mobile: {{3}}
-Vehicle: {{4}}
-Vehicle Number: {{5}}
-City: {{6}}
+🆔 Request ID: {{1}}
+👤 Vendor: {{2}}
+📞 Mobile: {{3}}
+🚖 Vehicle: {{4}}
+🔢 Vehicle Number: {{5}}
+📍 City: {{6}}
 
-Please verify the vehicle and submitted documents.
+⚠️ Action Required: Please verify the vehicle and submitted documents.
 BODY,
                 footer: 'Dura Cabs Operations',
                 variables: [

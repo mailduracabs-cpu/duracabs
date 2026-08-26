@@ -274,16 +274,9 @@ class WhatsAppService
                 );
             }
 
-            $rule = WhatsAppNotificationRule::activeForEvent(
-                $eventKey
-            );
+            $rule = WhatsAppNotificationRule::activeForEvent($eventKey);
 
             if (! $rule) {
-                Log::warning(
-                    'WhatsApp notification rule not found or inactive.',
-                    ['event_key' => $eventKey]
-                );
-
                 return self::failed(
                     message: 'No active WhatsApp notification rule is configured for this event.',
                     error: 'notification_rule_missing'
@@ -295,28 +288,6 @@ class WhatsAppService
                 ?? $settings->whatsapp_default_language
                 ?? ''
             ));
-
-            $template = self::resolveReadyTemplate(
-                templateKey: (string) $rule->template_key,
-                languageCode: $language !== ''
-                    ? $language
-                    : null
-            );
-
-            if (! $template) {
-                Log::warning(
-                    'WhatsApp notification template is not ready.',
-                    [
-                        'event_key' => $eventKey,
-                        'template_key' => $rule->template_key,
-                    ]
-                );
-
-                return self::failed(
-                    message: 'The selected WhatsApp template is not active and approved.',
-                    error: 'template_not_ready'
-                );
-            }
 
             $recipients = self::resolveEventRecipients(
                 rule: $rule,
@@ -331,34 +302,48 @@ class WhatsAppService
                 );
             }
 
-            $bodyParameters = self::resolveEventBodyParameters(
-                template: $template,
-                data: $data
-            );
-
-            $headerParameters = is_array(
-                $data['header_parameters'] ?? null
-            )
-                ? $data['header_parameters']
-                : [];
-
-            $buttonParameters = is_array(
-                $data['button_parameters'] ?? null
-            )
-                ? $data['button_parameters']
-                : [];
-
             $results = [];
             $successful = 0;
             $failed = 0;
 
             foreach ($recipients as $recipient) {
+                $templateKey = self::recipientTemplateKey(
+                    eventKey: $eventKey,
+                    recipientType: (string) $recipient['type'],
+                    defaultTemplateKey: (string) $rule->template_key
+                );
+
+                $template = self::resolveReadyTemplate(
+                    templateKey: $templateKey,
+                    languageCode: $language !== '' ? $language : null
+                );
+
+                if (! $template) {
+                    $failed++;
+
+                    $results[] = [
+                        'type' => $recipient['type'],
+                        'number' => self::maskNumber($recipient['number']),
+                        'template_key' => $templateKey,
+                        'template_name' => null,
+                        'status' => false,
+                        'message_id' => null,
+                        'message' => 'Recipient-specific WhatsApp template is not active and approved.',
+                        'error' => 'template_not_ready',
+                    ];
+
+                    continue;
+                }
+
+                $bodyParameters = self::resolveEventBodyParameters(
+                    template: $template,
+                    data: $data
+                );
+
                 $result = self::sendByKey(
-                    templateKey: (string) $rule->template_key,
+                    templateKey: $templateKey,
                     number: $recipient['number'],
                     bodyParameters: $bodyParameters,
-                    headerParameters: $headerParameters,
-                    buttonParameters: $buttonParameters,
                     languageCode: (string) $template->language
                 );
 
@@ -372,26 +357,20 @@ class WhatsAppService
 
                 $results[] = [
                     'type' => $recipient['type'],
-                    'number' => self::maskNumber(
-                        $recipient['number']
-                    ),
+                    'number' => self::maskNumber($recipient['number']),
+                    'template_key' => $templateKey,
+                    'template_name' => $template->template_name,
                     'status' => $status,
-                    'message_id' =>
-                        $result['message_id'] ?? null,
-                    'message' =>
-                        $result['message'] ?? null,
-                    'error' =>
-                        $result['error'] ?? null,
+                    'message_id' => $result['message_id'] ?? null,
+                    'message' => $result['message'] ?? null,
+                    'error' => $result['error'] ?? null,
                 ];
             }
 
             return [
                 'status' => $successful > 0 && $failed === 0,
-                'partial_success' =>
-                    $successful > 0 && $failed > 0,
+                'partial_success' => $successful > 0 && $failed > 0,
                 'event_key' => $eventKey,
-                'template_key' => $rule->template_key,
-                'template_name' => $template->template_name,
                 'recipient_count' => count($recipients),
                 'successful_count' => $successful,
                 'failed_count' => $failed,
@@ -422,9 +401,12 @@ class WhatsAppService
     public static function sendOtp(string $number, string $otp): bool
     {
         $result = self::sendByKey(
-            templateKey: 'otp',
+            templateKey: 'otp_login',
             number: $number,
-            bodyParameters: [$otp],
+            bodyParameters: [
+                $otp,
+                '5',
+            ],
             buttonParameters: self::otpButtonParameters($otp)
         );
 
@@ -432,10 +414,6 @@ class WhatsAppService
             return true;
         }
 
-        /*
-         * Authentication must remain usable while an OTP template is being
-         * reviewed, inactive or temporarily unavailable.
-         */
         $message =
             "Your Dura Cabs OTP is {$otp}. " .
             "Valid for 5 minutes. Do not share this OTP with anyone.";
@@ -514,48 +492,50 @@ class WhatsAppService
         string $number,
         mixed $data
     ): bool {
-        if (is_string($data)) {
-            return self::sendConfiguredTemplateOrText(
-                number: $number,
-                templateConfigKey: 'booking_confirmation',
-                fallbackMessage: $data,
-                parameters: [$data]
-            );
-        }
-
         $data = is_array($data) ? $data : [];
 
-        $customerName = $data['customer_name'] ?? 'Customer';
-        $bookingId = $data['booking_id'] ?? 'N/A';
-        $pickup = $data['pickup'] ?? $data['pickup_city'] ?? 'N/A';
-        $drop = $data['drop'] ?? $data['drop_city'] ?? 'N/A';
-        $date = $data['date'] ?? $data['pickup_date'] ?? 'N/A';
-        $time = $data['time'] ?? $data['pickup_time'] ?? 'N/A';
-        $amount = $data['amount'] ?? $data['grand_total'] ?? 'As discussed';
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $service = trim((string) ($data['service_type'] ?? $data['service'] ?? 'Cab Booking')) ?: 'Cab Booking';
+        $vehicle = trim((string) ($data['vehicle_name'] ?? $data['car_name'] ?? 'N/A')) ?: 'N/A';
+
+        $pickup = trim((string) ($data['pickup'] ?? $data['pickup_city'] ?? 'N/A')) ?: 'N/A';
+        $drop = trim((string) ($data['drop'] ?? $data['drop_city'] ?? 'N/A')) ?: 'N/A';
+        $route = trim((string) ($data['route'] ?? '')) ?: "{$pickup} to {$drop}";
+
+        $date = trim((string) ($data['travel_date'] ?? $data['date'] ?? $data['pickup_date'] ?? 'N/A')) ?: 'N/A';
+        $time = trim((string) ($data['travel_time'] ?? $data['time'] ?? $data['pickup_time'] ?? 'N/A')) ?: 'N/A';
+
+        $amount = $data['total_amount'] ?? $data['grand_total'] ?? $data['amount'] ?? '0';
+        $amount = is_numeric($amount)
+            ? number_format((float) $amount, 2, '.', '')
+            : (trim((string) $amount) ?: '0.00');
 
         $message =
-            "Dear {$customerName},\n" .
-            "Your Dura Cabs booking is confirmed.\n" .
+            "Hello {$customerName},\n\n" .
+            "Your Dura Cabs booking is confirmed.\n\n" .
             "Booking ID: {$bookingId}\n" .
-            "Pickup: {$pickup}\n" .
-            "Drop: {$drop}\n" .
-            "Date: {$date}\n" .
-            "Time: {$time}\n" .
-            "Amount: Rs. {$amount}\n" .
+            "Service: {$service}\n" .
+            "Vehicle: {$vehicle}\n" .
+            "Route: {$route}\n" .
+            "Travel Date: {$date}\n" .
+            "Travel Time: {$time}\n" .
+            "Total Amount: INR {$amount}\n\n" .
             "Thank you for choosing Dura Cabs.";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
-            templateConfigKey: 'booking_confirmation',
+            templateConfigKey: 'booking_confirmed',
             fallbackMessage: $message,
             parameters: [
                 $customerName,
                 $bookingId,
-                $pickup,
-                $drop,
+                $service,
+                $vehicle,
+                $route,
                 $date,
                 $time,
-                (string) $amount,
+                $amount,
             ]
         );
     }
@@ -603,48 +583,38 @@ class WhatsAppService
         string $number,
         mixed $data
     ): bool {
-        if (is_string($data)) {
-            return self::sendConfiguredTemplateOrText(
-                number: $number,
-                templateConfigKey: 'driver_details',
-                fallbackMessage: $data,
-                parameters: [$data]
-            );
-        }
-
         $data = is_array($data) ? $data : [];
 
-        $bookingId = $data['booking_id'] ?? 'N/A';
-        $driverName = $data['driver_name'] ?? 'N/A';
-        $driverMobile = $data['driver_mobile'] ?? 'N/A';
-        $vehicleName =
-            $data['vehicle_name']
-            ?? $data['car_name']
-            ?? 'N/A';
-
-        $vehicleNumber =
-            $data['vehicle_number']
-            ?? $data['car_number']
-            ?? 'N/A';
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $driverName = trim((string) ($data['driver_name'] ?? 'N/A')) ?: 'N/A';
+        $driverMobile = trim((string) ($data['driver_mobile'] ?? 'N/A')) ?: 'N/A';
+        $vehicleName = trim((string) ($data['vehicle_name'] ?? $data['car_name'] ?? 'N/A')) ?: 'N/A';
+        $vehicleNumber = trim((string) ($data['vehicle_number'] ?? $data['car_number'] ?? 'N/A')) ?: 'N/A';
+        $pickupTime = trim((string) ($data['travel_time'] ?? $data['pickup_time'] ?? 'N/A')) ?: 'N/A';
 
         $message =
-            "Dura Cabs Driver Details\n" .
+            "Hello {$customerName},\n\n" .
+            "A driver has been assigned to your Dura Cabs booking.\n\n" .
             "Booking ID: {$bookingId}\n" .
             "Driver: {$driverName}\n" .
-            "Mobile: {$driverMobile}\n" .
+            "Driver Mobile: {$driverMobile}\n" .
             "Vehicle: {$vehicleName}\n" .
-            "Vehicle No: {$vehicleNumber}";
+            "Vehicle Number: {$vehicleNumber}\n" .
+            "Pickup Time: {$pickupTime}";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
-            templateConfigKey: 'driver_details',
+            templateConfigKey: 'driver_assigned',
             fallbackMessage: $message,
             parameters: [
+                $customerName,
                 $bookingId,
                 $driverName,
                 $driverMobile,
                 $vehicleName,
                 $vehicleNumber,
+                $pickupTime,
             ]
         );
     }
@@ -709,43 +679,26 @@ class WhatsAppService
         string $number,
         mixed $data
     ): bool {
-        if (is_string($data)) {
-            return self::sendConfiguredTemplateOrText(
-                number: $number,
-                templateConfigKey: 'payment_reminder',
-                fallbackMessage: $data,
-                parameters: [$data]
-            );
-        }
-
         $data = is_array($data) ? $data : [];
 
-        $bookingId = $data['booking_id'] ?? 'N/A';
-        $amount =
-            $data['amount']
-            ?? $data['pending_amount']
-            ?? '0';
-
-        $paymentLink =
-            $data['payment_link']
-            ?? config('app.frontend_url', 'https://www.duracabs.com');
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $amount = $data['remaining_amount'] ?? $data['pending_amount'] ?? $data['amount'] ?? '0';
+        $amount = is_numeric($amount) ? number_format((float) $amount, 2, '.', '') : (trim((string) $amount) ?: '0.00');
+        $paymentLink = trim((string) ($data['payment_link'] ?? config('app.frontend_url', 'https://www.duracabs.com')));
 
         $message =
-            "Dura Cabs Payment Reminder\n" .
+            "Hello {$customerName},\n\n" .
+            "Payment Reminder\n" .
             "Booking ID: {$bookingId}\n" .
-            "Pending Amount: Rs. {$amount}\n" .
-            "Payment Link: {$paymentLink}\n" .
-            "Please complete your payment.";
+            "Pending Amount: INR {$amount}\n" .
+            "Payment Link: {$paymentLink}";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
             templateConfigKey: 'payment_reminder',
             fallbackMessage: $message,
-            parameters: [
-                $bookingId,
-                (string) $amount,
-                $paymentLink,
-            ]
+            parameters: [$customerName, $bookingId, $amount, $paymentLink]
         );
     }
 
@@ -759,26 +712,29 @@ class WhatsAppService
         string $number,
         array $data
     ): bool {
-        $bookingId = $data['booking_id'] ?? 'N/A';
-        $paymentId = $data['payment_id'] ?? 'N/A';
-        $amount = $data['amount'] ?? '0';
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+
+        $paid = $data['paid_amount'] ?? $data['amount'] ?? '0';
+        $remaining = $data['remaining_amount'] ?? $data['balance_due'] ?? '0';
+        $status = trim((string) ($data['payment_status'] ?? $data['status'] ?? 'Paid')) ?: 'Paid';
+
+        $paid = is_numeric($paid) ? number_format((float) $paid, 2, '.', '') : (trim((string) $paid) ?: '0.00');
+        $remaining = is_numeric($remaining) ? number_format((float) $remaining, 2, '.', '') : (trim((string) $remaining) ?: '0.00');
 
         $message =
-            "Dura Cabs Payment Received\n" .
+            "Hello {$customerName},\n\n" .
+            "Payment received successfully.\n" .
             "Booking ID: {$bookingId}\n" .
-            "Payment ID: {$paymentId}\n" .
-            "Amount: Rs. {$amount}\n" .
-            "Thank you.";
+            "Amount Paid: INR {$paid}\n" .
+            "Remaining Amount: INR {$remaining}\n" .
+            "Payment Status: {$status}";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
-            templateConfigKey: 'payment_receipt',
+            templateConfigKey: 'payment_received',
             fallbackMessage: $message,
-            parameters: [
-                $bookingId,
-                $paymentId,
-                (string) $amount,
-            ]
+            parameters: [$customerName, $bookingId, $paid, $remaining, $status]
         );
     }
 
@@ -838,30 +794,26 @@ class WhatsAppService
         string $number,
         array $data
     ): bool {
-        $bookingId = $data['booking_id'] ?? 'N/A';
-
-        $refundAmount =
-            $data['refund_amount']
-            ?? $data['amount']
-            ?? '0';
-
-        $status = $data['status'] ?? 'Processing';
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $refundAmount = $data['refund_amount'] ?? $data['amount'] ?? '0';
+        $refundAmount = is_numeric($refundAmount)
+            ? number_format((float) $refundAmount, 2, '.', '')
+            : (trim((string) $refundAmount) ?: '0.00');
+        $status = trim((string) ($data['refund_status'] ?? $data['status'] ?? 'Processing')) ?: 'Processing';
 
         $message =
-            "Dura Cabs Refund Update\n" .
+            "Hello {$customerName},\n\n" .
+            "Your refund has been processed.\n" .
             "Booking ID: {$bookingId}\n" .
-            "Refund Amount: Rs. {$refundAmount}\n" .
-            "Status: {$status}";
+            "Refund Amount: INR {$refundAmount}\n" .
+            "Refund Status: {$status}";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
-            templateConfigKey: 'refund',
+            templateConfigKey: 'refund_processed',
             fallbackMessage: $message,
-            parameters: [
-                $bookingId,
-                (string) $refundAmount,
-                $status,
-            ]
+            parameters: [$customerName, $bookingId, $refundAmount, $status]
         );
     }
 
@@ -963,26 +915,21 @@ class WhatsAppService
         string $number,
         array $data
     ): bool {
-        $bookingId = $data['booking_id'] ?? 'N/A';
-
-        $reviewLink =
-            $data['review_link']
-            ?? config('app.frontend_url', 'https://www.duracabs.com');
+        $customerName = trim((string) ($data['customer_name'] ?? 'Customer')) ?: 'Customer';
+        $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
+        $reviewLink = trim((string) ($data['review_link'] ?? config('app.frontend_url', 'https://www.duracabs.com')));
 
         $message =
-            "Thank you for choosing Dura Cabs.\n" .
-            "Please share your feedback for booking {$bookingId}.\n" .
-            "Review Link: {$reviewLink}\n" .
-            "Your review helps us improve.";
+            "Hello {$customerName},\n\n" .
+            "Thank you for travelling with Dura Cabs.\n" .
+            "Booking ID: {$bookingId}\n" .
+            "Please share your feedback: {$reviewLink}";
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
             templateConfigKey: 'review_request',
             fallbackMessage: $message,
-            parameters: [
-                $bookingId,
-                $reviewLink,
-            ]
+            parameters: [$customerName, $bookingId, $reviewLink]
         );
     }
 
@@ -1947,6 +1894,96 @@ class WhatsAppService
     /**
      * @return array<int, array{type: string, number: string}>
      */
+    private static function recipientTemplateKey(
+        string $eventKey,
+        string $recipientType,
+        string $defaultTemplateKey
+    ): string {
+        $recipientType = strtolower(trim($recipientType));
+
+        $internalTypes = [
+            'admin',
+            'sales',
+            'operations',
+            'accounts',
+            'support',
+            'staff',
+            'extra',
+        ];
+
+        $maps = [
+            'booking.received' => [
+                'customer' => 'booking_received',
+                'internal' => 'admin_new_booking',
+            ],
+            'booking.confirmed' => [
+                'customer' => 'booking_confirmed',
+                'vendor' => 'vendor_new_booking',
+                'driver' => 'driver_new_trip',
+                'internal' => 'admin_new_booking',
+            ],
+            'booking.cancelled' => [
+                'customer' => 'booking_cancelled',
+                'vendor' => 'vendor_booking_cancelled',
+                'driver' => 'driver_trip_cancelled',
+                'internal' => 'admin_new_booking',
+            ],
+            'driver.assigned' => [
+                'customer' => 'driver_assigned',
+                'vendor' => 'vendor_new_booking',
+                'driver' => 'driver_new_trip',
+                'internal' => 'admin_new_booking',
+            ],
+            'trip.started' => [
+                'customer' => 'trip_started',
+                'driver' => 'driver_new_trip',
+                'internal' => 'admin_new_booking',
+            ],
+            'trip.completed' => [
+                'customer' => 'trip_completed',
+                'driver' => 'driver_trip_completed',
+                'internal' => 'admin_new_booking',
+            ],
+            'selfdrive.booking.received' => [
+                'customer' => 'selfdrive_booking_received',
+                'vendor' => 'vendor_selfdrive_booking',
+                'internal' => 'admin_selfdrive_booking',
+            ],
+            'selfdrive.booking.confirmed' => [
+                'customer' => 'selfdrive_booking_confirmed',
+                'vendor' => 'vendor_selfdrive_booking',
+                'internal' => 'admin_selfdrive_booking',
+            ],
+            'payment.received' => [
+                'customer' => 'payment_received',
+                'internal' => 'admin_payment_received',
+            ],
+            'refund.processed' => [
+                'customer' => 'refund_processed',
+                'internal' => 'admin_refund_processed',
+            ],
+            'security.refunded' => [
+                'customer' => 'security_refunded',
+                'internal' => 'admin_refund_processed',
+            ],
+        ];
+
+        $map = $maps[$eventKey] ?? [];
+
+        if (isset($map[$recipientType])) {
+            return $map[$recipientType];
+        }
+
+        if (
+            in_array($recipientType, $internalTypes, true)
+            && isset($map['internal'])
+        ) {
+            return $map['internal'];
+        }
+
+        return self::normalizeTemplateKey($defaultTemplateKey);
+    }
+
     private static function resolveEventRecipients(
         WhatsAppNotificationRule $rule,
         WebsiteSetting $settings,
@@ -2115,10 +2152,14 @@ class WhatsAppService
                     : null;
 
                 if ($value === null || $value === '') {
-                    $value =
-                        $variable['sample']
-                        ?? $variable['key']
-                        ?? 'Not available';
+                    Log::warning(
+                        'WhatsApp template variable missing from event data.',
+                        [
+                            'variable_key' => $key,
+                        ]
+                    );
+
+                    $value = 'Not available';
                 }
 
                 if (is_bool($value)) {
