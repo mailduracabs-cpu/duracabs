@@ -204,12 +204,16 @@ class EditOrder extends EditRecord
             static fn ($stop): bool => filled($stop)
         ));
 
+        $requestedFareType = $data['fare_type']
+            ?? $currentExtraOptions['fare_type']
+            ?? 'normal';
+
         $fareType = in_array(
-            $data['fare_type'] ?? 'normal',
+            $requestedFareType,
             ['normal', 'all_inclusive'],
             true
         )
-            ? $data['fare_type']
+            ? $requestedFareType
             : 'normal';
 
         $calculatedAmount = $this->money(
