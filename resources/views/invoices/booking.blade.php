@@ -377,6 +377,70 @@
     $deliveryPrice = (float) ($pricingBreakdown['delivery_price'] ?? $fare['delivery_price'] ?? 0);
     $pickupPrice = (float) ($pricingBreakdown['pickup_price'] ?? $fare['pickup_price'] ?? 0);
     $manualPrice = (float) ($pricingBreakdown['manual_price'] ?? $fare['manual_price'] ?? 0);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Self Drive invoice: GST is INCLUDED in the rental amount
+    |--------------------------------------------------------------------------
+    | Example:
+    | Rental Total (GST Included) = 5520
+    | Taxable Value                = 4677.97
+    | GST @ 18%                    = 842.03
+    | Security Deposit             = 5000
+    | Grand Total                  = 10520
+    |
+    | GST is displayed as a breakup only. It is NOT added again.
+    */
+    if ($isSelfDrive) {
+        $gstRate = $gstRate > 0 ? $gstRate : 18.0;
+
+        // Manual price, when present, is already GST-inclusive and becomes the rental total.
+        // Otherwise build the GST-inclusive rental total from stored rental components.
+        $rentalTotal = $manualPrice > 0
+            ? $manualPrice
+            : max(
+                0,
+                $rentAfterPlanDiscount
+                + $deliveryPrice
+                + $pickupPrice
+                + $specialServices
+                + $extraHours
+                + $extraKm
+                - $couponDiscount
+            );
+
+        // GST breakup from an inclusive amount.
+        $taxableAmount = $gstRate > 0
+            ? ($rentalTotal / (1 + ($gstRate / 100)))
+            : $rentalTotal;
+
+        $gstAmount = max(0, $rentalTotal - $taxableAmount);
+
+        // Charges on which GST is not being calculated.
+        $noGstCharges =
+            (float) ($fare['toll_amount'] ?? 0)
+            + (float) ($fare['parking_amount'] ?? 0)
+            + (float) ($fare['tax_amount'] ?? 0)
+            + (float) ($fare['damage_amount'] ?? 0)
+            + (float) ($fare['other_charges'] ?? 0);
+
+        // GST is already inside $rentalTotal, so do not add $gstAmount here.
+        $grandTotal = max(
+            0,
+            $rentalTotal
+            + $securityDeposit
+            + $noGstCharges
+            + $onlineCharge
+        );
+
+        // Recalculate payment figures from the corrected invoice grand total.
+        $paidAmount = (float) ($fare['paid_amount'] ?? 0);
+        $remainingAmount = max(0, $grandTotal - $paidAmount);
+    } else {
+        $rentalTotal = 0;
+        $paidAmount = (float) ($fare['paid_amount'] ?? 0);
+        $remainingAmount = (float) ($fare['remaining_amount'] ?? max(0, $grandTotal - $paidAmount));
+    }
 @endphp
 
 <div class="invoice">
@@ -644,21 +708,36 @@
                         </tr>
                     @endif
 
-                    <tr>
-                        <td>
-                            Taxable Amount
-                            <span style="color: #69778a;">
-                                {{ $isSelfDrive ? '(Rent + Extras - Coupon)' : '(Base Fare + Extras + Extra Hours + Extra KM)' }}
-                            </span>
-                        </td>
-                        <td>{{ $money($taxableAmount) }}</td>
-                    </tr>
-
-                    @if($showRow($gstAmount))
+                    @if($isSelfDrive)
                         <tr>
-                            <td>GST @ {{ number_format($gstRate, 2) }}%</td>
+                            <td>Taxable Value <span style="color:#69778a;">(before GST)</span></td>
+                            <td>{{ $money($taxableAmount) }}</td>
+                        </tr>
+
+                        <tr>
+                            <td>GST @ {{ number_format($gstRate, 2) }}% <span style="color:#69778a;">(Included)</span></td>
                             <td>{{ $money($gstAmount) }}</td>
                         </tr>
+
+                        <tr style="font-weight:800;">
+                            <td>Rental Total <span style="color:#69778a;">(GST Included)</span></td>
+                            <td>{{ $money($rentalTotal) }}</td>
+                        </tr>
+                    @else
+                        <tr>
+                            <td>
+                                Taxable Amount
+                                <span style="color: #69778a;">(Base Fare + Extras + Extra Hours + Extra KM)</span>
+                            </td>
+                            <td>{{ $money($taxableAmount) }}</td>
+                        </tr>
+
+                        @if($showRow($gstAmount))
+                            <tr>
+                                <td>GST @ {{ number_format($gstRate, 2) }}%</td>
+                                <td>{{ $money($gstAmount) }}</td>
+                            </tr>
+                        @endif
                     @endif
 
                     @if($isOnline && $showRow($onlineCharge))
@@ -684,13 +763,13 @@
 
                     <tr class="paid-row">
                         <td>Paid Amount</td>
-                        <td>{{ $money($fare['paid_amount'] ?? 0) }}</td>
+                        <td>{{ $money($paidAmount) }}</td>
                     </tr>
 
-                    @if($showRow($fare['remaining_amount'] ?? 0))
+                    @if($showRow($remainingAmount))
                         <tr class="balance-row">
                             <td>Remaining Amount</td>
-                            <td>{{ $money($fare['remaining_amount']) }}</td>
+                            <td>{{ $money($remainingAmount) }}</td>
                         </tr>
                     @endif
                 </tbody>
@@ -736,9 +815,9 @@
             <ul class="terms">
                 <li>This invoice is generated from the booking's stored billing data.</li>
                 @if($isSelfDrive)
-                    <li>Self Drive GST rate is 18% where applicable.</li>
-                    <li>If a manual price is used, GST is included within that manual price and is not added again.</li>
-                    <li>Security deposit is shown separately when applicable.</li>
+                    <li>Self Drive rental amount is GST-inclusive; GST is shown only as a tax breakup and is not added again.</li>
+                    <li>If a manual price is used, that amount is also treated as GST-inclusive.</li>
+                    <li>Security deposit is refundable and shown separately when applicable.</li>
                 @else
                     <li>With Driver GST rate is 5% where applicable.</li>
                     <li>No GST is calculated on toll, parking or government/permit tax.</li>
