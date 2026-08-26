@@ -418,7 +418,7 @@ class SelfDriveBookingResource extends Resource
                 ->columns(4),
 
             Forms\Components\Section::make('Price & GST')
-                ->description('Automatic database fare. GST is fixed at 18%. Manual Price is treated as GST-inclusive final fare.')
+                ->description('Automatic DB fare and Manual Price are GST-inclusive. Security Deposit is refundable and collected separately.')
                 ->schema([
                     Forms\Components\TextInput::make('hourly_price')
                         ->label('Hourly DB Rate')
@@ -791,21 +791,28 @@ class SelfDriveBookingResource extends Resource
             /*
              * Manual Price is GST inclusive. No extra GST is added.
              */
-            $taxable = $manualPrice / 1.18;
-            $gstAmount = $manualPrice - $taxable;
+            $rentalTotal = max(0, $manualPrice);
+            $taxable = $rentalTotal / 1.18;
+            $gstAmount = $rentalTotal - $taxable;
 
             $set('gst_amount', round($gstAmount, 2));
-            $set('final_amount', round($manualPrice, 2));
+            $set('final_amount', round($rentalTotal, 2));
         } else {
-            $taxableSubtotal = $databasePrice + $delivery + $pickup;
-            $gstAmount = $taxableSubtotal * ($gstPercent / 100);
-            $grandTotal = max(
+            /*
+             * IMPORTANT:
+             * DB rental price, delivery and pickup are treated as GST-inclusive.
+             * GST is only calculated as a breakup and is NOT added again.
+             */
+            $rentalTotal = max(
                 0,
-                $taxableSubtotal + $gstAmount - $discount
+                $databasePrice + $delivery + $pickup - $discount
             );
 
+            $taxable = $rentalTotal / 1.18;
+            $gstAmount = $rentalTotal - $taxable;
+
             $set('gst_amount', round($gstAmount, 2));
-            $set('final_amount', round($grandTotal, 2));
+            $set('final_amount', round($rentalTotal, 2));
         }
 
         static::syncPaymentFields($get, $set);
@@ -832,8 +839,10 @@ class SelfDriveBookingResource extends Resource
                         )),
                 Tables\Columns\TextColumn::make('start_datetime')
                     ->label('Pickup')->dateTime('d M Y, h:i A')->sortable(),
-                Tables\Columns\TextColumn::make('total_amount')
-                    ->label('Amount')->money('INR')->sortable(),
+                Tables\Columns\TextColumn::make('final_amount')
+                    ->label('Rental Total')->money('INR')->sortable(),
+                Tables\Columns\TextColumn::make('security_deposit')
+                    ->label('Security')->money('INR')->sortable(),
                 Tables\Columns\TextColumn::make('paid_amount')
                     ->label('Paid')->money('INR')->sortable(),
                 Tables\Columns\TextColumn::make('remaining_amount')
@@ -853,6 +862,19 @@ class SelfDriveBookingResource extends Resource
                     ->label('Status')
                     ->options(static::statusOptions())
                     ->selectablePlaceholder(false)
+                    ->beforeStateUpdated(function (SelfDriveBooking $record, $state): void {
+                        if (
+                            $state === SelfDriveBooking::STATUS_COMPLETED
+                            && (
+                                $record->payment_status !== 'paid'
+                                || (float) $record->remaining_amount > 0.009
+                            )
+                        ) {
+                            throw ValidationException::withMessages([
+                                'status' => 'Full payment receive hone ke baad hi booking Completed ho sakti hai.',
+                            ]);
+                        }
+                    })
                     ->afterStateUpdated(function (SelfDriveBooking $record, $state): void {
                         $record->refresh();
 
@@ -905,6 +927,26 @@ class SelfDriveBookingResource extends Resource
                         $record->payment_method = $data['method'];
                         $record->payment_reference = $data['reference'] ?? null;
                         $record->syncPayment();
+
+                        /*
+                         * Booking can become Completed only after:
+                         * 1) trip has actually ended, and
+                         * 2) full payable amount has been received.
+                         */
+                        if (
+                            $record->payment_status === 'paid'
+                            && (float) $record->remaining_amount <= 0.009
+                            && (
+                                filled($record->trip_end_datetime)
+                                || filled($record->return_otp_verified_at)
+                            )
+                        ) {
+                            $record->status = SelfDriveBooking::STATUS_COMPLETED;
+                            $record->booking_status = 'completed';
+                            $record->settlement_status = 'completed';
+                            $record->completed_at = $record->completed_at ?: now();
+                        }
+
                         $record->save();
 
                         $record->sendSelfDriveTemplate(
@@ -1304,18 +1346,38 @@ class SelfDriveBookingResource extends Resource
                             'cleaning_charge' => $data['cleaning_charge'] ?? 0,
                             'other_charge' => $data['other_charge'] ?? 0,
                             'damage_note' => $data['reason'],
-                            'booking_status' => 'completed',
-                            'status' => SelfDriveBooking::STATUS_COMPLETED,
-                            'settlement_status' => 'completed',
-                            'completed_at' => now(),
+                            'booking_status' => 'final_bill_pending',
+                            'status' => 'payment_pending',
+                            'settlement_status' => 'balance_due',
+                            'completed_at' => null,
                         ]);
 
                         $record->refreshTripAmounts();
+                        $record->syncPayment();
+
+                        if (
+                            $record->payment_status === 'paid'
+                            && (float) $record->remaining_amount <= 0.009
+                        ) {
+                            $record->booking_status = 'completed';
+                            $record->status = SelfDriveBooking::STATUS_COMPLETED;
+                            $record->settlement_status = 'completed';
+                            $record->completed_at = now();
+                        } else {
+                            $record->booking_status = 'final_bill_pending';
+                            $record->status = 'payment_pending';
+                            $record->settlement_status = 'balance_due';
+                        }
+
                         $record->save();
 
                         Notification::make()
                             ->title('End OTP verified')
-                            ->body('Trip completed successfully.')
+                            ->body(
+                                $record->payment_status === 'paid'
+                                    ? 'Trip completed successfully. Full payment received.'
+                                    : 'Trip ended. Booking Payment Pending rahegi jab tak full payment receive nahi hota.'
+                            )
                             ->success()
                             ->send();
                     }),
@@ -1369,13 +1431,25 @@ class SelfDriveBookingResource extends Resource
                             'cleaning_charge' => $data['cleaning_charge'] ?? 0,
                             'other_charge' => $data['other_charge'] ?? 0,
                             'damage_note' => $data['reason'],
-                            'booking_status' => 'completed',
-                            'status' => SelfDriveBooking::STATUS_COMPLETED,
-                            'settlement_status' => 'completed',
-                            'completed_at' => now(),
+                            'booking_status' => 'final_bill_pending',
+                            'status' => 'payment_pending',
+                            'settlement_status' => 'balance_due',
+                            'completed_at' => null,
                         ]);
 
                         $record->refreshTripAmounts();
+                        $record->syncPayment();
+
+                        if (
+                            $record->payment_status === 'paid'
+                            && (float) $record->remaining_amount <= 0.009
+                        ) {
+                            $record->booking_status = 'completed';
+                            $record->status = SelfDriveBooking::STATUS_COMPLETED;
+                            $record->settlement_status = 'completed';
+                            $record->completed_at = now();
+                        }
+
                         $record->save();
                     }),
 
@@ -1425,9 +1499,15 @@ class SelfDriveBookingResource extends Resource
 
     public static function syncPaymentFields(Get $get, Set $set): void
     {
+        /*
+         * Customer payable = GST-inclusive Rental Total + Refundable Security Deposit.
+         * Security is collected separately from rental income, but it is part of the
+         * amount that must be received before the booking can be fully paid/completed.
+         */
         $payable = max(
             0,
             (float) ($get('final_amount') ?: 0)
+            + (float) ($get('security_deposit') ?: 0)
         );
 
         $type = (string) ($get('payment_type') ?: 'advance');

@@ -410,6 +410,9 @@ class SelfDriveBooking extends Model
                 'payment_type',
                 'total_amount',
                 'final_amount',
+                'manual_price',
+                'security_deposit',
+                'online_payment_charge',
                 'paid_amount',
                 'refund_amount',
             ])) {
@@ -494,7 +497,37 @@ class SelfDriveBooking extends Model
             'travel_date' => $travelDate,
             'travel_time' => $travelTime,
             'total_amount' => number_format(
-                (float) ($this->final_amount ?: $this->total_amount ?: 0),
+                $this->effectiveRentalAmount(),
+                2,
+                '.',
+                ''
+            ),
+            'rental_amount' => number_format(
+                $this->effectiveRentalAmount(),
+                2,
+                '.',
+                ''
+            ),
+            'security_deposit' => number_format(
+                (float) ($this->security_deposit ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'payable_amount' => number_format(
+                $this->payableAmount(),
+                2,
+                '.',
+                ''
+            ),
+            'paid_amount' => number_format(
+                (float) ($this->paid_amount ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'remaining_amount' => number_format(
+                (float) ($this->remaining_amount ?? 0),
                 2,
                 '.',
                 ''
@@ -602,14 +635,67 @@ class SelfDriveBooking extends Model
         );
     }
 
+    public function effectiveRentalAmount(): float
+    {
+        /*
+         * Single source of truth for the rental amount.
+         *
+         * - Manual Price overrides the automatic/database rental price.
+         * - Manual Price is GST-inclusive.
+         * - final_amount is treated as the effective rental total when present.
+         * - total_amount remains the automatic/database rental amount.
+         */
+        $manual = (float) ($this->manual_price ?? 0);
+
+        if ($manual > 0) {
+            return round($manual, 2);
+        }
+
+        $final = (float) ($this->final_amount ?? 0);
+
+        if ($final > 0) {
+            return round($final, 2);
+        }
+
+        return round(max(0, (float) ($this->total_amount ?? 0)), 2);
+    }
+
+    public function includedGstAmount(): float
+    {
+        $rental = $this->effectiveRentalAmount();
+        $rate = (float) ($this->gst_percent ?? 18);
+
+        if ($rental <= 0 || $rate <= 0) {
+            return 0.0;
+        }
+
+        $taxable = $rental / (1 + ($rate / 100));
+
+        return round(max(0, $rental - $taxable), 2);
+    }
+
+    public function taxableRentalAmount(): float
+    {
+        return round(
+            max(0, $this->effectiveRentalAmount() - $this->includedGstAmount()),
+            2
+        );
+    }
+
     public function payableAmount(): float
     {
-        return max(
-            0,
-            (float) (
-                $this->final_amount
-                ?: $this->total_amount
-            )
+        /*
+         * Customer payable = GST-inclusive rental total + refundable security deposit.
+         * Security remains separate from rental income but must be collected.
+         */
+        return round(
+            max(
+                0,
+                $this->effectiveRentalAmount()
+                + (float) ($this->security_deposit ?? 0)
+                + (float) ($this->online_payment_charge ?? 0)
+            ),
+            2
         );
     }
 
@@ -717,7 +803,7 @@ class SelfDriveBooking extends Model
     {
         return app(FinalBillingService::class)->calculate([
             'service_type' => 'self_drive',
-            'base_fare' => (float) ($this->total_amount ?? 0),
+            'base_fare' => $this->effectiveRentalAmount(),
             'special_request_total' =>
                 $this->numericAttribute([
                     'special_request_total',
@@ -759,6 +845,10 @@ class SelfDriveBooking extends Model
                 (string) ($this->payment_method ?? 'cash'),
             'paid_amount' =>
                 (float) ($this->paid_amount ?? 0),
+            'manual_price' =>
+                (float) ($this->manual_price ?? 0),
+            'gst_percent' =>
+                (float) ($this->gst_percent ?? 18),
         ]);
     }
 
@@ -798,13 +888,11 @@ class SelfDriveBooking extends Model
 
         $billing = $this->finalBilling();
 
-        $this->final_amount =
-            (float) ($billing['grand_total'] ?? 0);
-
-        $this->remaining_amount =
-            (float) ($billing['remaining_amount'] ?? 0);
-
-        $this->balance_due = $this->remaining_amount;
+        /*
+         * Keep final_amount as the effective GST-inclusive RENTAL total.
+         * Do not replace it with a payable amount that may include security deposit.
+         */
+        $this->final_amount = $this->effectiveRentalAmount();
 
         $this->refund_amount =
             (float) ($billing['refund_amount'] ?? 0);
@@ -816,7 +904,7 @@ class SelfDriveBooking extends Model
 
         $this->setOptionalAttribute(
             'gst_amount',
-            $billing['gst_amount'] ?? 0
+            $this->includedGstAmount()
         );
 
         $this->setOptionalAttribute(
