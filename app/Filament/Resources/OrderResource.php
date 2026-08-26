@@ -446,6 +446,33 @@ class OrderResource extends Resource
                         ->columnSpanFull(),
                 ])
                 ->columns(3),
+				Forms\Components\Section::make('Driver / Vendor Assignment')
+    ->description('Assign transporter, driver and vehicle to this booking.')
+    ->schema([
+
+        Forms\Components\Select::make('transporter_id')
+            ->label('Vendor / Transporter')
+            ->relationship('transporter', 'name')
+            ->searchable()
+            ->preload()
+            ->native(false),
+
+        Forms\Components\Select::make('driver_id')
+            ->label('Driver')
+            ->relationship('driver', 'name')
+            ->searchable()
+            ->preload()
+            ->native(false),
+
+        Forms\Components\Select::make('vehicle_id')
+            ->label('Vehicle')
+            ->relationship('vehicle', 'vehicle_number')
+            ->searchable()
+            ->preload()
+            ->native(false),
+
+    ])
+    ->columns(3),
 
             Forms\Components\Section::make('Payment & Status')
                 ->schema([
