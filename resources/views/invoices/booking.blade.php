@@ -240,8 +240,8 @@
 </head>
 <body>
 @php
-    $companyName = config('app.name', 'Dura Cabs');
-    $companyAddress = config('invoice.company_address', 'India');
+    $companyName = 'DURA CABS SERVICES PRIVATE LIMITED';
+    $companyAddress = 'Agra, Uttar Pradesh, India';
     $companyPhone = config('invoice.company_phone', '');
     $companyEmail = config('invoice.company_email', '');
     $companyGstin = config('invoice.gstin', '');
@@ -353,7 +353,7 @@
     $onlineCharge = (float) ($fare['online_payment_charge'] ?? 0);
 
     // Browser-safe logo URL. public_path() is a filesystem path and breaks in shared HTML view.
-    $logoUrl = asset('storage/images/Duracab-Logo-425x115.png');
+    $logoUrl = asset('img/logo/duracabs_logo.svg');
 
     // Friendly date/time formatter; keeps original value if it cannot be parsed.
     $friendlyDateTime = static function ($date, $time = null): string {
