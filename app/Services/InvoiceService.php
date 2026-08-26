@@ -369,11 +369,8 @@ class InvoiceService
                 'start_time' => $booking->start_datetime?->format('h:i A') ?? '',
                 'end_date' => $booking->end_datetime?->format('d M Y') ?? '',
                 'end_time' => $booking->end_datetime?->format('h:i A') ?? '',
-                'booking_amount' => (float) (
-                    $booking->final_amount
-                    ?: $booking->total_amount
-                    ?: 0
-                ),
+                // Single source of truth: manual price overrides DB price.
+                'booking_amount' => $booking->effectiveRentalAmount(),
                 'security_deposit' => (float) ($booking->security_deposit ?? 0),
                 'primary_operator' => $booking->customer?->name ?? '',
                 'operator_mobile' => $booking->customer?->mobile ?? '',
@@ -396,6 +393,23 @@ class InvoiceService
             'fare' => array_merge(
                 $billing,
                 [
+                    // Central pricing source shared with Admin/payment/messages.
+                    'base_fare' => $booking->effectiveRentalAmount(),
+                    'manual_price' => (float) ($booking->manual_price ?? 0),
+                    'taxable_amount' => $booking->taxableRentalAmount(),
+                    'gst_amount' => $booking->includedGstAmount(),
+                    'rental_total' => $booking->effectiveRentalAmount(),
+                    'security_deposit' => (float) ($booking->security_deposit ?? 0),
+                    'grand_total' => $booking->payableAmount(),
+                    'paid_amount' => (float) ($booking->paid_amount ?? 0),
+                    'remaining_amount' => max(
+                        0,
+                        round(
+                            $booking->payableAmount()
+                            - (float) ($booking->paid_amount ?? 0),
+                            2
+                        )
+                    ),
                     'parking_amount' =>
                         (float) (
                             $booking->parking_amount
