@@ -576,6 +576,225 @@ class SelfDriveBooking extends Model
         }
     }
 
+    /**
+     * Send a Self Drive WhatsApp template by template key.
+     *
+     * This method is used by Filament actions such as payment received,
+     * pickup OTP and return OTP. Pricing comes from the central model helpers,
+     * so Manual Price is reflected everywhere automatically.
+     */
+    public function sendSelfDriveTemplate(
+        string $templateKey,
+        array $extra = []
+    ): bool {
+        $this->loadMissing(['customer', 'vehicle']);
+
+        $mobile = trim((string) ($this->customer?->mobile ?? ''));
+
+        if ($mobile === '') {
+            Log::warning('Self Drive WhatsApp skipped: customer mobile missing.', [
+                'booking_id' => $this->id,
+                'booking_no' => $this->booking_no,
+                'template_key' => $templateKey,
+            ]);
+
+            return false;
+        }
+
+        $customerName = trim((string) ($this->customer?->name ?? 'Customer'))
+            ?: 'Customer';
+
+        $vehicleName = trim(
+            (string) ($this->vehicle?->car_company_name ?? '')
+            . ' '
+            . (string) ($this->vehicle?->model_name ?? '')
+        ) ?: 'Self Drive Vehicle';
+
+        $start = $this->start_datetime
+            ? Carbon::parse($this->start_datetime)
+            : null;
+
+        $end = $this->end_datetime
+            ? Carbon::parse($this->end_datetime)
+            : null;
+
+        $pickup = trim((string) (
+            $this->pickup_location
+            ?: $this->delivery_address
+            ?: 'Dura Cabs'
+        ));
+
+        $data = array_merge([
+            'customer_name' => $customerName,
+            'booking_id' => (string) ($this->booking_no ?: $this->id),
+            'vehicle_name' => $vehicleName,
+            'pickup' => $pickup,
+            'start_date' => $start?->format('d M Y') ?? 'N/A',
+            'start_time' => $start?->format('h:i A') ?? 'N/A',
+            'end_date' => $end?->format('d M Y') ?? 'N/A',
+            'end_time' => $end?->format('h:i A') ?? 'N/A',
+
+            // Central pricing source: Manual Price overrides DB price.
+            'rental_amount' => number_format(
+                $this->effectiveRentalAmount(),
+                2,
+                '.',
+                ''
+            ),
+            'security_deposit' => number_format(
+                (float) ($this->security_deposit ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'payable_amount' => number_format(
+                $this->payableAmount(),
+                2,
+                '.',
+                ''
+            ),
+            'paid_amount' => number_format(
+                (float) ($this->paid_amount ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'remaining_amount' => number_format(
+                (float) ($this->remaining_amount ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'refund_amount' => number_format(
+                (float) ($this->refund_amount ?? 0),
+                2,
+                '.',
+                ''
+            ),
+            'payment_method' => (string) ($this->payment_method ?: 'N/A'),
+            'payment_reference' => (string) ($this->payment_reference ?: 'N/A'),
+            'start_km' => (string) ($this->start_km ?? 'N/A'),
+            'end_km' => (string) ($this->end_km ?? 'N/A'),
+            'total_km' => (string) ($this->actual_km ?? 'N/A'),
+            'duration' => trim(
+                ((int) ($this->total_days ?? 0)) . ' day(s), '
+                . ((int) ($this->booked_hours ?? 0)) . ' hour(s)'
+            ),
+            'reason' => (string) (
+                $this->vendor_rejection_reason
+                ?: $this->document_rejection_reason
+                ?: 'As updated by Dura Cabs'
+            ),
+        ], $extra);
+
+        $params = match ($templateKey) {
+            'selfdrive_booking_received' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['pickup'],
+                $data['start_date'],
+                $data['start_time'],
+                $data['end_date'],
+                $data['end_time'],
+                $data['rental_amount'],
+            ],
+            'selfdrive_booking_confirmed' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['pickup'],
+                $data['start_date'],
+                $data['start_time'],
+                $data['end_date'],
+                $data['end_time'],
+                $data['rental_amount'],
+                $data['security_deposit'],
+            ],
+            'selfdrive_trip_started' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['start_time'],
+                $data['start_km'],
+            ],
+            'selfdrive_trip_completed' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['total_km'],
+                $data['duration'],
+                $data['rental_amount'],
+                $data['paid_amount'],
+                $data['remaining_amount'],
+            ],
+            'selfdrive_booking_cancelled' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['start_date'],
+                $data['paid_amount'],
+                $data['refund_amount'],
+            ],
+            'selfdrive_booking_rejected' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                $data['start_date'],
+                $data['reason'],
+            ],
+            'selfdrive_pickup_otp',
+            'selfdrive_return_otp' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['vehicle_name'],
+                (string) ($data['otp'] ?? ''),
+            ],
+            'selfdrive_payment_received' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                (string) ($data['received_amount'] ?? $data['paid_amount']),
+                $data['payment_method'],
+                $data['payment_reference'],
+                $data['remaining_amount'],
+            ],
+            'selfdrive_security_refunded' => [
+                $data['customer_name'],
+                $data['booking_id'],
+                $data['refund_amount'],
+                (string) ($data['refund_reference'] ?? 'N/A'),
+            ],
+            default => [],
+        };
+
+        if ($params === []) {
+            return false;
+        }
+
+        $result = WhatsAppService::sendByKey(
+            templateKey: $templateKey,
+            number: $mobile,
+            bodyParameters: $params
+        );
+
+        $ok = (bool) (
+            $result['status']
+            ?? $result['success']
+            ?? false
+        );
+
+        if (! $ok) {
+            Log::warning('Self Drive WhatsApp template failed.', [
+                'booking_id' => $this->id,
+                'booking_no' => $this->booking_no,
+                'template_key' => $templateKey,
+                'result' => $result,
+            ]);
+        }
+
+        return $ok;
+    }
+
     public function syncVehicleData(): void
     {
         if (! $this->vehicle_id) {
