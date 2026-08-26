@@ -77,13 +77,15 @@ class OrderResource extends Resource
                             $mobile = preg_replace('/\\D+/', '', (string) ($data['mobile'] ?? ''));
 
                             return User::query()->firstOrCreate(
-                                ['mobile' => $mobile],
-                                [
-                                    'name' => $data['name'],
-                                    'email' => $data['email'] ?? null,
-                                    'password' => bcrypt(Str::random(32)),
-                                ]
-                            )->id;
+    ['mobile' => $mobile],
+    [
+        'name' => $data['name'],
+        'email' => filled($data['email'] ?? null)
+            ? trim((string) $data['email'])
+            : $mobile . '@guest.duracabs.com',
+        'password' => bcrypt(Str::random(32)),
+    ]
+)->id;
                         })
                         ->required()
                         ->columnSpan(2),
