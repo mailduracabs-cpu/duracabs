@@ -437,10 +437,56 @@
         $paidAmount = (float) ($fare['paid_amount'] ?? 0);
         $remainingAmount = max(0, $grandTotal - $paidAmount);
     } else {
-        $rentalTotal = 0;
-        $paidAmount = (float) ($fare['paid_amount'] ?? 0);
-        $remainingAmount = (float) ($fare['remaining_amount'] ?? max(0, $grandTotal - $paidAmount));
+    /*
+    |----------------------------------------------------------------------
+    | With Driver invoice: Grand Total is GST-INCLUSIVE
+    |----------------------------------------------------------------------
+    | Example:
+    | Grand Total       = 2300
+    | Taxable Value     = 2190.48
+    | GST @ 5% Included = 109.52
+    |
+    | GST is only shown as breakup and is NOT added again.
+    */
+
+    $gstRate = $gstRate > 0 ? $gstRate : 5.0;
+
+    /*
+     * Admin-entered final booking amount is authoritative.
+     * Treat it as GST-inclusive.
+     */
+    $rentalTotal = max(
+        0,
+        $grandTotal
+        - $onlineCharge
+    );
+
+    $taxableAmount = $gstRate > 0
+        ? ($rentalTotal / (1 + ($gstRate / 100)))
+        : $rentalTotal;
+
+    $gstAmount = max(
+        0,
+        $rentalTotal - $taxableAmount
+    );
+
+    /*
+     * Show taxable value as base fare on invoice when stored base fare
+     * is zero/missing for manually priced admin bookings.
+     */
+    if ($baseFare <= 0) {
+        $baseFare = $taxableAmount;
     }
+
+    $paidAmount = (float) (
+        $fare['paid_amount'] ?? 0
+    );
+
+    $remainingAmount = (float) (
+        $fare['remaining_amount']
+        ?? max(0, $grandTotal - $paidAmount)
+    );
+}
 @endphp
 
 <div class="invoice">
