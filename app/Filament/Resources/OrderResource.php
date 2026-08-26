@@ -10,6 +10,7 @@ use App\Models\Brand;
 use App\Models\Price;
 use App\Models\Product;
 use App\Models\User;
+use App\Models\Vehicle;
 use Carbon\Carbon;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -80,7 +81,9 @@ class OrderResource extends Resource
                                 ['mobile' => $mobile],
                                 [
                                     'name' => $data['name'],
-                                    'email' => $data['email'] ?? null,
+                                    'email' => filled($data['email'] ?? null)
+                                        ? trim((string) $data['email'])
+                                        : $mobile . '@guest.duracabs.com',
                                     'password' => bcrypt(Str::random(32)),
                                 ]
                             )->id;
@@ -442,6 +445,240 @@ class OrderResource extends Resource
                         ->columns(12)
                         ->collapsed()
                         ->columnSpanFull(),
+                ])
+                ->columns(3),
+
+            Forms\Components\Section::make('Driver / Vendor Assignment')
+                ->description('Select an existing vendor, driver and taxi, or create a new one from this booking.')
+                ->schema([
+                    Forms\Components\Select::make('transporter_id')
+                        ->label('Vendor / Transporter')
+                        ->relationship(
+                            'transporter',
+                            'name',
+                            modifyQueryUsing: fn (Builder $query): Builder => $query
+                                ->whereHas(
+                                    'roles',
+                                    fn (Builder $roleQuery): Builder => $roleQuery
+                                        ->where('name', 'Transporter')
+                                )
+                        )
+                        ->getOptionLabelFromRecordUsing(
+                            fn (User $record): string => trim(
+                                ($record->name ?: 'No Name')
+                                . ' | '
+                                . ($record->mobile ?: 'No Mobile')
+                            )
+                        )
+                        ->searchable(['name', 'mobile', 'email'])
+                        ->preload()
+                        ->native(false)
+                        ->live()
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('name')
+                                ->label('Vendor / Transporter Name')
+                                ->required()
+                                ->maxLength(150),
+
+                            Forms\Components\TextInput::make('mobile')
+                                ->label('Mobile Number')
+                                ->tel()
+                                ->required()
+                                ->maxLength(15),
+
+                            Forms\Components\TextInput::make('email')
+                                ->label('Email')
+                                ->email()
+                                ->maxLength(150),
+                        ])
+                        ->createOptionUsing(function (array $data): int {
+                            $mobile = preg_replace(
+                                '/\D+/',
+                                '',
+                                (string) ($data['mobile'] ?? '')
+                            );
+
+                            $user = User::query()->firstOrCreate(
+                                ['mobile' => $mobile],
+                                [
+                                    'name' => trim((string) $data['name']),
+                                    'email' => filled($data['email'] ?? null)
+                                        ? trim((string) $data['email'])
+                                        : $mobile . '@vendor.duracabs.com',
+                                    'password' => bcrypt(Str::random(32)),
+                                ]
+                            );
+
+                            if (
+                                method_exists($user, 'assignRole')
+                                && ! $user->hasRole('Transporter')
+                            ) {
+                                $user->assignRole('Transporter');
+                            }
+
+                            return (int) $user->id;
+                        }),
+
+                    Forms\Components\Select::make('driver_id')
+                        ->label('Driver')
+                        ->relationship(
+                            'driver',
+                            'name',
+                            modifyQueryUsing: fn (Builder $query): Builder => $query
+                                ->whereHas(
+                                    'roles',
+                                    fn (Builder $roleQuery): Builder => $roleQuery
+                                        ->where('name', 'Driver')
+                                )
+                        )
+                        ->getOptionLabelFromRecordUsing(
+                            fn (User $record): string => trim(
+                                ($record->name ?: 'No Name')
+                                . ' | '
+                                . ($record->mobile ?: 'No Mobile')
+                            )
+                        )
+                        ->searchable(['name', 'mobile', 'email'])
+                        ->preload()
+                        ->native(false)
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('name')
+                                ->label('Driver Name')
+                                ->required()
+                                ->maxLength(150),
+
+                            Forms\Components\TextInput::make('mobile')
+                                ->label('Mobile Number')
+                                ->tel()
+                                ->required()
+                                ->maxLength(15),
+
+                            Forms\Components\TextInput::make('email')
+                                ->label('Email')
+                                ->email()
+                                ->maxLength(150),
+                        ])
+                        ->createOptionUsing(function (array $data): int {
+                            $mobile = preg_replace(
+                                '/\D+/',
+                                '',
+                                (string) ($data['mobile'] ?? '')
+                            );
+
+                            $user = User::query()->firstOrCreate(
+                                ['mobile' => $mobile],
+                                [
+                                    'name' => trim((string) $data['name']),
+                                    'email' => filled($data['email'] ?? null)
+                                        ? trim((string) $data['email'])
+                                        : $mobile . '@driver.duracabs.com',
+                                    'password' => bcrypt(Str::random(32)),
+                                ]
+                            );
+
+                            if (
+                                method_exists($user, 'assignRole')
+                                && ! $user->hasRole('Driver')
+                            ) {
+                                $user->assignRole('Driver');
+                            }
+
+                            return (int) $user->id;
+                        }),
+
+                    Forms\Components\Select::make('vehicle_id')
+                        ->label('Vehicle / Taxi')
+                        ->relationship(
+                            'vehicle',
+                            'vehicle_number',
+                            modifyQueryUsing: fn (Builder $query): Builder => $query
+                                ->where(function (Builder $vehicleQuery): void {
+                                    $vehicleQuery
+                                        ->where('service_type', Vehicle::SERVICE_TAXI)
+                                        ->orWhereNull('service_type');
+                                })
+                        )
+                        ->getOptionLabelFromRecordUsing(
+                            fn (Vehicle $record): string => trim(
+                                ($record->car_company_name ?: 'Vehicle')
+                                . ' '
+                                . ($record->model_name ?: '')
+                                . ' | '
+                                . ($record->vehicle_number ?: 'No Number')
+                            )
+                        )
+                        ->searchable([
+                            'vehicle_number',
+                            'car_company_name',
+                            'model_name',
+                        ])
+                        ->preload()
+                        ->native(false)
+                        ->createOptionForm([
+                            Forms\Components\TextInput::make('vehicle_number')
+                                ->label('Vehicle Number')
+                                ->required()
+                                ->maxLength(30),
+
+                            Forms\Components\TextInput::make('car_company_name')
+                                ->label('Company')
+                                ->placeholder('Hyundai')
+                                ->required()
+                                ->maxLength(100),
+
+                            Forms\Components\TextInput::make('model_name')
+                                ->label('Model')
+                                ->placeholder('Aura')
+                                ->required()
+                                ->maxLength(100),
+
+                            Forms\Components\Select::make('fuel_type')
+                                ->label('Fuel Type')
+                                ->options([
+                                    'petrol' => 'Petrol',
+                                    'diesel' => 'Diesel',
+                                    'cng' => 'CNG',
+                                    'electric' => 'Electric',
+                                ])
+                                ->native(false),
+
+                            Forms\Components\Select::make('transmission')
+                                ->label('Transmission')
+                                ->options([
+                                    'manual' => 'Manual',
+                                    'automatic' => 'Automatic',
+                                ])
+                                ->native(false),
+
+                            Forms\Components\TextInput::make('seats')
+                                ->label('Seats')
+                                ->numeric()
+                                ->minValue(1)
+                                ->maxValue(20),
+                        ])
+                        ->createOptionUsing(function (array $data, Get $get): int {
+                            return (int) Vehicle::query()->create([
+                                'user_id' => $get('transporter_id') ?: null,
+                                'service_type' => Vehicle::SERVICE_TAXI,
+                                'vehicle_type' => Vehicle::TYPE_CAR,
+                                'vehicle_number' => strtoupper(
+                                    trim((string) $data['vehicle_number'])
+                                ),
+                                'car_company_name' => trim(
+                                    (string) $data['car_company_name']
+                                ),
+                                'model_name' => trim(
+                                    (string) $data['model_name']
+                                ),
+                                'fuel_type' => $data['fuel_type'] ?? null,
+                                'transmission' => $data['transmission'] ?? null,
+                                'seats' => $data['seats'] ?? null,
+                                'verification_status' => Vehicle::STATUS_APPROVED,
+                                'is_active' => 1,
+                                'is_live' => 1,
+                                'is_verified' => 1,
+                            ])->id;
+                        }),
                 ])
                 ->columns(3),
 
