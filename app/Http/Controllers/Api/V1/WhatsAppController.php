@@ -824,13 +824,62 @@ class WhatsAppController extends BaseApiController
                         }
 
                         if ($user) {
-                            $conversation->user_id = $user->id;
+    $conversation->user_id = $user->id;
 
-                            if (empty($conversation->customer_name)) {
-                                $conversation->customer_name =
-                                    $user->name ?? null;
-                            }
-                        }
+    $whatsAppName = trim(
+        (string) ($contact['name'] ?? '')
+    );
+
+    $currentUserName = trim(
+        (string) ($user->name ?? '')
+    );
+
+    /*
+     * WhatsApp profile name ko customer profile me auto-save karein
+     * only when existing name blank ya mobile-number jaisa ho.
+     * Proper existing name ko overwrite nahi karna.
+     */
+    $currentNameDigits = preg_replace(
+        '/\D+/',
+        '',
+        $currentUserName
+    );
+
+    $nameIsMobileNumber =
+        $currentUserName !== ''
+        && $currentNameDigits !== ''
+        && (
+            $currentNameDigits === $digits
+            || $currentNameDigits === $lastTenDigits
+            || (
+                strlen($currentNameDigits) >= 10
+                && substr($currentNameDigits, -10) === $lastTenDigits
+            )
+        );
+
+    if (
+        $whatsAppName !== ''
+        && (
+            $currentUserName === ''
+            || $nameIsMobileNumber
+        )
+    ) {
+        $user->name = $whatsAppName;
+        $user->save();
+
+        $currentUserName = $whatsAppName;
+    }
+
+    /*
+     * Inbox me WhatsApp profile name ko priority denge.
+     */
+    if ($whatsAppName !== '') {
+        $conversation->customer_name = $whatsAppName;
+    } elseif (empty($conversation->customer_name)) {
+        $conversation->customer_name =
+            $currentUserName ?: null;
+    }
+}
 
                         $conversation->phone_number_id =
                             $metadata['phone_number_id'] ?? null;
