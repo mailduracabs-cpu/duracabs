@@ -1570,7 +1570,21 @@ class SelfDriveController extends BaseApiController
 
     private function bikeVehicleData(Vehicle $vehicle, ?float $distance = null): array
     {
-        $image = $vehicle->front_image ?? $vehicle->image ?? null;
+        // Return public image URLs so Flutter can render bike photos directly.
+        $frontImageUrl = $this->publicImageUrl($vehicle->front_image ?? $vehicle->image ?? null);
+
+        $galleryImages = array_values(array_filter([
+            $frontImageUrl,
+            $this->publicImageUrl($vehicle->back_image),
+            $this->publicImageUrl($vehicle->left_side_image),
+            $this->publicImageUrl($vehicle->right_side_image),
+            $this->publicImageUrl($vehicle->front_left_image),
+            $this->publicImageUrl($vehicle->front_right_image),
+            $this->publicImageUrl($vehicle->interior_image),
+            $this->publicImageUrl($vehicle->front_seats_image),
+            $this->publicImageUrl($vehicle->rear_seats_image),
+            $this->publicImageUrl($vehicle->boot_image),
+        ]));
 
         return [
             'id' => $vehicle->id,
@@ -1579,22 +1593,38 @@ class SelfDriveController extends BaseApiController
             'model' => $vehicle->model ?? $vehicle->model_name,
             'registration_number' => $vehicle->vehicle_number ?? $vehicle->registration_number,
             'bike_type' => $vehicle->bike_type,
+            'bike_category' => $vehicle->bike_category,
             'vehicle_type' => $vehicle->vehicle_type,
             'service_type' => $vehicle->service_type,
             'fuel_type' => $vehicle->fuel_type,
             'transmission' => $vehicle->transmission,
+            'gear_type' => $vehicle->gear_type,
             'engine_cc' => $vehicle->engine_cc,
             'hourly_price' => (float) ($vehicle->hourly_price ?? 0),
             'daily_price' => (float) ($vehicle->daily_price ?? 0),
+            'weekly_price' => (float) ($vehicle->weekly_price ?? 0),
+            'monthly_price' => (float) ($vehicle->monthly_price ?? 0),
             'weekly_discount' => (float) ($vehicle->weekly_discount ?? 20),
             'monthly_discount' => (float) ($vehicle->monthly_discount ?? 30),
             'security_deposit' => (float) ($vehicle->security_deposit ?? 0),
             'minimum_booking_hours' => (int) ($vehicle->minimum_booking_hours ?? 1),
             'helmet_policy' => $vehicle->helmet_policy,
             'second_helmet_charge' => (float) ($vehicle->second_helmet_charge ?? 0),
-            'image_url' => $image
-                ? (str_starts_with($image, 'http') ? $image : Storage::disk('public')->url($image))
-                : null,
+
+            // Keep both keys for backward compatibility with existing Flutter screens.
+            'image_url' => $frontImageUrl,
+            'front_image_url' => $frontImageUrl,
+            'back_image_url' => $this->publicImageUrl($vehicle->back_image),
+            'left_side_image_url' => $this->publicImageUrl($vehicle->left_side_image),
+            'right_side_image_url' => $this->publicImageUrl($vehicle->right_side_image),
+            'front_left_image_url' => $this->publicImageUrl($vehicle->front_left_image),
+            'front_right_image_url' => $this->publicImageUrl($vehicle->front_right_image),
+            'interior_image_url' => $this->publicImageUrl($vehicle->interior_image),
+            'front_seats_image_url' => $this->publicImageUrl($vehicle->front_seats_image),
+            'rear_seats_image_url' => $this->publicImageUrl($vehicle->rear_seats_image),
+            'boot_image_url' => $this->publicImageUrl($vehicle->boot_image),
+            'gallery_images' => $galleryImages,
+
             'distance_km' => $distance === null ? null : round($distance, 2),
             'transporter_profile_id' => $vehicle->transporter_profile_id,
         ];
