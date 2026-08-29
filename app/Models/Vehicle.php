@@ -785,6 +785,26 @@ class Vehicle extends Model
             ->where('is_verified', true);
     }
 
+    /**
+     * Customer-facing Bike Rental listing.
+     *
+     * Only approved, active, live, and verified bike-rental vehicles
+     * should be returned to customers.
+     */
+    public function scopeCustomerVisibleBikeRental(Builder $query): Builder
+    {
+        return $query
+            ->where('service_type', self::SERVICE_BIKE_RENTAL)
+            ->whereIn('vehicle_type', [
+                self::TYPE_BIKE,
+                self::TYPE_SCOOTER,
+            ])
+            ->where('verification_status', self::STATUS_APPROVED)
+            ->where('is_active', true)
+            ->where('is_live', true)
+            ->where('is_verified', true);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Service Helpers
