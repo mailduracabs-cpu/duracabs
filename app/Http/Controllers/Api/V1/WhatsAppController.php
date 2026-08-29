@@ -2,7 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Models\User;
+use App\Models\WhatsAppConversation;
+use App\Models\WhatsAppMessage;
 use App\Services\WhatsAppService;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -761,6 +765,174 @@ class WhatsAppController extends BaseApiController
                 'metadata' => $metadata,
             ]);
 
+            try {
+                if ($from) {
+                    /*
+                     * Meta may retry the same webhook. Do not create a
+                     * duplicate message or increase unread_count twice.
+                     */
+                    $alreadySaved = $messageId
+                        ? WhatsAppMessage::query()
+                            ->where('message_id', $messageId)
+                            ->exists()
+                        : false;
+
+                    if (!$alreadySaved) {
+                        $messageAt = $timestamp
+                            ? Carbon::createFromTimestamp((int) $timestamp)
+                            : now();
+
+                        $digits = preg_replace(
+                            '/\\D+/',
+                            '',
+                            (string) $from
+                        );
+
+                        $lastTenDigits = strlen($digits) >= 10
+                            ? substr($digits, -10)
+                            : $digits;
+
+                        $user = null;
+
+                        if ($lastTenDigits !== '') {
+                            $user = User::query()
+                                ->where('mobile', $digits)
+                                ->orWhere('mobile', $lastTenDigits)
+                                ->orWhere(
+                                    'mobile',
+                                    'like',
+                                    '%' . $lastTenDigits
+                                )
+                                ->first();
+                        }
+
+                        $conversation = WhatsAppConversation::firstOrNew([
+                            'wa_id' => $digits ?: (string) $from,
+                        ]);
+
+                        if (!$conversation->exists) {
+                            $conversation->status = 'open';
+                            $conversation->unread_count = 0;
+                        }
+
+                        $conversation->mobile =
+                            $digits ?: (string) $from;
+
+                        if (!empty($contact['name'])) {
+                            $conversation->customer_name =
+                                $contact['name'];
+                        }
+
+                        if ($user) {
+                            $conversation->user_id = $user->id;
+
+                            if (empty($conversation->customer_name)) {
+                                $conversation->customer_name =
+                                    $user->name ?? null;
+                            }
+                        }
+
+                        $conversation->phone_number_id =
+                            $metadata['phone_number_id'] ?? null;
+
+                        $conversation->display_phone_number =
+                            $metadata['display_phone_number'] ?? null;
+
+                        $conversation->status = 'open';
+                        $conversation->last_message_type = $type;
+                        $conversation->last_message =
+                            $this->incomingMessagePreview(
+                                $type,
+                                $content
+                            );
+
+                        $conversation->last_message_direction =
+                            'incoming';
+
+                        $conversation->last_message_at = $messageAt;
+                        $conversation->last_customer_message_at =
+                            $messageAt;
+
+                        /*
+                         * A customer message opens Meta's 24-hour customer
+                         * service window for free-form replies.
+                         */
+                        $conversation->service_window_expires_at =
+                            $messageAt->copy()->addHours(24);
+
+                        $conversation->unread_count =
+                            ((int) $conversation->unread_count) + 1;
+
+                        $conversation->read_at = null;
+
+                        $conversation->metadata = [
+                            'phone_number_id' =>
+                                $metadata['phone_number_id'] ?? null,
+                            'display_phone_number' =>
+                                $metadata['display_phone_number'] ?? null,
+                        ];
+
+                        $conversation->save();
+
+                        WhatsAppMessage::create([
+                            'whats_app_conversation_id' =>
+                                $conversation->id,
+                            'message_id' => $messageId,
+                            'direction' => 'incoming',
+                            'type' => $type,
+                            'from_number' =>
+                                $digits ?: (string) $from,
+                            'to_number' =>
+                                $metadata['display_phone_number'] ?? null,
+                            'body' => $this->incomingMessageBody(
+                                $type,
+                                $content
+                            ),
+                            'content' => $content,
+                            'media_id' =>
+                                $content['media_id'] ?? null,
+                            'media_mime_type' =>
+                                $content['mime_type'] ?? null,
+                            'media_filename' =>
+                                $content['filename'] ?? null,
+                            'reply_to_message_id' =>
+                                $context['id'] ?? null,
+                            'status' => 'received',
+                            'sent_at' => $messageAt,
+                            'metadata' => [
+                                'phone_number_id' =>
+                                    $metadata['phone_number_id'] ?? null,
+                                'display_phone_number' =>
+                                    $metadata['display_phone_number'] ?? null,
+                                'context' => $context,
+                            ],
+                            'raw_payload' => $message,
+                        ]);
+
+                        Log::info(
+                            'WhatsApp incoming message saved to inbox',
+                            [
+                                'conversation_id' => $conversation->id,
+                                'message_id' => $messageId,
+                                'from' => $from,
+                            ]
+                        );
+                    }
+                }
+            } catch (\Throwable $exception) {
+                /*
+                 * Inbox persistence must never prevent Meta webhook
+                 * acknowledgement.
+                 */
+                Log::error('WhatsApp inbox save failed', [
+                    'message_id' => $messageId,
+                    'from' => $from,
+                    'message' => $exception->getMessage(),
+                    'file' => $exception->getFile(),
+                    'line' => $exception->getLine(),
+                ]);
+            }
+
             if ($messageId) {
                 try {
                     WhatsAppService::markAsRead($messageId);
@@ -885,6 +1057,67 @@ class WhatsAppController extends BaseApiController
             default => [
                 'raw' => $message[$type] ?? $message,
             ],
+        };
+    }
+
+    private function incomingMessageBody(
+        string $type,
+        array $content
+    ): ?string {
+        return match ($type) {
+            'text' =>
+                $content['body'] ?? null,
+
+            'button' =>
+                $content['text'] ?? null,
+
+            'interactive' =>
+                $content['button_reply_title']
+                ?? $content['list_reply_title']
+                ?? null,
+
+            'image', 'video', 'document' =>
+                $content['caption'] ?? null,
+
+            'location' =>
+                $content['name']
+                ?? $content['address']
+                ?? 'Location',
+
+            'reaction' =>
+                $content['emoji'] ?? null,
+
+            'audio' =>
+                'Voice/Audio message',
+
+            'contacts' =>
+                'Contact shared',
+
+            default =>
+                null,
+        };
+    }
+
+    private function incomingMessagePreview(
+        string $type,
+        array $content
+    ): string {
+        $body = $this->incomingMessageBody($type, $content);
+
+        if ($body !== null && trim($body) !== '') {
+            return mb_substr(trim($body), 0, 500);
+        }
+
+        return match ($type) {
+            'image' => '📷 Image',
+            'video' => '🎥 Video',
+            'audio' => '🎤 Voice/Audio message',
+            'document' => '📄 Document',
+            'location' => '📍 Location',
+            'contacts' => '👤 Contact',
+            'reaction' => 'Reaction',
+            'interactive' => 'Interactive reply',
+            default => ucfirst($type) . ' message',
         };
     }
 
