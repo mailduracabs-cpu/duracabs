@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Requests\Api\V1\ApplyCouponRequest;
 use App\Http\Requests\Api\V1\BookingRequest;
 use App\Http\Requests\Api\V1\CancelBookingRequest;
+use App\Models\Order;
 use App\Services\BookingService;
 use App\Services\CouponService;
 use Illuminate\Http\Request;
@@ -199,4 +200,149 @@ class BookingController extends BaseApiController
             $result['message'] ?? 'Driver details loaded successfully.'
         );
     }
+
+    public function updateLiveLocation(
+        Request $request,
+        string $booking
+    ) {
+        $validated = $request->validate([
+            'latitude' => [
+                'required',
+                'numeric',
+                'between:-90,90',
+            ],
+            'longitude' => [
+                'required',
+                'numeric',
+                'between:-180,180',
+            ],
+            'sharing_enabled' => [
+                'nullable',
+                'boolean',
+            ],
+        ]);
+
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error(
+                'Unauthenticated.',
+                401
+            );
+        }
+
+        $order = Order::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($booking): void {
+                $query->where('booking_no', $booking);
+
+                if (ctype_digit($booking)) {
+                    $query->orWhere('id', (int) $booking);
+                }
+            })
+            ->first();
+
+        if (! $order) {
+            return $this->error(
+                'Booking not found or you are not allowed to update this booking.',
+                404
+            );
+        }
+
+        if (in_array(
+            strtolower((string) $order->status),
+            [
+                'completed',
+                'complete',
+                'closed',
+                'cancelled',
+                'canceled',
+            ],
+            true
+        )) {
+            return $this->error(
+                'Live location cannot be updated for this booking.',
+                422
+            );
+        }
+
+        $order->customer_live_lat =
+            (float) $validated['latitude'];
+
+        $order->customer_live_lng =
+            (float) $validated['longitude'];
+
+        $order->location_sharing_enabled =
+            (bool) ($validated['sharing_enabled'] ?? true);
+
+        $order->customer_live_location_updated_at = now();
+
+        $order->save();
+
+        return $this->success(
+            [
+                'booking_id' => $order->id,
+                'booking_no' => $order->booking_no,
+                'location' => [
+                    'latitude' =>
+                        (float) $order->customer_live_lat,
+                    'longitude' =>
+                        (float) $order->customer_live_lng,
+                ],
+                'sharing_enabled' =>
+                    (bool) $order->location_sharing_enabled,
+                'updated_at' =>
+                    $order->customer_live_location_updated_at
+                        ? $order->customer_live_location_updated_at
+                            ->toIso8601String()
+                        : null,
+            ],
+            'Live location updated successfully.'
+        );
+    }
+
+    public function stopLiveLocation(
+        Request $request,
+        string $booking
+    ) {
+        $user = $request->user();
+
+        if (! $user) {
+            return $this->error(
+                'Unauthenticated.',
+                401
+            );
+        }
+
+        $order = Order::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($booking): void {
+                $query->where('booking_no', $booking);
+
+                if (ctype_digit($booking)) {
+                    $query->orWhere('id', (int) $booking);
+                }
+            })
+            ->first();
+
+        if (! $order) {
+            return $this->error(
+                'Booking not found or you are not allowed to update this booking.',
+                404
+            );
+        }
+
+        $order->location_sharing_enabled = false;
+        $order->save();
+
+        return $this->success(
+            [
+                'booking_id' => $order->id,
+                'booking_no' => $order->booking_no,
+                'sharing_enabled' => false,
+            ],
+            'Live location sharing stopped successfully.'
+        );
+    }
+
 }

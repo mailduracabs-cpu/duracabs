@@ -12,6 +12,12 @@ class Order extends Model
 
     protected $casts = [
         'extraOptions' => 'array',
+
+        // Customer live location
+        'customer_live_lat' => 'float',
+        'customer_live_lng' => 'float',
+        'location_sharing_enabled' => 'boolean',
+        'customer_live_location_updated_at' => 'datetime',
     ];
     protected $fillable = [
         'user_id',
@@ -28,6 +34,13 @@ class Order extends Model
         'time',
         'booking_from',
         'booking_to',
+
+        // Customer live location
+        'customer_live_lat',
+        'customer_live_lng',
+        'location_sharing_enabled',
+        'customer_live_location_updated_at',
+
         'status',
         'currency',
         'shipping_ammount', 

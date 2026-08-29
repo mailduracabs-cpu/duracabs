@@ -22,6 +22,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Illuminate\Support\HtmlString;
 use Illuminate\Support\Facades\URL;
 use App\Services\WhatsAppService;
 
@@ -681,6 +682,155 @@ class OrderResource extends Resource
                         }),
                 ])
                 ->columns(3),
+
+            Forms\Components\Section::make('Customer Live Location')
+                ->description('Auto-refreshes every 10 seconds and shows the latest location shared by the customer app.')
+                ->visible(fn (?Order $record): bool => $record !== null)
+                ->extraAttributes([
+                    'wire:poll.10s' => '',
+                ])
+                ->schema([
+                    Forms\Components\Placeholder::make('live_location_status')
+                        ->label('Location Sharing')
+                        ->content(function (?Order $record): string {
+                            if (! $record) {
+                                return 'Not available';
+                            }
+
+                            $latest = Order::query()->find($record->id);
+
+                            if (! $latest) {
+                                return 'Not available';
+                            }
+
+                            return (bool) $latest->location_sharing_enabled
+                                ? 'Active'
+                                : 'Stopped / Not Sharing';
+                        }),
+
+                    Forms\Components\Placeholder::make('live_location_coordinates')
+                        ->label('Current Coordinates')
+                        ->content(function (?Order $record): string {
+                            if (! $record) {
+                                return 'Location not received yet';
+                            }
+
+                            $latest = Order::query()->find($record->id);
+
+                            if (
+                                ! $latest
+                                || $latest->customer_live_lat === null
+                                || $latest->customer_live_lng === null
+                            ) {
+                                return 'Location not received yet';
+                            }
+
+                            return number_format(
+                                (float) $latest->customer_live_lat,
+                                7,
+                                '.',
+                                ''
+                            )
+                                . ', '
+                                . number_format(
+                                    (float) $latest->customer_live_lng,
+                                    7,
+                                    '.',
+                                    ''
+                                );
+                        }),
+
+                    Forms\Components\Placeholder::make('live_location_updated')
+                        ->label('Last Updated')
+                        ->content(function (?Order $record): string {
+                            if (! $record) {
+                                return 'Never';
+                            }
+
+                            $latest = Order::query()->find($record->id);
+
+                            if (
+                                ! $latest
+                                || blank($latest->customer_live_location_updated_at)
+                            ) {
+                                return 'Never';
+                            }
+
+                            try {
+                                $updatedAt = Carbon::parse(
+                                    $latest->customer_live_location_updated_at
+                                )->timezone(
+                                    config('app.timezone', 'Asia/Kolkata')
+                                );
+
+                                $ageSeconds = now()
+                                    ->timezone(
+                                        config(
+                                            'app.timezone',
+                                            'Asia/Kolkata'
+                                        )
+                                    )
+                                    ->diffInSeconds(
+                                        $updatedAt,
+                                        false
+                                    );
+
+                                $stale = abs($ageSeconds) > 120
+                                    ? ' • Location stale'
+                                    : ' • Live';
+
+                                return $updatedAt->format(
+                                    'd M Y, h:i:s A'
+                                ) . $stale;
+                            } catch (\Throwable) {
+                                return (string) $latest
+                                    ->customer_live_location_updated_at;
+                            }
+                        }),
+
+                    Forms\Components\Placeholder::make('live_location_map')
+                        ->label('Track Customer')
+                        ->content(function (?Order $record): HtmlString|string {
+                            if (! $record) {
+                                return 'Waiting for customer location...';
+                            }
+
+                            $latest = Order::query()->find($record->id);
+
+                            if (
+                                ! $latest
+                                || $latest->customer_live_lat === null
+                                || $latest->customer_live_lng === null
+                            ) {
+                                return 'Waiting for customer location...';
+                            }
+
+                            $lat = (float) $latest->customer_live_lat;
+                            $lng = (float) $latest->customer_live_lng;
+
+                            $url = 'https://www.google.com/maps/search/?api=1&query='
+                                . rawurlencode($lat . ',' . $lng);
+
+                            return new HtmlString(
+                                '<a href="' . e($url) . '" '
+                                . 'target="_blank" '
+                                . 'rel="noopener noreferrer" '
+                                . 'style="display:inline-flex;'
+                                . 'align-items:center;'
+                                . 'padding:10px 16px;'
+                                . 'border-radius:8px;'
+                                . 'background:#f97316;'
+                                . 'color:#fff;'
+                                . 'font-weight:600;'
+                                . 'text-decoration:none;">'
+                                . 'Open Live Location in Google Maps'
+                                . '</a>'
+                            );
+                        })
+                        ->columnSpanFull(),
+                ])
+                ->columns(3)
+                ->collapsible(),
 
             Forms\Components\Section::make('Payment & Status')
                 ->schema([

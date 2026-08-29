@@ -752,6 +752,24 @@ Route::prefix('bike-rental')->group(function (): void {
     */
 
     Route::middleware('auth:sanctum')->group(function () {
+		
+		
+		
+		/*
+|--------------------------------------------------------------------------
+| Customer Live Location
+|--------------------------------------------------------------------------
+*/
+
+Route::post('/booking/{booking}/live-location', [
+    BookingController::class,
+    'updateLiveLocation',
+])->where('booking', '[A-Za-z0-9\-]+');
+
+Route::post('/booking/{booking}/live-location/stop', [
+    BookingController::class,
+    'stopLiveLocation',
+])->where('booking', '[A-Za-z0-9\-]+');
 
         /*
         |----------------------------------------------------------------------
