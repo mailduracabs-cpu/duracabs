@@ -1708,17 +1708,13 @@ class VehicleResource extends Resource
         $url = null;
         $fileName = null;
 
-        $downloadUrl = null;
-
         if ($media instanceof AppMedia) {
-            $url = route('admin.vehicle-documents.view', ['media' => $media->getKey()]);
-            $downloadUrl = route('admin.vehicle-documents.download', ['media' => $media->getKey()]);
+            $url = $media->original_url ?: $media->url;
             $fileName = $media->original_name ?: $media->name;
         }
 
         if (blank($url) && filled($legacyPath)) {
             $url = \App\Support\DuraImage::url((string) $legacyPath);
-            $downloadUrl = $url;
         }
 
         if (blank($url)) {
@@ -1734,7 +1730,6 @@ class VehicleResource extends Resource
         }
 
         $safeUrl = e((string) $url);
-        $safeDownloadUrl = e((string) ($downloadUrl ?: $url));
         $safeTitle = e($title);
         $safeFileName = e((string) ($fileName ?: $title));
 
@@ -1762,7 +1757,7 @@ class VehicleResource extends Resource
                     <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
                         View Document
                     </a>
-                    <a href="{$safeDownloadUrl}" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
+                    <a href="{$safeUrl}" download style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
                         Download
                     </a>
                 </div>
@@ -1782,17 +1777,16 @@ class VehicleResource extends Resource
             return new HtmlString(
                 <<<HTML
                 <div style="
-                    width: 100%;
-                    height: 220px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 20px;
-                    border: 1px dashed #d1d5db;
-                    border-radius: 12px;
-                    background: #f9fafb;
-                    color: #6b7280;
-                    text-align: center;
+                    min-height:120px;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    padding:18px;
+                    border:1px dashed #d1d5db;
+                    border-radius:12px;
+                    background:#f9fafb;
+                    color:#6b7280;
+                    text-align:center;
                 ">
                     {$safeEmptyText}
                 </div>
@@ -1806,23 +1800,79 @@ class VehicleResource extends Resource
         return new HtmlString(
             <<<HTML
             <div style="
-                width: 100%;
-                height: 220px;
-                overflow: hidden;
-                border: 1px solid #e5e7eb;
-                border-radius: 12px;
-                background: #f9fafb;
+                border:1px solid #e5e7eb;
+                border-radius:12px;
+                padding:10px;
+                background:#fff;
             ">
-                <img
-                    src="{$safeUrl}"
-                    alt="{$safeAlt}"
+                <a
+                    href="{$safeUrl}"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     style="
-                        display: block;
-                        width: 100%;
-                        height: 100%;
-                        object-fit: contain;
+                        display:block;
+                        height:150px;
+                        border-radius:10px;
+                        overflow:hidden;
+                        background:#f3f4f6;
                     "
                 >
+                    <img
+                        src="{$safeUrl}"
+                        alt="{$safeAlt}"
+                        style="
+                            display:block;
+                            width:100%;
+                            height:100%;
+                            object-fit:contain;
+                        "
+                    >
+                </a>
+
+                <div style="
+                    display:flex;
+                    flex-wrap:wrap;
+                    gap:8px;
+                    margin-top:10px;
+                ">
+                    <a
+                        href="{$safeUrl}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style="
+                            display:inline-flex;
+                            align-items:center;
+                            justify-content:center;
+                            padding:8px 12px;
+                            border-radius:8px;
+                            background:#2563eb;
+                            color:#fff;
+                            font-weight:700;
+                            text-decoration:none;
+                        "
+                    >
+                        View Photo
+                    </a>
+
+                    <a
+                        href="{$safeUrl}"
+                        download
+                        style="
+                            display:inline-flex;
+                            align-items:center;
+                            justify-content:center;
+                            padding:8px 12px;
+                            border-radius:8px;
+                            border:1px solid #d1d5db;
+                            color:#111827;
+                            font-weight:700;
+                            text-decoration:none;
+                            background:#fff;
+                        "
+                    >
+                        Download
+                    </a>
+                </div>
             </div>
             HTML
         );
