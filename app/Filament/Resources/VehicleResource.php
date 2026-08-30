@@ -886,6 +886,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->front_image_url,
+                                    media: $record?->frontMedia,
+                                    legacyPath: $record?->front_image,
                                     alt: 'Front Photo',
                                     emptyText: 'No front photo available',
                                 )
@@ -898,6 +900,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->back_image_url,
+                                    media: $record?->backMedia,
+                                    legacyPath: $record?->back_image,
                                     alt: 'Back Photo',
                                     emptyText: 'No back photo available',
                                 )
@@ -910,6 +914,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->left_side_image_url,
+                                    media: $record?->leftSideMedia,
+                                    legacyPath: $record?->left_side_image,
                                     alt: 'Left Side',
                                     emptyText: 'No left side available',
                                 )
@@ -922,6 +928,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->right_side_image_url,
+                                    media: $record?->rightSideMedia,
+                                    legacyPath: $record?->right_side_image,
                                     alt: 'Right Side',
                                     emptyText: 'No right side available',
                                 )
@@ -934,6 +942,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->front_left_image_url,
+                                    media: $record?->frontLeftMedia,
+                                    legacyPath: $record?->front_left_image,
                                     alt: 'Front Left Angle',
                                     emptyText: 'No front left angle available',
                                 )
@@ -946,6 +956,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->front_right_image_url,
+                                    media: $record?->frontRightMedia,
+                                    legacyPath: $record?->front_right_image,
                                     alt: 'Front Right Angle',
                                     emptyText: 'No front right angle available',
                                 )
@@ -958,6 +970,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->interior_image_url,
+                                    media: $record?->interiorMedia,
+                                    legacyPath: $record?->interior_image,
                                     alt: 'Interior / Dashboard',
                                     emptyText: 'No interior / dashboard available',
                                 )
@@ -970,6 +984,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->front_seats_image_url,
+                                    media: $record?->frontSeatsMedia,
+                                    legacyPath: $record?->front_seats_image,
                                     alt: 'Front Seats',
                                     emptyText: 'No front seats available',
                                 )
@@ -982,6 +998,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->rear_seats_image_url,
+                                    media: $record?->rearSeatsMedia,
+                                    legacyPath: $record?->rear_seats_image,
                                     alt: 'Rear Seats',
                                     emptyText: 'No rear seats available',
                                 )
@@ -994,6 +1012,8 @@ class VehicleResource extends Resource
                             fn (?Vehicle $record): HtmlString =>
                                 static::vehicleImagePreview(
                                     url: $record?->boot_image_url,
+                                    media: $record?->bootMedia,
+                                    legacyPath: $record?->boot_image,
                                     alt: 'Boot / Luggage',
                                     emptyText: 'No boot / luggage available',
                                 )
@@ -1705,12 +1725,88 @@ class VehicleResource extends Resource
         string $title,
         string $emptyText,
     ): HtmlString {
-        $url = null;
+        $viewUrl = null;
+        $downloadUrl = null;
+        $previewUrl = null;
         $fileName = null;
 
         if ($media instanceof AppMedia) {
-            $url = $media->original_url ?: $media->url;
+            // Vehicle documents are private. Always render them through the
+            // authenticated admin routes instead of exposing the stored path.
+            $viewUrl = route('admin.vehicle-documents.view', ['media' => $media->getKey()]);
+            $downloadUrl = route('admin.vehicle-documents.download', ['media' => $media->getKey()]);
+            $previewUrl = $viewUrl;
             $fileName = $media->original_name ?: $media->name;
+        } elseif (filled($legacyPath)) {
+            // Old records may still contain a public legacy image path.
+            $previewUrl = \App\Support\DuraImage::url((string) $legacyPath);
+            $viewUrl = $previewUrl;
+            $downloadUrl = $previewUrl;
+        }
+
+        if (blank($viewUrl)) {
+            $safeEmptyText = e($emptyText);
+
+            return new HtmlString(
+                <<<HTML
+                <div style="min-height:120px;display:flex;align-items:center;justify-content:center;padding:18px;border:1px dashed #d1d5db;border-radius:12px;background:#f9fafb;color:#6b7280;text-align:center;">
+                    {$safeEmptyText}
+                </div>
+                HTML
+            );
+        }
+
+        $safeViewUrl = e((string) $viewUrl);
+        $safeDownloadUrl = e((string) $downloadUrl);
+        $safePreviewUrl = e((string) $previewUrl);
+        $safeTitle = e($title);
+        $safeFileName = e((string) ($fileName ?: $title));
+
+        $isImage = $media instanceof AppMedia
+            ? $media->isImage()
+            : (bool) preg_match('/\.(jpe?g|png|gif|webp)(\?.*)?$/i', (string) $previewUrl);
+
+        $preview = $isImage
+            ? <<<HTML
+                <a href="{$safeViewUrl}" target="_blank" rel="noopener noreferrer" style="display:block;height:150px;border-radius:10px;overflow:hidden;background:#f3f4f6;">
+                    <img src="{$safePreviewUrl}" alt="{$safeTitle}" style="display:block;width:100%;height:100%;object-fit:contain;">
+                </a>
+              HTML
+            : <<<HTML
+                <div style="min-height:110px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:700;text-align:center;padding:16px;">
+                    {$safeFileName}
+                </div>
+              HTML;
+
+        return new HtmlString(
+            <<<HTML
+            <div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;">
+                {$preview}
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                    <a href="{$safeViewUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
+                        View Document
+                    </a>
+                    <a href="{$safeDownloadUrl}" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
+                        Download
+                    </a>
+                </div>
+            </div>
+            HTML
+        );
+    }
+
+    private static function vehicleImagePreview(
+        ?string $url,
+        ?AppMedia $media,
+        ?string $legacyPath,
+        string $alt,
+        string $emptyText,
+    ): HtmlString {
+        // Prefer the model accessor, then AppMedia, then the legacy DB path.
+        // This keeps both car and bike records working regardless of whether
+        // they were uploaded before or after the AppMedia migration.
+        if (blank($url) && $media instanceof AppMedia) {
+            $url = $media->original_url ?: $media->url;
         }
 
         if (blank($url) && filled($legacyPath)) {
@@ -1730,146 +1826,19 @@ class VehicleResource extends Resource
         }
 
         $safeUrl = e((string) $url);
-        $safeTitle = e($title);
-        $safeFileName = e((string) ($fileName ?: $title));
-
-        $isImage = $media instanceof AppMedia
-            ? $media->isImage()
-            : (bool) preg_match('/\.(jpe?g|png|gif|webp)(\?.*)?$/i', (string) $url);
-
-        $preview = $isImage
-            ? <<<HTML
-                <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:block;height:150px;border-radius:10px;overflow:hidden;background:#f3f4f6;">
-                    <img src="{$safeUrl}" alt="{$safeTitle}" style="display:block;width:100%;height:100%;object-fit:contain;">
-                </a>
-              HTML
-            : <<<HTML
-                <div style="min-height:110px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:700;text-align:center;padding:16px;">
-                    {$safeFileName}
-                </div>
-              HTML;
-
-        return new HtmlString(
-            <<<HTML
-            <div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;">
-                {$preview}
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
-                    <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
-                        View Document
-                    </a>
-                    <a href="{$safeUrl}" download style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
-                        Download
-                    </a>
-                </div>
-            </div>
-            HTML
-        );
-    }
-
-    private static function vehicleImagePreview(
-        ?string $url,
-        string $alt,
-        string $emptyText,
-    ): HtmlString {
-        if (blank($url)) {
-            $safeEmptyText = e($emptyText);
-
-            return new HtmlString(
-                <<<HTML
-                <div style="
-                    min-height:120px;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                    padding:18px;
-                    border:1px dashed #d1d5db;
-                    border-radius:12px;
-                    background:#f9fafb;
-                    color:#6b7280;
-                    text-align:center;
-                ">
-                    {$safeEmptyText}
-                </div>
-                HTML
-            );
-        }
-
-        $safeUrl = e($url);
         $safeAlt = e($alt);
 
         return new HtmlString(
             <<<HTML
-            <div style="
-                border:1px solid #e5e7eb;
-                border-radius:12px;
-                padding:10px;
-                background:#fff;
-            ">
-                <a
-                    href="{$safeUrl}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style="
-                        display:block;
-                        height:150px;
-                        border-radius:10px;
-                        overflow:hidden;
-                        background:#f3f4f6;
-                    "
-                >
-                    <img
-                        src="{$safeUrl}"
-                        alt="{$safeAlt}"
-                        style="
-                            display:block;
-                            width:100%;
-                            height:100%;
-                            object-fit:contain;
-                        "
-                    >
+            <div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;">
+                <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:block;height:150px;border-radius:10px;overflow:hidden;background:#f3f4f6;">
+                    <img src="{$safeUrl}" alt="{$safeAlt}" style="display:block;width:100%;height:100%;object-fit:contain;">
                 </a>
-
-                <div style="
-                    display:flex;
-                    flex-wrap:wrap;
-                    gap:8px;
-                    margin-top:10px;
-                ">
-                    <a
-                        href="{$safeUrl}"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style="
-                            display:inline-flex;
-                            align-items:center;
-                            justify-content:center;
-                            padding:8px 12px;
-                            border-radius:8px;
-                            background:#2563eb;
-                            color:#fff;
-                            font-weight:700;
-                            text-decoration:none;
-                        "
-                    >
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                    <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
                         View Photo
                     </a>
-
-                    <a
-                        href="{$safeUrl}"
-                        download
-                        style="
-                            display:inline-flex;
-                            align-items:center;
-                            justify-content:center;
-                            padding:8px 12px;
-                            border-radius:8px;
-                            border:1px solid #d1d5db;
-                            color:#111827;
-                            font-weight:700;
-                            text-decoration:none;
-                            background:#fff;
-                        "
-                    >
+                    <a href="{$safeUrl}" download style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
                         Download
                     </a>
                 </div>
