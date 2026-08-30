@@ -617,6 +617,24 @@ Route::prefix('bike-rental')->group(function (): void {
 
         /*
         |----------------------------------------------------------------------
+        | Customer live location during running Self Drive trip
+        |----------------------------------------------------------------------
+        */
+
+        Route::middleware('auth:sanctum')->group(function (): void {
+            Route::post('/booking/{bookingId}/live-location', [
+                SelfDriveController::class,
+                'updateCustomerLiveLocation',
+            ])->where('bookingId', '[A-Za-z0-9\-]+');
+
+            Route::post('/booking/{bookingId}/live-location/stop', [
+                SelfDriveController::class,
+                'stopCustomerLiveLocation',
+            ])->where('bookingId', '[A-Za-z0-9\-]+');
+        });
+
+        /*
+        |----------------------------------------------------------------------
         | End booking OTP
         |----------------------------------------------------------------------
         */

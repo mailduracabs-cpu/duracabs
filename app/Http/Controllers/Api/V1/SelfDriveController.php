@@ -614,6 +614,95 @@ class SelfDriveController extends BaseApiController
         ], 'End OTP verified');
     }
 
+
+    /**
+     * Receive the customer's latest live location for a running Self Drive trip.
+     */
+    public function updateCustomerLiveLocation(Request $request, $bookingId)
+    {
+        $validator = Validator::make($request->all(), [
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'sharing_enabled' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $customer = $this->customerFromRequest($request);
+
+        if (! $customer) {
+            return $this->error('Please login again', 401);
+        }
+
+        $booking = $this->bookingRow($bookingId);
+
+        if (! $booking) {
+            return $this->error('Self drive booking not found', 404);
+        }
+
+        if ((int) $booking->customer_id !== (int) $customer->id) {
+            return $this->error('You are not allowed to update this booking location', 403);
+        }
+
+        if (! $booking->isRunning()) {
+            return $this->error('Live location can only be shared during a running trip', 422);
+        }
+
+        $booking->forceFill([
+            'customer_live_lat' => (float) $request->input('latitude'),
+            'customer_live_lng' => (float) $request->input('longitude'),
+            'location_sharing_enabled' => $request->boolean('sharing_enabled', true),
+            'customer_live_location_updated_at' => now(),
+        ])->saveQuietly();
+
+        return $this->success([
+            'booking_id' => $booking->id,
+            'booking_no' => $booking->booking_no,
+            'customer_live_lat' => (float) $booking->customer_live_lat,
+            'customer_live_lng' => (float) $booking->customer_live_lng,
+            'location_sharing_enabled' => (bool) $booking->location_sharing_enabled,
+            'customer_live_location_updated_at' =>
+                $booking->customer_live_location_updated_at?->toIso8601String(),
+        ], 'Customer live location updated');
+    }
+
+    /**
+     * Stop customer live-location sharing for this Self Drive booking.
+     */
+    public function stopCustomerLiveLocation(Request $request, $bookingId)
+    {
+        $customer = $this->customerFromRequest($request);
+
+        if (! $customer) {
+            return $this->error('Please login again', 401);
+        }
+
+        $booking = $this->bookingRow($bookingId);
+
+        if (! $booking) {
+            return $this->error('Self drive booking not found', 404);
+        }
+
+        if ((int) $booking->customer_id !== (int) $customer->id) {
+            return $this->error('You are not allowed to update this booking location', 403);
+        }
+
+        $booking->forceFill([
+            'location_sharing_enabled' => false,
+            'customer_live_location_updated_at' => now(),
+        ])->saveQuietly();
+
+        return $this->success([
+            'booking_id' => $booking->id,
+            'booking_no' => $booking->booking_no,
+            'location_sharing_enabled' => false,
+            'customer_live_location_updated_at' =>
+                $booking->customer_live_location_updated_at?->toIso8601String(),
+        ], 'Customer live location sharing stopped');
+    }
+
     public function pickupUpload(Request $request)
     {
         return $this->inspectionUpload($request, true);

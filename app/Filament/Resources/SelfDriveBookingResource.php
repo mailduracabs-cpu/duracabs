@@ -584,6 +584,19 @@ class SelfDriveBookingResource extends Resource
                 ])
                 ->columns(2),
 
+            Forms\Components\Section::make('Customer Live Tracking')
+                ->description('Live customer/device location while the Self Drive trip is running.')
+                ->schema([
+                    Forms\Components\ViewField::make('customer_live_tracking')
+                        ->label('')
+                        ->view('filament.forms.components.self-drive-live-tracking')
+                        ->dehydrated(false)
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn (?SelfDriveBooking $record): bool =>
+                    (bool) $record?->exists)
+                ->columnSpanFull(),
+
             /*
              * Operational fields stay available only after a booking exists.
              * They are intentionally hidden from the simple Create Booking form.
