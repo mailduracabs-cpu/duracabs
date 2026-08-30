@@ -703,6 +703,98 @@ class SelfDriveController extends BaseApiController
         ], 'Customer live location sharing stopped');
     }
 
+    /**
+     * Securely stream an unlocked Self Drive vehicle document to the booking customer.
+     */
+    public function vehicleDocument(Request $request, $bookingId, string $type)
+    {
+        $customer = $this->customerFromRequest($request);
+
+        if (! $customer) {
+            return $this->error('Please login again', 401);
+        }
+
+        $booking = $this->bookingRow($bookingId);
+
+        if (! $booking) {
+            return $this->error('Self drive booking not found', 404);
+        }
+
+        if ((int) $booking->customer_id !== (int) $customer->id) {
+            return $this->error('You are not allowed to view this booking document', 403);
+        }
+
+        if (empty($booking->pickup_otp_verified_at) && empty($booking->registration_unlocked_at)) {
+            return $this->error('Vehicle documents are locked until pickup OTP verification', 403);
+        }
+
+        $vehicle = Vehicle::find($booking->vehicle_id);
+
+        if (! $vehicle) {
+            return $this->error('Vehicle not found', 404);
+        }
+
+        $type = strtolower(trim($type));
+
+        $path = match ($type) {
+            'rc' => $vehicle->rc_image,
+            'insurance' => $vehicle->insurance_image,
+            'puc', 'pollution' => $vehicle->polution_image,
+            default => null,
+        };
+
+        if (blank($path)) {
+            return $this->error('Vehicle document not available', 404);
+        }
+
+        $path = trim((string) $path);
+
+        // Legacy records can contain a full URL. Redirect only to our own/public URL.
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return redirect()->away($path);
+        }
+
+        $normalized = ltrim($path, '/');
+        $normalized = preg_replace('#^storage/#', '', $normalized) ?: $normalized;
+
+        foreach (['public', 'local'] as $diskName) {
+            try {
+                $disk = Storage::disk($diskName);
+
+                if ($disk->exists($normalized)) {
+                    $mime = $disk->mimeType($normalized) ?: 'application/octet-stream';
+                    $contents = $disk->get($normalized);
+
+                    return response($contents, 200, [
+                        'Content-Type' => $mime,
+                        'Content-Disposition' => 'inline; filename="' . basename($normalized) . '"',
+                        'Cache-Control' => 'private, max-age=300',
+                        'X-Content-Type-Options' => 'nosniff',
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Self drive vehicle document read failed', [
+                    'booking_id' => $booking->id,
+                    'vehicle_id' => $vehicle->id,
+                    'document_type' => $type,
+                    'disk' => $diskName,
+                    'path' => $normalized,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Some legacy paths may already be absolute server paths.
+        if (is_file($path) && is_readable($path)) {
+            return response()->file($path, [
+                'Cache-Control' => 'private, max-age=300',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return $this->error('Vehicle document file not found', 404);
+    }
+
     public function pickupUpload(Request $request)
     {
         return $this->inspectionUpload($request, true);

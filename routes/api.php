@@ -631,6 +631,13 @@ Route::prefix('bike-rental')->group(function (): void {
                 SelfDriveController::class,
                 'stopCustomerLiveLocation',
             ])->where('bookingId', '[A-Za-z0-9\-]+');
+
+            Route::get('/booking/{bookingId}/document/{type}', [
+                SelfDriveController::class,
+                'vehicleDocument',
+            ])
+                ->where('bookingId', '[A-Za-z0-9\-]+')
+                ->where('type', 'rc|insurance|puc|pollution');
         });
 
         /*
