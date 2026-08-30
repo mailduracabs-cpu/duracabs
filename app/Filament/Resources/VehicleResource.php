@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\VehicleResource\Pages;
 use App\Forms\Components\DuraImageUpload;
+use App\Models\AppMedia;
 use App\Models\FleetManagement\TransporterProfile;
 use App\Models\User;
 use App\Models\Vehicle;
@@ -1243,9 +1244,8 @@ class VehicleResource extends Resource
             Section::make('Vehicle Documents')
                 ->compact()
                 ->collapsible()
-                ->collapsed()
                 ->description(
-                    'Upload clear vehicle documents. Files are processed and stored by the existing media system.'
+                    'View existing vehicle documents or upload a replacement. Leaving a replacement field empty keeps the current document.'
                 )
                 ->icon('heroicon-o-document-text')
                 ->columns([
@@ -1253,6 +1253,45 @@ class VehicleResource extends Resource
                     'lg' => 3,
                 ])
                 ->schema([
+                    Placeholder::make('rc_document_preview')
+                        ->label('Current RC Document')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleDocumentPreview(
+                                    media: $record?->rcMedia,
+                                    legacyPath: $record?->rc_image,
+                                    title: 'RC Document',
+                                    emptyText: 'No RC document available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('insurance_document_preview')
+                        ->label('Current Insurance Document')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleDocumentPreview(
+                                    media: $record?->insuranceMedia,
+                                    legacyPath: $record?->insurance_image,
+                                    title: 'Insurance Document',
+                                    emptyText: 'No insurance document available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
+                    Placeholder::make('pollution_document_preview')
+                        ->label('Current PUC / Pollution Document')
+                        ->content(
+                            fn (?Vehicle $record): HtmlString =>
+                                static::vehicleDocumentPreview(
+                                    media: $record?->pollutionMedia,
+                                    legacyPath: $record?->polution_image,
+                                    title: 'PUC / Pollution Document',
+                                    emptyText: 'No PUC / pollution document available',
+                                )
+                        )
+                        ->visible(fn (?Vehicle $record): bool => $record instanceof Vehicle),
+
                     DuraImageUpload::document(
                         name: 'rc_upload',
                         module: 'vehicle-rc',
@@ -1261,13 +1300,13 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->label('RC Document')
-                        ->required(
-                            fn (string $operation): bool =>
-                                $operation === 'create'
-                        ),
-
-                    Hidden::make('rc_media_id'),
+                        ->label(fn (string $operation): string =>
+                            $operation === 'edit' ? 'Replace RC Document' : 'RC Document')
+                        ->helperText(fn (string $operation): string =>
+                            $operation === 'edit'
+                                ? 'Leave empty to keep the existing RC document.'
+                                : 'Upload the RC document.')
+                        ->required(fn (string $operation): bool => $operation === 'create'),
 
                     DuraImageUpload::document(
                         name: 'insurance_upload',
@@ -1277,13 +1316,13 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->label('Insurance Document')
-                        ->required(
-                            fn (string $operation): bool =>
-                                $operation === 'create'
-                        ),
-
-                    Hidden::make('insurance_media_id'),
+                        ->label(fn (string $operation): string =>
+                            $operation === 'edit' ? 'Replace Insurance Document' : 'Insurance Document')
+                        ->helperText(fn (string $operation): string =>
+                            $operation === 'edit'
+                                ? 'Leave empty to keep the existing insurance document.'
+                                : 'Upload the insurance document.')
+                        ->required(fn (string $operation): bool => $operation === 'create'),
 
                     DuraImageUpload::document(
                         name: 'pollution_upload',
@@ -1293,8 +1332,17 @@ class VehicleResource extends Resource
                         ->imagePreviewHeight('56')
                         ->panelAspectRatio('5:1')
                         ->columnSpan(1)
-                        ->label('PUC / Pollution Document'),
+                        ->label(fn (string $operation): string =>
+                            $operation === 'edit'
+                                ? 'Replace PUC / Pollution Document'
+                                : 'PUC / Pollution Document')
+                        ->helperText(fn (string $operation): string =>
+                            $operation === 'edit'
+                                ? 'Leave empty to keep the existing PUC / pollution document.'
+                                : 'Upload the PUC / pollution document.'),
 
+                    Hidden::make('rc_media_id'),
+                    Hidden::make('insurance_media_id'),
                     Hidden::make('pollution_media_id'),
                 ]),
         ]);
@@ -1569,6 +1617,9 @@ class VehicleResource extends Resource
                 'frontSeatsMedia',
                 'rearSeatsMedia',
                 'bootMedia',
+                'rcMedia',
+                'insuranceMedia',
+                'pollutionMedia',
             ]);
 
         if (! static::isPartnerPanel()) {
@@ -1646,6 +1697,73 @@ class VehicleResource extends Resource
         return $profileId !== null
             ? (int) $profileId
             : null;
+    }
+
+    private static function vehicleDocumentPreview(
+        ?AppMedia $media,
+        ?string $legacyPath,
+        string $title,
+        string $emptyText,
+    ): HtmlString {
+        $url = null;
+        $fileName = null;
+
+        if ($media instanceof AppMedia) {
+            $url = $media->original_url ?: $media->url;
+            $fileName = $media->original_name ?: $media->name;
+        }
+
+        if (blank($url) && filled($legacyPath)) {
+            $url = \App\Support\DuraImage::url((string) $legacyPath);
+        }
+
+        if (blank($url)) {
+            $safeEmptyText = e($emptyText);
+
+            return new HtmlString(
+                <<<HTML
+                <div style="min-height:120px;display:flex;align-items:center;justify-content:center;padding:18px;border:1px dashed #d1d5db;border-radius:12px;background:#f9fafb;color:#6b7280;text-align:center;">
+                    {$safeEmptyText}
+                </div>
+                HTML
+            );
+        }
+
+        $safeUrl = e((string) $url);
+        $safeTitle = e($title);
+        $safeFileName = e((string) ($fileName ?: $title));
+
+        $isImage = $media instanceof AppMedia
+            ? $media->isImage()
+            : (bool) preg_match('/\.(jpe?g|png|gif|webp)(\?.*)?$/i', (string) $url);
+
+        $preview = $isImage
+            ? <<<HTML
+                <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:block;height:150px;border-radius:10px;overflow:hidden;background:#f3f4f6;">
+                    <img src="{$safeUrl}" alt="{$safeTitle}" style="display:block;width:100%;height:100%;object-fit:contain;">
+                </a>
+              HTML
+            : <<<HTML
+                <div style="min-height:110px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:#f3f4f6;color:#374151;font-weight:700;text-align:center;padding:16px;">
+                    {$safeFileName}
+                </div>
+              HTML;
+
+        return new HtmlString(
+            <<<HTML
+            <div style="border:1px solid #e5e7eb;border-radius:12px;padding:10px;background:#fff;">
+                {$preview}
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
+                    <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
+                        View Document
+                    </a>
+                    <a href="{$safeUrl}" download style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
+                        Download
+                    </a>
+                </div>
+            </div>
+            HTML
+        );
     }
 
     private static function vehicleImagePreview(
