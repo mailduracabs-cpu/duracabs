@@ -190,7 +190,7 @@ Route::middleware('auth:admin')->prefix('admin/vehicle-documents')->group(functi
         );
 
         $disk = (string) ($media->disk ?: 'local');
-        $path = (string) $media->path;
+        $path = (string) $media->storedPath();
 
         abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
 
@@ -213,7 +213,7 @@ Route::middleware('auth:admin')->prefix('admin/vehicle-documents')->group(functi
         );
 
         $disk = (string) ($media->disk ?: 'local');
-        $path = (string) $media->path;
+        $path = (string) $media->storedPath();
 
         abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
 
