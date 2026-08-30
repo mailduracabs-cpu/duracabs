@@ -6,6 +6,7 @@ use App\Http\Controllers\SiteMapController;
 use App\Http\Controllers\SocialController;
 use App\Http\Controllers\SecureBookingController;
 use App\Http\Controllers\InvoiceController;
+use App\Models\AppMedia;
 
 use App\Livewire\AboutUs;
 use App\Livewire\Auth\ForgotPassword;
@@ -41,6 +42,7 @@ use App\Livewire\PartnerLogin;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 Route::permanentRedirect('/page/self-drive-service-in-agra', '/pages/self-drive-service-in-agra');
 Route::permanentRedirect('/page/b2b', '/vendor-register');
@@ -166,6 +168,59 @@ Route::middleware('auth:customer')->group(function () {
 
     Route::get('/cancel', CancelPage::class)
         ->name('cancel');
+});
+
+
+/*
+|--------------------------------------------------------------------------
+| Secure Admin Vehicle Documents
+|--------------------------------------------------------------------------
+|
+| Vehicle RC, insurance and PUC documents are stored privately. These
+| routes stream them only to an authenticated admin instead of exposing
+| private storage through /storage URLs.
+|
+*/
+
+Route::middleware('auth:admin')->prefix('admin/vehicle-documents')->group(function () {
+    Route::get('/{media}', function (AppMedia $media) {
+        abort_unless(
+            in_array($media->module, ['vehicle-rc', 'vehicle-insurance', 'vehicle-puc'], true),
+            404
+        );
+
+        $disk = (string) ($media->disk ?: 'local');
+        $path = (string) $media->path;
+
+        abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
+
+        $absolutePath = Storage::disk($disk)->path($path);
+        $mimeType = $media->mime_type ?: Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
+        $fileName = $media->original_name ?: $media->name ?: basename($path);
+
+        return response()->file($absolutePath, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="' . addslashes($fileName) . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'private, max-age=300',
+        ]);
+    })->whereNumber('media')->name('admin.vehicle-documents.view');
+
+    Route::get('/{media}/download', function (AppMedia $media) {
+        abort_unless(
+            in_array($media->module, ['vehicle-rc', 'vehicle-insurance', 'vehicle-puc'], true),
+            404
+        );
+
+        $disk = (string) ($media->disk ?: 'local');
+        $path = (string) $media->path;
+
+        abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
+
+        $fileName = $media->original_name ?: $media->name ?: basename($path);
+
+        return Storage::disk($disk)->download($path, $fileName);
+    })->whereNumber('media')->name('admin.vehicle-documents.download');
 });
 
 /*

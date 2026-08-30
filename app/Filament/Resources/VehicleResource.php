@@ -1708,13 +1708,17 @@ class VehicleResource extends Resource
         $url = null;
         $fileName = null;
 
+        $downloadUrl = null;
+
         if ($media instanceof AppMedia) {
-            $url = $media->original_url ?: $media->url;
+            $url = route('admin.vehicle-documents.view', ['media' => $media->getKey()]);
+            $downloadUrl = route('admin.vehicle-documents.download', ['media' => $media->getKey()]);
             $fileName = $media->original_name ?: $media->name;
         }
 
         if (blank($url) && filled($legacyPath)) {
             $url = \App\Support\DuraImage::url((string) $legacyPath);
+            $downloadUrl = $url;
         }
 
         if (blank($url)) {
@@ -1730,6 +1734,7 @@ class VehicleResource extends Resource
         }
 
         $safeUrl = e((string) $url);
+        $safeDownloadUrl = e((string) ($downloadUrl ?: $url));
         $safeTitle = e($title);
         $safeFileName = e((string) ($fileName ?: $title));
 
@@ -1757,7 +1762,7 @@ class VehicleResource extends Resource
                     <a href="{$safeUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;background:#2563eb;color:#fff;font-weight:700;text-decoration:none;">
                         View Document
                     </a>
-                    <a href="{$safeUrl}" download style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
+                    <a href="{$safeDownloadUrl}" style="display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;color:#111827;font-weight:700;text-decoration:none;background:#fff;">
                         Download
                     </a>
                 </div>
