@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 
 class CustomerLeadRevenueChartWidget extends ChartWidget
 {
+	protected static bool $isDiscovered = false;
     protected static ?string $heading = 'Converted Revenue';
 
     protected static ?string $description =

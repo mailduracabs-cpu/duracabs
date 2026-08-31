@@ -10,6 +10,7 @@ use Filament\Widgets\TableWidget as BaseWidget;
 
 class AbandonedCustomerLeadsWidget extends BaseWidget
 {
+	protected static bool $isDiscovered = false;
     protected static ?string $heading = 'Recent Abandoned Leads';
 
     protected static ?string $description =

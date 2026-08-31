@@ -7,6 +7,7 @@ use Filament\Widgets\ChartWidget;
 
 class CustomerLeadServiceBreakdownWidget extends ChartWidget
 {
+	protected static bool $isDiscovered = false;
     protected static ?string $heading = 'Lead Service Breakdown';
 
     protected static ?string $description =
