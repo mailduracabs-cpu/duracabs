@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\SelfDriveBookingResource;
 use App\Models\Order;
 use App\Models\SelfDriveBooking;
 use App\Models\Vehicle;
@@ -24,12 +25,12 @@ class OperationsOverview extends BaseWidget
         $today = Carbon::today();
 
         /*
-         * WITH DRIVER - TODAY
-         *
-         * Trip date is used, not created_at.
-         */
+        |--------------------------------------------------------------------------
+        | TODAY WITH DRIVER BOOKINGS
+        |--------------------------------------------------------------------------
+        */
         $todayOrders = Order::query()
-            ->whereDate('date', $today)
+            ->whereDate('date', $today->toDateString())
             ->whereNotIn('status', [
                 'cancelled',
                 'closed',
@@ -42,33 +43,28 @@ class OperationsOverview extends BaseWidget
             ->sum('grand_total');
 
         /*
-         * PENDING COLLECTION
-         *
-         * Use the Order model's paid_amount / remaining_amount
-         * accessors so manual corrected amounts in extraOptions
-         * are respected.
-         */
-        $pendingCollection = (clone $todayOrders)
-            ->get()
-            ->sum(
-                fn (Order $order): float =>
-                    (float) $order->remaining_amount
-            );
+        |--------------------------------------------------------------------------
+        | PENDING COLLECTION
+        |--------------------------------------------------------------------------
+        */
+        $todayOrdersForPayment = (clone $todayOrders)->get();
 
-        $pendingPaymentBookings = (clone $todayOrders)
-            ->get()
-            ->filter(
-                fn (Order $order): bool =>
-                    (float) $order->remaining_amount > 0
-            )
+        $pendingCollection = $todayOrdersForPayment
+            ->sum(function (Order $order): float {
+                return (float) $order->remaining_amount;
+            });
+
+        $pendingPaymentBookings = $todayOrdersForPayment
+            ->filter(function (Order $order): bool {
+                return (float) $order->remaining_amount > 0;
+            })
             ->count();
 
         /*
-         * UNASSIGNED TODAY
-         *
-         * A booking needs attention when driver or vehicle
-         * has not been assigned.
-         */
+        |--------------------------------------------------------------------------
+        | UNASSIGNED WITH DRIVER BOOKINGS TODAY
+        |--------------------------------------------------------------------------
+        */
         $unassignedToday = (clone $todayOrders)
             ->where(function (Builder $query): void {
                 $query
@@ -78,38 +74,36 @@ class OperationsOverview extends BaseWidget
             ->count();
 
         /*
-         * ACTIVE WITH DRIVER TRIPS
-         */
+        |--------------------------------------------------------------------------
+        | ACTIVE WITH DRIVER TRIPS
+        |--------------------------------------------------------------------------
+        */
         $activeWithDriverTrips = Order::query()
             ->where('status', 'start')
             ->count();
 
         /*
-         * ACTIVE SELF DRIVE TRIPS
-         *
-         * Booking window covers the current date/time.
-         */
+        |--------------------------------------------------------------------------
+        | ACTIVE SELF DRIVE TRIPS
+        |
+        | Running status is used here so clicking the card and opening
+        | the "Running" filter shows the exact same bookings.
+        |--------------------------------------------------------------------------
+        */
         $activeSelfDriveTrips = SelfDriveBooking::query()
-            ->activeBooking()
-            ->where('start_datetime', '<=', $now)
-            ->where('end_datetime', '>', $now)
+            ->where('status', 'running')
             ->count();
 
-        $activeTrips = $activeWithDriverTrips
-            + $activeSelfDriveTrips;
+        $activeTrips = $activeWithDriverTrips + $activeSelfDriveTrips;
 
         /*
-         * AVAILABLE SELF DRIVE CARS RIGHT NOW
-         */
+        |--------------------------------------------------------------------------
+        | AVAILABLE SELF DRIVE CARS RIGHT NOW
+        |--------------------------------------------------------------------------
+        */
         $availableSelfDriveCars = Vehicle::query()
-            ->where(
-                'service_type',
-                Vehicle::SERVICE_SELF_DRIVE
-            )
-            ->where(
-                'vehicle_type',
-                Vehicle::TYPE_CAR
-            )
+            ->where('service_type', Vehicle::SERVICE_SELF_DRIVE)
+            ->where('vehicle_type', Vehicle::TYPE_CAR)
             ->where('is_active', true)
             ->where('is_live', true)
             ->where('is_verified', true)
@@ -118,40 +112,55 @@ class OperationsOverview extends BaseWidget
                 function (Builder $query) use ($now): void {
                     $query
                         ->activeBooking()
-                        ->where(
-                            'start_datetime',
-                            '<=',
-                            $now
-                        )
-                        ->where(
-                            'end_datetime',
-                            '>',
-                            $now
-                        );
+                        ->where('start_datetime', '<=', $now)
+                        ->where('end_datetime', '>', $now);
                 }
             )
             ->count();
 
         /*
-         * UPCOMING SELF DRIVE BOOKINGS
-         */
-        $upcomingSelfDriveBookings =
-            SelfDriveBooking::query()
-                ->activeBooking()
-                ->where('start_datetime', '>', $now)
-                ->count();
+        |--------------------------------------------------------------------------
+        | UPCOMING SELF DRIVE BOOKINGS
+        |--------------------------------------------------------------------------
+        */
+        $upcomingSelfDriveBookings = SelfDriveBooking::query()
+            ->activeBooking()
+            ->where('start_datetime', '>', $now)
+            ->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACTIVE SELF DRIVE BOOKINGS URL
+        |--------------------------------------------------------------------------
+        |
+        | Opens:
+        | Self Drive Bookings -> Status = Running
+        |
+        */
+        $activeSelfDriveUrl = SelfDriveBookingResource::getUrl(
+            'index',
+            [
+                'tableFilters' => [
+                    'status' => [
+                        'value' => 'running',
+                    ],
+                ],
+            ]
+        );
 
         return [
+
+            /*
+            |--------------------------------------------------------------------------
+            | TODAY BOOKINGS
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Today Bookings',
                 number_format($todayBookings)
             )
-                ->description(
-                    'With Driver trips scheduled today'
-                )
-                ->descriptionIcon(
-                    'heroicon-m-calendar-days'
-                )
+                ->description('With Driver trips scheduled today')
+                ->descriptionIcon('heroicon-m-calendar-days')
                 ->icon('heroicon-o-calendar-days')
                 ->color(
                     $todayBookings > 0
@@ -159,40 +168,34 @@ class OperationsOverview extends BaseWidget
                         : 'gray'
                 ),
 
+            /*
+            |--------------------------------------------------------------------------
+            | TODAY BOOKING VALUE
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Today Booking Value',
-                '₹' . number_format(
-                    $todayBookingValue,
-                    0
-                )
+                '₹' . number_format($todayBookingValue, 0)
             )
-                ->description(
-                    'Scheduled booking value today'
-                )
-                ->descriptionIcon(
-                    'heroicon-m-banknotes'
-                )
-                ->icon(
-                    'heroicon-o-currency-rupee'
-                )
+                ->description('Scheduled booking value today')
+                ->descriptionIcon('heroicon-m-banknotes')
+                ->icon('heroicon-o-currency-rupee')
                 ->color('success'),
 
+            /*
+            |--------------------------------------------------------------------------
+            | PENDING COLLECTION
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Pending Collection',
-                '₹' . number_format(
-                    $pendingCollection,
-                    0
-                )
+                '₹' . number_format($pendingCollection, 0)
             )
                 ->description(
-                    number_format(
-                        $pendingPaymentBookings
-                    )
+                    number_format($pendingPaymentBookings)
                     . ' booking(s) with balance'
                 )
-                ->descriptionIcon(
-                    'heroicon-m-credit-card'
-                )
+                ->descriptionIcon('heroicon-m-credit-card')
                 ->icon('heroicon-o-credit-card')
                 ->color(
                     $pendingCollection > 0
@@ -200,19 +203,20 @@ class OperationsOverview extends BaseWidget
                         : 'success'
                 ),
 
+            /*
+            |--------------------------------------------------------------------------
+            | AVAILABLE SELF DRIVE
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Available Self Drive',
-                number_format(
-                    $availableSelfDriveCars
-                )
+                number_format($availableSelfDriveCars)
             )
                 ->description(
-                    $upcomingSelfDriveBookings
+                    number_format($upcomingSelfDriveBookings)
                     . ' upcoming booking(s)'
                 )
-                ->descriptionIcon(
-                    'heroicon-m-check-circle'
-                )
+                ->descriptionIcon('heroicon-m-check-circle')
                 ->icon('heroicon-o-truck')
                 ->color(
                     $availableSelfDriveCars > 0
@@ -220,26 +224,39 @@ class OperationsOverview extends BaseWidget
                         : 'danger'
                 ),
 
+            /*
+            |--------------------------------------------------------------------------
+            | ACTIVE TRIPS - CLICKABLE
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Active Trips',
                 number_format($activeTrips)
             )
                 ->description(
-                    $activeWithDriverTrips
+                    number_format($activeWithDriverTrips)
                     . ' driver + '
-                    . $activeSelfDriveTrips
+                    . number_format($activeSelfDriveTrips)
                     . ' self drive'
                 )
-                ->descriptionIcon(
-                    'heroicon-m-arrow-trending-up'
-                )
+                ->descriptionIcon('heroicon-m-arrow-trending-up')
                 ->icon('heroicon-o-map')
                 ->color(
                     $activeTrips > 0
                         ? 'info'
                         : 'gray'
+                )
+                ->url(
+                    $activeSelfDriveTrips > 0
+                        ? $activeSelfDriveUrl
+                        : null
                 ),
 
+            /*
+            |--------------------------------------------------------------------------
+            | UNASSIGNED TODAY
+            |--------------------------------------------------------------------------
+            */
             Stat::make(
                 'Unassigned Today',
                 number_format($unassignedToday)
@@ -254,9 +271,7 @@ class OperationsOverview extends BaseWidget
                         ? 'heroicon-m-exclamation-triangle'
                         : 'heroicon-m-check-circle'
                 )
-                ->icon(
-                    'heroicon-o-exclamation-triangle'
-                )
+                ->icon('heroicon-o-exclamation-triangle')
                 ->color(
                     $unassignedToday > 0
                         ? 'danger'
