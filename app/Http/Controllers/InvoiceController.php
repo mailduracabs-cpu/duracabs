@@ -627,33 +627,82 @@ class InvoiceController extends Controller
             $booking
         );
 
-        $storedPayable = (float) (
-            $pricingBreakdown['payable_amount']
-            ?? $booking->final_amount
-            ?? $booking->total_amount
+        /*
+        |--------------------------------------------------------------------------
+        | Manual Self Drive Price Override
+        |--------------------------------------------------------------------------
+        | Manual price entered from admin is GST-inclusive and is the
+        | authoritative rental amount whenever it is present.
+        */
+        $manualPrice = isset($booking->manual_price)
+            && $booking->manual_price !== null
+            && $booking->manual_price !== ''
+            && (float) $booking->manual_price > 0
+                ? (float) $booking->manual_price
+                : 0.0;
+
+        $gstPercent = (float) (
+            $pricingBreakdown['gst_percent']
+            ?? $booking->gst_percent
+            ?? 18
+        );
+
+        $securityDeposit = (float) (
+            $booking->security_deposit
+            ?? $pricingBreakdown['security_deposit']
             ?? 0
         );
 
-        $grandTotal = (float) (
-            $booking->final_amount
-            ?? (
-                $storedPayable
-                + $settlementCharges['extra_km_amount']
-                + $settlementCharges['extra_hour_amount']
-                + $settlementCharges['damage_amount']
-                + $settlementCharges['other_charges']
-            )
-        );
+        if ($manualPrice > 0) {
+            $taxableAmount = $gstPercent > 0
+                ? $manualPrice / (1 + ($gstPercent / 100))
+                : $manualPrice;
+
+            $gstAmount = max(
+                0,
+                $manualPrice - $taxableAmount
+            );
+
+            // Override stale stored pricing values for invoice rendering.
+            $pricingBreakdown['manual_price'] = $manualPrice;
+            $pricingBreakdown['base_amount'] = $manualPrice;
+            $pricingBreakdown['rent'] = $manualPrice;
+            $pricingBreakdown['discount_amount'] = 0.0;
+            $pricingBreakdown['taxable_amount'] = $taxableAmount;
+            $pricingBreakdown['gst_percent'] = $gstPercent;
+            $pricingBreakdown['gst_amount'] = $gstAmount;
+            $pricingBreakdown['security_deposit'] = $securityDeposit;
+            $pricingBreakdown['payable_amount'] = $manualPrice;
+        }
+
+        $storedPayable = $manualPrice > 0
+            ? $manualPrice
+            : (float) (
+                $pricingBreakdown['payable_amount']
+                ?? $booking->final_amount
+                ?? $booking->total_amount
+                ?? 0
+            );
+
+        /*
+         * Security deposit is refundable and collected separately, but it is
+         * shown in the invoice grand total. Settlement charges are also added.
+         */
+        $grandTotal =
+            $storedPayable
+            + $securityDeposit
+            + $settlementCharges['extra_km_amount']
+            + $settlementCharges['extra_hour_amount']
+            + $settlementCharges['damage_amount']
+            + $settlementCharges['other_charges'];
 
         $paidAmount = (float) (
             $booking->paid_amount
             ?? 0
         );
 
-        $remainingAmount = (float) (
-            $booking->remaining_amount
-            ?? max(0, $grandTotal - $paidAmount)
-        );
+        // Always recalculate from the corrected invoice total.
+        $remainingAmount = max(0, $grandTotal - $paidAmount);
 
         return [
             'record_type' => 'self_drive',
@@ -721,12 +770,15 @@ class InvoiceController extends Controller
             'pricing_breakdown' => $pricingBreakdown,
             'fare' => [
                 'pricing_breakdown' => $pricingBreakdown,
-                'base_fare' => (float) (
-                    $pricingBreakdown['base_amount']
-                    ?? $pricingBreakdown['rent']
-                    ?? $booking->total_amount
-                    ?? 0
-                ),
+                'manual_price' => $manualPrice,
+                'base_fare' => $manualPrice > 0
+                    ? $manualPrice
+                    : (float) (
+                        $pricingBreakdown['base_amount']
+                        ?? $pricingBreakdown['rent']
+                        ?? $booking->total_amount
+                        ?? 0
+                    ),
                 'plan_discount' => (float) (
                     $pricingBreakdown['discount_amount']
                     ?? 0

@@ -651,10 +651,12 @@
                 </thead>
 
                 <tbody>
-                    <tr>
-                        <td>{{ $isSelfDrive ? 'Rental Base Amount' : 'Base Fare' }}</td>
-                        <td>{{ $money($baseFare) }}</td>
-                    </tr>
+                    @if(!$isSelfDrive || !$showRow($manualPrice))
+                        <tr>
+                            <td>{{ $isSelfDrive ? 'Rental Base Amount' : 'Base Fare' }}</td>
+                            <td>{{ $money($baseFare) }}</td>
+                        </tr>
+                    @endif
 
                     @if($isSelfDrive && $showRow($planDiscount))
                         <tr>
