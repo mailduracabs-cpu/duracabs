@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Resources\CustomerLeadResource;
 use App\Models\CustomerSearchActivity;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -18,12 +19,31 @@ class CustomerLeadStatsWidget extends StatsOverviewWidget
         $todayStart = Carbon::today();
         $todayEnd = Carbon::today()->endOfDay();
 
-        $totalLeads = CustomerSearchActivity::query()->count();
-
-        $todayLeads = CustomerSearchActivity::query()
-            ->whereBetween('searched_at', [$todayStart, $todayEnd])
+        /*
+        |--------------------------------------------------------------------------
+        | TOTAL LEADS
+        |--------------------------------------------------------------------------
+        */
+        $totalLeads = CustomerSearchActivity::query()
             ->count();
 
+        /*
+        |--------------------------------------------------------------------------
+        | TODAY LEADS
+        |--------------------------------------------------------------------------
+        */
+        $todayLeads = CustomerSearchActivity::query()
+            ->whereBetween(
+                'searched_at',
+                [$todayStart, $todayEnd]
+            )
+            ->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | HOT LEADS
+        |--------------------------------------------------------------------------
+        */
         $hotLeads = CustomerSearchActivity::query()
             ->whereIn('priority', [
                 CustomerSearchActivity::PRIORITY_HIGH,
@@ -33,50 +53,157 @@ class CustomerLeadStatsWidget extends StatsOverviewWidget
             ->notConverted()
             ->count();
 
+        /*
+        |--------------------------------------------------------------------------
+        | FOLLOW-UP DUE
+        |--------------------------------------------------------------------------
+        */
         $followUpsDue = CustomerSearchActivity::query()
             ->needsFollowUp()
             ->count();
 
+        /*
+        |--------------------------------------------------------------------------
+        | CONVERTED LEADS
+        |--------------------------------------------------------------------------
+        */
         $convertedLeads = CustomerSearchActivity::query()
             ->converted()
             ->count();
 
+        /*
+        |--------------------------------------------------------------------------
+        | TODAY CONVERTED REVENUE
+        |--------------------------------------------------------------------------
+        */
         $todayRevenue = (float) CustomerSearchActivity::query()
             ->converted()
-            ->whereBetween('converted_at', [$todayStart, $todayEnd])
+            ->whereBetween(
+                'converted_at',
+                [$todayStart, $todayEnd]
+            )
             ->sum('grand_total');
 
+        /*
+        |--------------------------------------------------------------------------
+        | CONVERSION RATE
+        |--------------------------------------------------------------------------
+        */
         $conversionRate = $totalLeads > 0
-            ? round(($convertedLeads / $totalLeads) * 100, 1)
+            ? round(
+                ($convertedLeads / $totalLeads) * 100,
+                1
+            )
             : 0.0;
 
-        return [
-            Stat::make('Total Leads', number_format($totalLeads))
-                ->description($todayLeads . ' new today')
-                ->descriptionIcon('heroicon-m-arrow-trending-up')
-                ->icon('heroicon-o-user-group')
-                ->color('primary')
-                ->chart($this->getLastSevenDaysLeadChart()),
+        /*
+        |--------------------------------------------------------------------------
+        | TODAY LEADS URL
+        |--------------------------------------------------------------------------
+        |
+        | Click card:
+        | Customer Leads -> Today filter
+        |
+        */
+        $todayLeadsUrl = CustomerLeadResource::getUrl(
+            'index',
+            [
+                'tableFilters' => [
+                    'today' => [
+                        'isActive' => true,
+                    ],
+                ],
+            ]
+        );
 
-            Stat::make('Hot Leads', number_format($hotLeads))
+        return [
+
+            /*
+            |--------------------------------------------------------------------------
+            | TODAY LEADS - CLICKABLE
+            |--------------------------------------------------------------------------
+            */
+            Stat::make(
+                'Today Leads',
+                number_format($todayLeads)
+            )
+                ->description('Click to view today leads')
+                ->descriptionIcon('heroicon-m-arrow-right')
+                ->icon('heroicon-o-user-plus')
+                ->color(
+                    $todayLeads > 0
+                        ? 'primary'
+                        : 'gray'
+                )
+                ->chart(
+                    $this->getLastSevenDaysLeadChart()
+                )
+                ->url($todayLeadsUrl),
+
+            /*
+            |--------------------------------------------------------------------------
+            | HOT LEADS
+            |--------------------------------------------------------------------------
+            */
+            Stat::make(
+                'Hot Leads',
+                number_format($hotLeads)
+            )
                 ->description('High and urgent intent')
                 ->descriptionIcon('heroicon-m-fire')
                 ->icon('heroicon-o-fire')
-                ->color($hotLeads > 0 ? 'danger' : 'gray'),
+                ->color(
+                    $hotLeads > 0
+                        ? 'danger'
+                        : 'gray'
+                ),
 
-            Stat::make('Follow-up Due', number_format($followUpsDue))
+            /*
+            |--------------------------------------------------------------------------
+            | FOLLOW-UP DUE
+            |--------------------------------------------------------------------------
+            */
+            Stat::make(
+                'Follow-up Due',
+                number_format($followUpsDue)
+            )
                 ->description('Needs action now')
                 ->descriptionIcon('heroicon-m-clock')
                 ->icon('heroicon-o-calendar-days')
-                ->color($followUpsDue > 0 ? 'warning' : 'success'),
+                ->color(
+                    $followUpsDue > 0
+                        ? 'warning'
+                        : 'success'
+                ),
 
-            Stat::make('Converted', number_format($convertedLeads))
-                ->description($conversionRate . '% conversion rate')
+            /*
+            |--------------------------------------------------------------------------
+            | CONVERTED
+            |--------------------------------------------------------------------------
+            */
+            Stat::make(
+                'Converted',
+                number_format($convertedLeads)
+            )
+                ->description(
+                    $conversionRate . '% conversion rate'
+                )
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->icon('heroicon-o-check-badge')
                 ->color('success'),
 
-            Stat::make('Today Revenue', '₹' . number_format($todayRevenue, 0))
+            /*
+            |--------------------------------------------------------------------------
+            | TODAY REVENUE
+            |--------------------------------------------------------------------------
+            */
+            Stat::make(
+                'Today Revenue',
+                '₹' . number_format(
+                    $todayRevenue,
+                    0
+                )
+            )
                 ->description('Converted lead value')
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->icon('heroicon-o-currency-rupee')
@@ -89,19 +216,32 @@ class CustomerLeadStatsWidget extends StatsOverviewWidget
      */
     private function getLastSevenDaysLeadChart(): array
     {
-        $start = now()->subDays(6)->startOfDay();
+        $start = now()
+            ->subDays(6)
+            ->startOfDay();
 
         $counts = CustomerSearchActivity::query()
-            ->where('searched_at', '>=', $start)
-            ->selectRaw('DATE(searched_at) as lead_date, COUNT(*) as total')
+            ->where(
+                'searched_at',
+                '>=',
+                $start
+            )
+            ->selectRaw(
+                'DATE(searched_at) as lead_date, COUNT(*) as total'
+            )
             ->groupBy('lead_date')
             ->pluck('total', 'lead_date');
 
         $chart = [];
 
         for ($day = 6; $day >= 0; $day--) {
-            $date = now()->subDays($day)->toDateString();
-            $chart[] = (int) ($counts[$date] ?? 0);
+            $date = now()
+                ->subDays($day)
+                ->toDateString();
+
+            $chart[] = (int) (
+                $counts[$date] ?? 0
+            );
         }
 
         return $chart;
