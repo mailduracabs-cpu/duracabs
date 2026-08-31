@@ -1,9 +1,4 @@
 @php
-    /*
-    |--------------------------------------------------------------------------
-    | Safe defaults for Livewire / Blade rendering
-    |--------------------------------------------------------------------------
-    */
     $selected_tab = $selected_tab ?? $this->selected_tab ?? 'one_way';
 
     if (! in_array($selected_tab, ['one_way', 'return', 'local', 'self_drive'], true)) {
@@ -13,11 +8,30 @@
     $query_search = $query_search ?? '';
     $query2_search = $query2_search ?? '';
     $cities_from = $cities_from ?? [];
+    $cities_to = $cities_to ?? [];
 
     $queryFrom_search = $queryFrom_search ?? '';
     $queryTo_search = $queryTo_search ?? '';
     $dataFrom = $dataFrom ?? [];
     $dataTo = $dataTo ?? [];
+
+    $queryFrom = $queryFrom ?? '';
+    $queryTo = $queryTo ?? '';
+    $queryLocal = $queryLocal ?? '';
+    $querySelfDrive = $querySelfDrive ?? '';
+
+    $tripCities = $tripCities ?? [];
+    $maxTripCities = $maxTripCities ?? 19;
+
+    $hasError = static function (string $field) use ($errors): bool {
+        return isset($errors) && $errors->has($field);
+    };
+
+    $getError = static function (string $field) use ($errors): ?string {
+        return isset($errors)
+            ? $errors->first($field)
+            : null;
+    };
 @endphp
 
 <div class="service-search-panel relative" style="z-index: 999999;" x-data="{ activeTab: @js($selected_tab), submitting: false }">
