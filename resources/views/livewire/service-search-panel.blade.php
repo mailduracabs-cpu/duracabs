@@ -1,8 +1,18 @@
 @php
+    /*
+    |--------------------------------------------------------------------------
+    | Safe defaults for Livewire / Blade rendering
+    |--------------------------------------------------------------------------
+    */
+    $selected_tab = $selected_tab ?? $this->selected_tab ?? 'one_way';
+
+    if (! in_array($selected_tab, ['one_way', 'return', 'local', 'self_drive'], true)) {
+        $selected_tab = 'one_way';
+    }
+
     $query_search = $query_search ?? '';
     $query2_search = $query2_search ?? '';
     $cities_from = $cities_from ?? [];
-    $cities_to = $cities_to ?? [];
 
     $queryFrom_search = $queryFrom_search ?? '';
     $queryTo_search = $queryTo_search ?? '';
