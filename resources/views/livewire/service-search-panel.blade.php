@@ -20,6 +20,11 @@
     $queryLocal = $queryLocal ?? '';
     $querySelfDrive = $querySelfDrive ?? '';
 
+    $sendOtp = $sendOtp ?? false;
+    $sendOtpVerify = $sendOtpVerify ?? false;
+    $mobileNumber = $mobileNumber ?? '';
+    $verifyOtp = $verifyOtp ?? '';
+
     $tripCities = $tripCities ?? [];
     $maxTripCities = $maxTripCities ?? 19;
 
@@ -1967,3 +1972,4 @@
     })();
 </script>
 @endscript
+
