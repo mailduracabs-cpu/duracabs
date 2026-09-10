@@ -36,7 +36,7 @@ use App\Livewire\PartnerDashboard;
 
 use App\Livewire\VendorRegistration;
 use App\Livewire\PartnerLogin;
-
+use App\Http\Controllers\SelfDriveVendorPayoutPdfController;
 
 
 
@@ -306,6 +306,34 @@ Route::get('/razorpay-payment', [RazorpayPaymentController::class, 'index'])
 Route::post('/razorpay-payment', [RazorpayPaymentController::class, 'store'])
     ->name('razorpay.payment.store');
 
+
+
+
+/*
+|--------------------------------------------------------------------------
+| Vendor Payout PDF
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth:admin')->group(function () {
+
+    Route::get(
+        '/admin/self-drive-vendor-payouts/{payout}/pdf',
+        [
+            SelfDriveVendorPayoutPdfController::class,
+            'download',
+        ]
+    )->name('admin.self-drive-vendor-payouts.pdf');
+
+    Route::get(
+        '/admin/self-drive-vendor-payouts/{payout}/pdf/view',
+        [
+            SelfDriveVendorPayoutPdfController::class,
+            'stream',
+        ]
+    )->name('admin.self-drive-vendor-payouts.pdf.view');
+
+});
 /*
 |--------------------------------------------------------------------------
 | Sitemap

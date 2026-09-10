@@ -11,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\ValidationException;
 
 class SelfDriveVendorPayoutResource extends Resource
 {
@@ -32,22 +33,37 @@ class SelfDriveVendorPayoutResource extends Resource
     {
         return $form
             ->schema([
+
+                /*
+                |--------------------------------------------------------------------------
+                | Payout Details
+                |--------------------------------------------------------------------------
+                */
+
                 Forms\Components\Section::make('Payout Details')
-                    ->columns(2)
+                    ->description(
+                        'Vendor payout summary, payment status and settlement details.'
+                    )
+                    ->columns(4)
                     ->schema([
+
                         Forms\Components\TextInput::make('payout_no')
                             ->label('Payout No.')
                             ->disabled()
                             ->dehydrated(false),
 
-                        Forms\Components\Select::make('transporter_profile_id')
+                        Forms\Components\Select::make(
+                            'transporter_profile_id'
+                        )
                             ->label('Vendor')
                             ->relationship(
                                 name: 'transporter',
                                 titleAttribute: 'id'
                             )
                             ->getOptionLabelFromRecordUsing(
-                                fn (TransporterProfile $record): string =>
+                                fn (
+                                    TransporterProfile $record
+                                ): string =>
                                     self::getTransporterName($record)
                             )
                             ->searchable()
@@ -63,19 +79,34 @@ class SelfDriveVendorPayoutResource extends Resource
                             ->required()
                             ->afterOrEqual('period_from'),
 
-                        Forms\Components\TextInput::make('total_booking_units')
-                            ->label('24H Units')
+                        Forms\Components\TextInput::make(
+                            'total_booking_units'
+                        )
+                            ->label('Total 24H Units')
                             ->numeric()
+                            ->suffix(' Units')
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('gross_booking_amount')
+                        Forms\Components\TextInput::make(
+                            'gross_booking_amount'
+                        )
                             ->label('Customer Booking Amount')
                             ->prefix('₹')
                             ->numeric()
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('payout_amount')
+                        Forms\Components\TextInput::make(
+                            'payout_amount'
+                        )
                             ->label('Vendor Payout')
+                            ->prefix('₹')
+                            ->numeric()
+                            ->disabled(),
+
+                        Forms\Components\TextInput::make(
+                            'remaining_amount'
+                        )
+                            ->label('Balance Payable')
                             ->prefix('₹')
                             ->numeric()
                             ->disabled(),
@@ -86,13 +117,8 @@ class SelfDriveVendorPayoutResource extends Resource
                             ->numeric()
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('remaining_amount')
-                            ->label('Remaining Amount')
-                            ->prefix('₹')
-                            ->numeric()
-                            ->disabled(),
-
                         Forms\Components\Select::make('status')
+                            ->label('Payment Status')
                             ->options([
                                 'draft' => 'Draft',
                                 'pending' => 'Pending',
@@ -102,55 +128,308 @@ class SelfDriveVendorPayoutResource extends Resource
                             ])
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('payment_method')
+                        Forms\Components\TextInput::make(
+                            'payment_method'
+                        )
                             ->label('Payment Method')
                             ->disabled(),
 
-                        Forms\Components\TextInput::make('payment_reference')
-                            ->label('Payment Reference')
+                        Forms\Components\TextInput::make(
+                            'payment_reference'
+                        )
+                            ->label(
+                                'Reference / UTR / Transaction ID'
+                            )
                             ->disabled(),
 
                         Forms\Components\Textarea::make('notes')
                             ->label('Notes')
+                            ->rows(3)
                             ->columnSpanFull(),
                     ]),
 
-                Forms\Components\Section::make('Payout Items')
+                /*
+                |--------------------------------------------------------------------------
+                | Payout Items
+                |--------------------------------------------------------------------------
+                */
+
+                Forms\Components\Section::make(
+                    'Booking & Vehicle Payout Details'
+                )
+                    ->description(
+                        'Each payout unit represents one 24-hour booking period.'
+                    )
                     ->schema([
+
                         Forms\Components\Repeater::make('items')
                             ->relationship()
                             ->disabled()
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
                             ->columns(4)
                             ->schema([
-                                Forms\Components\TextInput::make('self_drive_booking_id')
-                                    ->label('Booking ID'),
 
-                                Forms\Components\TextInput::make('vehicle_id')
-                                    ->label('Vehicle ID'),
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Booking
+                                |--------------------------------------------------------------------------
+                                */
 
-                                Forms\Components\TextInput::make('booked_hours')
-                                    ->label('Booked Hours'),
+                                Forms\Components\Placeholder::make(
+                                    'booking_number_display'
+                                )
+                                    ->label('Booking No.')
+                                    ->content(
+                                        function ($record): string {
+                                            if (! $record) {
+                                                return '-';
+                                            }
 
-                                Forms\Components\TextInput::make('booking_units')
-                                    ->label('24H Units'),
+                                            return (string) (
+                                                $record->booking
+                                                    ?->booking_no
+                                                ?? (
+                                                    'Booking #'
+                                                    . $record
+                                                        ->self_drive_booking_id
+                                                )
+                                            );
+                                        }
+                                    ),
 
-                                Forms\Components\TextInput::make('customer_daily_rate')
-                                    ->label('24H Price')
-                                    ->prefix('₹'),
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Vehicle Name
+                                |--------------------------------------------------------------------------
+                                */
 
-                                Forms\Components\TextInput::make('commission_percentage')
+                                Forms\Components\Placeholder::make(
+                                    'vehicle_display'
+                                )
+                                    ->label('Car / Vehicle')
+                                    ->content(
+                                        function ($record): string {
+                                            if (! $record) {
+                                                return '-';
+                                            }
+
+                                            $vehicle =
+                                                $record->vehicle;
+
+                                            if (! $vehicle) {
+                                                return 'Vehicle #'
+                                                    . (
+                                                        $record
+                                                            ->vehicle_id
+                                                        ?? '-'
+                                                    );
+                                            }
+
+                                            $company =
+                                                $vehicle
+                                                    ->car_company_name
+                                                ?? $vehicle->brand
+                                                ?? $vehicle
+                                                    ->company_name
+                                                ?? null;
+
+                                            $model =
+                                                $vehicle->model_name
+                                                ?? $vehicle->model
+                                                ?? $vehicle
+                                                    ->vehicle_name
+                                                ?? $vehicle->name
+                                                ?? null;
+
+                                            $name = collect([
+                                                $company,
+                                                $model,
+                                            ])
+                                                ->filter(
+                                                    fn ($value) =>
+                                                        filled($value)
+                                                )
+                                                ->map(
+                                                    fn ($value) =>
+                                                        trim(
+                                                            (string) $value
+                                                        )
+                                                )
+                                                ->unique()
+                                                ->implode(' ');
+
+                                            if ($name !== '') {
+                                                return $name;
+                                            }
+
+                                            return 'Vehicle #'
+                                                . $record->vehicle_id;
+                                        }
+                                    ),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Registration
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\Placeholder::make(
+                                    'registration_display'
+                                )
+                                    ->label('Registration No.')
+                                    ->content(
+                                        function ($record): string {
+                                            if (! $record) {
+                                                return '-';
+                                            }
+
+                                            return (string) (
+                                                $record->vehicle
+                                                    ?->registration_number
+                                                ?? $record->vehicle
+                                                    ?->vehicle_number
+                                                ?? $record->vehicle
+                                                    ?->registration_no
+                                                ?? '-'
+                                            );
+                                        }
+                                    ),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Rental Period
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\Placeholder::make(
+                                    'rental_period_display'
+                                )
+                                    ->label('Rental Period')
+                                    ->content(
+                                        function ($record): string {
+                                            if (
+                                                ! $record
+                                                || ! $record
+                                                    ->start_datetime
+                                                || ! $record
+                                                    ->end_datetime
+                                            ) {
+                                                return '-';
+                                            }
+
+                                            return $record
+                                                ->start_datetime
+                                                ->format(
+                                                    'd M Y h:i A'
+                                                )
+                                                . ' → '
+                                                . $record
+                                                    ->end_datetime
+                                                    ->format(
+                                                        'd M Y h:i A'
+                                                    );
+                                        }
+                                    ),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Hours / Units
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'booked_hours'
+                                )
+                                    ->label('Booked Hours')
+                                    ->suffix(' Hours')
+                                    ->numeric()
+                                    ->disabled(),
+
+                                Forms\Components\TextInput::make(
+                                    'booking_units'
+                                )
+                                    ->label('24H Units')
+                                    ->suffix(' Unit(s)')
+                                    ->numeric()
+                                    ->disabled(),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Customer Rate
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'customer_daily_rate'
+                                )
+                                    ->label('Customer / 24H')
+                                    ->prefix('₹')
+                                    ->numeric()
+                                    ->disabled(),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Commission
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'commission_percentage'
+                                )
                                     ->label('Commission')
-                                    ->suffix('%'),
+                                    ->suffix('%')
+                                    ->numeric()
+                                    ->disabled(),
 
-                                Forms\Components\TextInput::make('vendor_rate_per_24h')
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Vendor Rate
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'vendor_rate_per_24h'
+                                )
                                     ->label('Vendor / 24H')
-                                    ->prefix('₹'),
+                                    ->prefix('₹')
+                                    ->numeric()
+                                    ->disabled(),
 
-                                Forms\Components\TextInput::make('payout_amount')
-                                    ->label('Payout')
-                                    ->prefix('₹'),
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Customer Booking Total
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'customer_booking_amount'
+                                )
+                                    ->label(
+                                        'Customer Booking Amount'
+                                    )
+                                    ->prefix('₹')
+                                    ->numeric()
+                                    ->disabled(),
+
+                                /*
+                                |--------------------------------------------------------------------------
+                                | Vendor Payout
+                                |--------------------------------------------------------------------------
+                                */
+
+                                Forms\Components\TextInput::make(
+                                    'payout_amount'
+                                )
+                                    ->label('Vendor Payout')
+                                    ->prefix('₹')
+                                    ->numeric()
+                                    ->disabled(),
+
                             ])
                             ->columnSpanFull(),
+
                     ]),
             ]);
     }
@@ -159,20 +438,31 @@ class SelfDriveVendorPayoutResource extends Resource
     {
         return $table
             ->defaultSort('id', 'desc')
+
+            /*
+            |--------------------------------------------------------------------------
+            | Columns
+            |--------------------------------------------------------------------------
+            */
+
             ->columns([
+
                 Tables\Columns\TextColumn::make('payout_no')
                     ->label('Payout No.')
                     ->searchable()
                     ->sortable()
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('transporter.id')
+                Tables\Columns\TextColumn::make(
+                    'transporter.id'
+                )
                     ->label('Vendor')
                     ->formatStateUsing(
                         fn ($record): string =>
-                            self::getTransporterName($record->transporter)
+                            self::getTransporterName(
+                                $record->transporter
+                            )
                     )
-                    ->searchable()
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('period_from')
@@ -191,60 +481,88 @@ class SelfDriveVendorPayoutResource extends Resource
                     ->badge()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('total_booking_units')
+                Tables\Columns\TextColumn::make(
+                    'total_booking_units'
+                )
                     ->label('24H Units')
                     ->badge()
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('gross_booking_amount')
+                Tables\Columns\TextColumn::make(
+                    'gross_booking_amount'
+                )
                     ->label('Customer Amount')
                     ->money('INR')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('payout_amount')
+                Tables\Columns\TextColumn::make(
+                    'payout_amount'
+                )
                     ->label('Vendor Payout')
                     ->money('INR')
                     ->sortable()
                     ->weight('bold'),
 
-                Tables\Columns\TextColumn::make('paid_amount')
+                Tables\Columns\TextColumn::make(
+                    'paid_amount'
+                )
                     ->label('Paid')
                     ->money('INR')
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('remaining_amount')
+                Tables\Columns\TextColumn::make(
+                    'remaining_amount'
+                )
                     ->label('Balance')
                     ->money('INR')
-                    ->sortable(),
+                    ->sortable()
+                    ->weight('bold'),
 
                 Tables\Columns\TextColumn::make('status')
+                    ->label('Status')
                     ->badge()
                     ->formatStateUsing(
                         fn (string $state): string =>
                             ucfirst($state)
                     )
-                    ->color(fn (string $state): string => match ($state) {
-                        'paid' => 'success',
-                        'partial' => 'warning',
-                        'cancelled' => 'danger',
-                        'draft' => 'gray',
-                        default => 'info',
-                    }),
+                    ->color(
+                        fn (string $state): string =>
+                            match ($state) {
+                                'paid' => 'success',
+                                'partial' => 'warning',
+                                'cancelled' => 'danger',
+                                'draft' => 'gray',
+                                default => 'info',
+                            }
+                    ),
 
                 Tables\Columns\TextColumn::make('paid_at')
                     ->label('Paid At')
                     ->dateTime('d M Y h:i A')
                     ->placeholder('-')
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(
+                        isToggledHiddenByDefault: true
+                    ),
 
-                Tables\Columns\TextColumn::make('created_at')
+                Tables\Columns\TextColumn::make(
+                    'created_at'
+                )
                     ->label('Created')
                     ->dateTime('d M Y h:i A')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(
+                        isToggledHiddenByDefault: true
+                    ),
             ])
 
+            /*
+            |--------------------------------------------------------------------------
+            | Filters
+            |--------------------------------------------------------------------------
+            */
+
             ->filters([
+
                 Tables\Filters\SelectFilter::make('status')
                     ->options([
                         'pending' => 'Pending',
@@ -253,16 +571,22 @@ class SelfDriveVendorPayoutResource extends Resource
                         'cancelled' => 'Cancelled',
                     ]),
 
-                Tables\Filters\SelectFilter::make('transporter_profile_id')
+                Tables\Filters\SelectFilter::make(
+                    'transporter_profile_id'
+                )
                     ->label('Vendor')
                     ->options(
                         TransporterProfile::query()
                             ->orderBy('id')
                             ->get()
                             ->mapWithKeys(
-                                fn (TransporterProfile $record): array => [
+                                fn (
+                                    TransporterProfile $record
+                                ): array => [
                                     $record->id =>
-                                        self::getTransporterName($record),
+                                        self::getTransporterName(
+                                            $record
+                                        ),
                                 ]
                             )
                             ->all()
@@ -271,11 +595,17 @@ class SelfDriveVendorPayoutResource extends Resource
 
                 Tables\Filters\Filter::make('period')
                     ->form([
-                        Forms\Components\DatePicker::make('from')
+
+                        Forms\Components\DatePicker::make(
+                            'from'
+                        )
                             ->label('From'),
 
-                        Forms\Components\DatePicker::make('to')
+                        Forms\Components\DatePicker::make(
+                            'to'
+                        )
                             ->label('To'),
+
                     ])
                     ->query(
                         function (
@@ -285,7 +615,10 @@ class SelfDriveVendorPayoutResource extends Resource
                             return $query
                                 ->when(
                                     $data['from'] ?? null,
-                                    fn (Builder $query, $date): Builder =>
+                                    fn (
+                                        Builder $query,
+                                        $date
+                                    ): Builder =>
                                         $query->whereDate(
                                             'period_from',
                                             '>=',
@@ -294,7 +627,10 @@ class SelfDriveVendorPayoutResource extends Resource
                                 )
                                 ->when(
                                     $data['to'] ?? null,
-                                    fn (Builder $query, $date): Builder =>
+                                    fn (
+                                        Builder $query,
+                                        $date
+                                    ): Builder =>
                                         $query->whereDate(
                                             'period_to',
                                             '<=',
@@ -305,77 +641,190 @@ class SelfDriveVendorPayoutResource extends Resource
                     ),
             ])
 
+            /*
+            |--------------------------------------------------------------------------
+            | Actions
+            |--------------------------------------------------------------------------
+            */
+
             ->actions([
-                Tables\Actions\ViewAction::make(),
 
-                Tables\Actions\EditAction::make(),
+                /*
+                | View Payout
+                */
 
-                Tables\Actions\Action::make('receive_payment')
+                Tables\Actions\ViewAction::make()
+                    ->label('View')
+                    ->icon('heroicon-o-eye'),
+
+                /*
+                | View PDF
+                */
+
+                Tables\Actions\Action::make('view_pdf')
+                    ->label('View PDF')
+                    ->icon('heroicon-o-document-text')
+                    ->color('gray')
+                    ->url(
+                        fn (
+                            SelfDriveVendorPayout $record
+                        ): string =>
+                            route(
+                                'admin.self-drive-vendor-payouts.pdf.view',
+                                [
+                                    'payout' =>
+                                        $record->getKey(),
+                                ]
+                            )
+                    )
+                    ->openUrlInNewTab(),
+
+                /*
+                | Download PDF
+                */
+
+                Tables\Actions\Action::make(
+                    'download_pdf'
+                )
+                    ->label('Download PDF')
+                    ->icon(
+                        'heroicon-o-arrow-down-tray'
+                    )
+                    ->color('info')
+                    ->url(
+                        fn (
+                            SelfDriveVendorPayout $record
+                        ): string =>
+                            route(
+                                'admin.self-drive-vendor-payouts.pdf',
+                                [
+                                    'payout' =>
+                                        $record->getKey(),
+                                ]
+                            )
+                    )
+                    ->openUrlInNewTab(),
+
+                /*
+                | Edit
+                */
+
+                Tables\Actions\EditAction::make()
+                    ->label('Edit'),
+
+                /*
+                |--------------------------------------------------------------------------
+                | Receive Vendor Payment
+                |--------------------------------------------------------------------------
+                */
+
+                Tables\Actions\Action::make(
+                    'receive_payment'
+                )
                     ->label('Pay Vendor')
                     ->icon('heroicon-o-banknotes')
                     ->color('success')
                     ->visible(
-                        fn (SelfDriveVendorPayout $record): bool =>
+                        fn (
+                            SelfDriveVendorPayout $record
+                        ): bool =>
                             ! $record->isPaid()
                             && ! $record->isCancelled()
-                            && (float) $record->remaining_amount > 0
+                            && (
+                                float
+                            ) $record->remaining_amount > 0
                     )
                     ->form([
-                        Forms\Components\TextInput::make('amount')
-                            ->label('Amount')
+
+                        Forms\Components\TextInput::make(
+                            'amount'
+                        )
+                            ->label('Payment Amount')
                             ->prefix('₹')
                             ->numeric()
                             ->required()
                             ->minValue(1)
                             ->default(
-                                fn (SelfDriveVendorPayout $record): float =>
-                                    (float) $record->remaining_amount
+                                fn (
+                                    SelfDriveVendorPayout $record
+                                ): float =>
+                                    (
+                                        float
+                                    ) $record->remaining_amount
                             ),
 
-                        Forms\Components\Select::make('method')
+                        Forms\Components\Select::make(
+                            'method'
+                        )
                             ->label('Payment Method')
                             ->options([
                                 'cash' => 'Cash',
                                 'upi' => 'UPI',
-                                'bank_transfer' => 'Bank Transfer',
+                                'bank_transfer' =>
+                                    'Bank Transfer',
                                 'cheque' => 'Cheque',
                                 'other' => 'Other',
                             ])
                             ->required(),
 
-                        Forms\Components\TextInput::make('reference')
-                            ->label('Reference / UTR / Transaction ID')
+                        Forms\Components\TextInput::make(
+                            'reference'
+                        )
+                            ->label(
+                                'Reference / UTR / Transaction ID'
+                            )
                             ->maxLength(255),
 
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Payment Note'),
+                        Forms\Components\Textarea::make(
+                            'notes'
+                        )
+                            ->label('Payment Note')
+                            ->rows(3),
+
                     ])
                     ->action(
                         function (
                             SelfDriveVendorPayout $record,
                             array $data
                         ): void {
-                            $amount = (float) $data['amount'];
+
+                            $amount =
+                                (float) $data['amount'];
 
                             if (
                                 $amount >
-                                (float) $record->remaining_amount
+                                (
+                                    float
+                                ) $record->remaining_amount
                             ) {
-                                throw \Illuminate\Validation\ValidationException::withMessages([
-                                    'amount' =>
-                                        'Payment amount cannot be greater than remaining balance.',
-                                ]);
+                                throw ValidationException
+                                    ::withMessages([
+                                        'amount' =>
+                                            'Payment amount cannot be greater than remaining balance.',
+                                    ]);
                             }
 
                             $record->receivePayment(
                                 amount: $amount,
-                                method: $data['method'],
-                                reference: $data['reference'] ?? null
+                                method:
+                                    $data['method'],
+                                reference:
+                                    $data['reference']
+                                    ?? null
                             );
 
-                            if (! empty($data['notes'])) {
+                            if (
+                                ! empty(
+                                    $data['notes']
+                                )
+                            ) {
                                 $record->notes = trim(
-                                    ($record->notes ? $record->notes . PHP_EOL : '')
+                                    (
+                                        $record->notes
+                                        ? $record->notes
+                                            . PHP_EOL
+                                        : ''
+                                    )
                                     . '[Payment] '
                                     . $data['notes']
                                 );
@@ -383,11 +832,17 @@ class SelfDriveVendorPayoutResource extends Resource
                                 $record->save();
                             }
 
-                            \Filament\Notifications\Notification::make()
-                                ->title('Vendor payment updated')
+                            \Filament\Notifications\Notification
+                                ::make()
+                                ->title(
+                                    'Vendor payment updated'
+                                )
                                 ->body(
                                     '₹'
-                                    . number_format($amount, 2)
+                                    . number_format(
+                                        $amount,
+                                        2
+                                    )
                                     . ' received against '
                                     . $record->payout_no
                                 )
@@ -396,33 +851,60 @@ class SelfDriveVendorPayoutResource extends Resource
                         }
                     ),
 
+                /*
+                |--------------------------------------------------------------------------
+                | Cancel Payout
+                |--------------------------------------------------------------------------
+                */
+
                 Tables\Actions\Action::make('cancel')
                     ->label('Cancel')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->requiresConfirmation()
+                    ->modalHeading(
+                        'Cancel Vendor Payout'
+                    )
+                    ->modalDescription(
+                        'Are you sure you want to cancel this vendor payout?'
+                    )
                     ->visible(
-                        fn (SelfDriveVendorPayout $record): bool =>
+                        fn (
+                            SelfDriveVendorPayout $record
+                        ): bool =>
                             ! $record->isPaid()
                             && ! $record->isCancelled()
-                            && (float) $record->paid_amount <= 0
+                            && (
+                                float
+                            ) $record->paid_amount <= 0
                     )
                     ->action(
                         function (
                             SelfDriveVendorPayout $record
                         ): void {
+
                             $record->status =
-                                SelfDriveVendorPayout::STATUS_CANCELLED;
+                                SelfDriveVendorPayout
+                                    ::STATUS_CANCELLED;
 
                             $record->save();
 
-                            \Filament\Notifications\Notification::make()
-                                ->title('Payout cancelled')
+                            \Filament\Notifications\Notification
+                                ::make()
+                                ->title(
+                                    'Payout cancelled'
+                                )
                                 ->success()
                                 ->send();
                         }
                     ),
             ])
+
+            /*
+            |--------------------------------------------------------------------------
+            | Bulk Actions
+            |--------------------------------------------------------------------------
+            */
 
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -431,27 +913,51 @@ class SelfDriveVendorPayoutResource extends Resource
             ]);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
+
     public static function getRelations(): array
     {
         return [];
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | Pages
+    |--------------------------------------------------------------------------
+    */
+
     public static function getPages(): array
     {
         return [
+
             'index' =>
-                Pages\ListSelfDriveVendorPayouts::route('/'),
+                Pages\ListSelfDriveVendorPayouts
+                    ::route('/'),
 
             'create' =>
-                Pages\CreateSelfDriveVendorPayout::route('/create'),
+                Pages\CreateSelfDriveVendorPayout
+                    ::route('/create'),
 
             'view' =>
-                Pages\ViewSelfDriveVendorPayout::route('/{record}'),
+                Pages\ViewSelfDriveVendorPayout
+                    ::route('/{record}'),
 
             'edit' =>
-                Pages\EditSelfDriveVendorPayout::route('/{record}/edit'),
+                Pages\EditSelfDriveVendorPayout
+                    ::route('/{record}/edit'),
+
         ];
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Vendor Display Name
+    |--------------------------------------------------------------------------
+    */
 
     private static function getTransporterName(
         ?TransporterProfile $record
@@ -461,21 +967,37 @@ class SelfDriveVendorPayoutResource extends Resource
         }
 
         $candidates = [
+
             $record->business_name ?? null,
+
             $record->company_name ?? null,
+
             $record->name ?? null,
+
             $record->vendor_name ?? null,
+
         ];
 
         foreach ($candidates as $candidate) {
+
             if (filled($candidate)) {
-                return trim((string) $candidate);
+                return trim(
+                    (string) $candidate
+                );
             }
         }
 
         if ($record->user) {
-            if (filled($record->user->name ?? null)) {
-                return trim((string) $record->user->name);
+
+            if (
+                filled(
+                    $record->user->name
+                    ?? null
+                )
+            ) {
+                return trim(
+                    (string) $record->user->name
+                );
             }
         }
 
