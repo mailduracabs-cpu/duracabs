@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SelfDriveBooking extends Model
 {
@@ -245,6 +246,19 @@ class SelfDriveBooking extends Model
             'transporter_profile_id'
         );
     }
+	
+	public function vendorPayoutItem(): HasOne
+{
+    return $this->hasOne(
+        SelfDriveVendorPayoutItem::class,
+        'self_drive_booking_id'
+    );
+}
+
+public function hasVendorPayout(): bool
+{
+    return $this->vendorPayoutItem()->exists();
+}
 
     public function scopeActiveBooking(Builder $query): Builder
     {
