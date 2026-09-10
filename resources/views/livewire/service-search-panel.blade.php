@@ -1,4 +1,4 @@
-@php
+﻿@php
     $selected_tab = $selected_tab ?? $this->selected_tab ?? 'one_way';
 
     if (! in_array($selected_tab, ['one_way', 'return', 'local', 'self_drive'], true)) {
@@ -240,15 +240,15 @@
                             wire:model.live.debounce.350ms="query_search"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            {{ $hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    @if ($hasError('query'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
+                            {{ $getError('query') }}
                         </p>
                     @endif
 
@@ -375,15 +375,15 @@
                             wire:model.live.debounce.350ms="query2_search"
                             placeholder="Enter destination city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query2')
+                            {{ $hasError('query2')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('query2'))
+                    @if ($hasError('query2'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query2') }}
+                            {{ $getError('query2') }}
                         </p>
                     @endif
 
@@ -444,14 +444,14 @@
                         min="{{ \Carbon\Carbon::now()->format('Y-m-d') }}"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
+                        {{ $hasError('date')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('date'))
+                    @if ($hasError('date'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
+                            {{ $getError('date') }}
                         </p>
                     @endif
                 </div>
@@ -471,14 +471,14 @@
                         wire:model="time"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('time')
+                        {{ $hasError('time')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('time'))
+                    @if ($hasError('time'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('time') }}
+                            {{ $getError('time') }}
                         </p>
                     @endif
                 </div>
@@ -550,14 +550,14 @@
                             wire:model.live.debounce.350ms="queryFrom_search"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('queryFrom')
+                            {{ $hasError('queryFrom')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('queryFrom'))
-                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('queryFrom') }}</p>
+                    @if ($hasError('queryFrom'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('queryFrom') }}</p>
                     @endif
 
                     @if (mb_strlen(trim((string) $queryFrom_search)) >= 3)
@@ -598,14 +598,14 @@
                             wire:model.live.debounce.350ms="queryTo_search"
                             placeholder="Enter first destination"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('queryTo')
+                            {{ $hasError('queryTo')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('queryTo'))
-                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('queryTo') }}</p>
+                    @if ($hasError('queryTo'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('queryTo') }}</p>
                     @endif
 
                     @if (mb_strlen(trim((string) $queryTo_search)) >= 3)
@@ -636,10 +636,10 @@
                         min="{{ date('Y-m-d') }}"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                        {{ $hasError('date') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
-                    @if ($this->hasError('date'))
-                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('date') }}</p>
+                    @if ($hasError('date'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('date') }}</p>
                     @endif
                 </div>
 
@@ -653,10 +653,10 @@
                         min="{{ $date ?: date('Y-m-d') }}"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('dateto') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                        {{ $hasError('dateto') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
-                    @if ($this->hasError('dateto'))
-                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('dateto') }}</p>
+                    @if ($hasError('dateto'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('dateto') }}</p>
                     @endif
                 </div>
 
@@ -669,10 +669,10 @@
                         wire:model="time"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('time') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
+                        {{ $hasError('time') ? 'border-red-400 focus:border-red-500 focus:ring-red-100' : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
-                    @if ($this->hasError('time'))
-                        <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('time') }}</p>
+                    @if ($hasError('time'))
+                        <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('time') }}</p>
                     @endif
                 </div>
 
@@ -709,14 +709,14 @@
                                         wire:model.live.debounce.350ms="tripCities.{{ $index }}.search"
                                         placeholder="Enter next destination"
                                         class="h-14 w-full rounded-xl border bg-white pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:ring-4
-                                        {{ $this->hasError('tripCities.' . $index)
+                                        {{ $hasError('tripCities.' . $index)
                                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                             : 'border-slate-200 focus:border-violet-500 focus:ring-violet-100' }}"
                                     >
                                 </div>
 
-                                @if ($this->hasError('tripCities.' . $index))
-                                    <p class="mt-1 text-xs font-medium text-red-600">{{ $this->getError('tripCities.' . $index) }}</p>
+                                @if ($hasError('tripCities.' . $index))
+                                    <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('tripCities.' . $index) }}</p>
                                 @endif
 
                                 @if (!empty($tripCity['suggestions']))
@@ -768,8 +768,8 @@
                 </div>
             </div>
 
-            @if ($this->hasError('tripCities'))
-                <p class="mt-3 text-xs font-medium text-red-600">{{ $this->getError('tripCities') }}</p>
+            @if ($hasError('tripCities'))
+                <p class="mt-3 text-xs font-medium text-red-600">{{ $getError('tripCities') }}</p>
             @endif
 
             @if (!empty($oneWayMsg))
@@ -827,15 +827,15 @@
                             wire:model.live.debounce.350ms="queryLocal"
                             placeholder="Enter city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            {{ $hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    @if ($hasError('query'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
+                            {{ $getError('query') }}
                         </p>
                     @endif
 
@@ -892,7 +892,7 @@
                         id="local-plan"
                         wire:model="plan"
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('plan')
+                        {{ $hasError('plan')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
@@ -909,9 +909,9 @@
                         </option>
                     </select>
 
-                    @if ($this->hasError('plan'))
+                    @if ($hasError('plan'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('plan') }}
+                            {{ $getError('plan') }}
                         </p>
                     @endif
                 </div>
@@ -932,14 +932,14 @@
                         min="{{ date('Y-m-d') }}"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('date')
+                        {{ $hasError('date')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('date'))
+                    @if ($hasError('date'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('date') }}
+                            {{ $getError('date') }}
                         </p>
                     @endif
                 </div>
@@ -959,14 +959,14 @@
                         wire:model="time"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('time')
+                        {{ $hasError('time')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('time'))
+                    @if ($hasError('time'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('time') }}
+                            {{ $getError('time') }}
                         </p>
                     @endif
                 </div>
@@ -988,14 +988,14 @@
                         placeholder="1"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:bg-white focus:ring-4
-                        {{ $this->hasError('car')
+                        {{ $hasError('car')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('car'))
+                    @if ($hasError('car'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('car') }}
+                            {{ $getError('car') }}
                         </p>
                     @endif
                 </div>
@@ -1062,15 +1062,15 @@
                             wire:model.live.debounce.350ms="querySelfDrive"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
-                            {{ $this->hasError('query')
+                            {{ $hasError('query')
                                 ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                                 : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                         >
                     </div>
 
-                    @if ($this->hasError('query'))
+                    @if ($hasError('query'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('query') }}
+                            {{ $getError('query') }}
                         </p>
                     @endif
 
@@ -1186,14 +1186,14 @@
                         wire:model.live="endTime"
                         required
                         class="h-14 w-full rounded-xl border bg-slate-50 px-3 text-sm font-bold text-slate-900 outline-none transition focus:bg-white focus:ring-4
-                        {{ $this->hasError('endTime')
+                        {{ $hasError('endTime')
                             ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
                             : 'border-slate-200 focus:border-sky-500 focus:ring-sky-100' }}"
                     >
 
-                    @if ($this->hasError('endTime'))
+                    @if ($hasError('endTime'))
                         <p class="mt-1 text-xs font-medium text-red-600">
-                            {{ $this->getError('endTime') }}
+                            {{ $getError('endTime') }}
                         </p>
                     @endif
                 </div>
@@ -1357,7 +1357,7 @@
                     aria-label="Close login popup"
                     class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl font-medium leading-none text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:right-5 sm:top-5"
                 >
-                    ×
+                    Ã—
                 </button>
 
                 {{-- MOBILE IMAGE --}}
@@ -1607,7 +1607,7 @@
                     aria-label="Close OTP popup"
                     class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-2xl font-medium leading-none text-slate-500 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-4 focus:ring-sky-100 sm:right-5 sm:top-5"
                 >
-                    ×
+                    Ã—
                 </button>
 
                 {{-- MOBILE IMAGE --}}
