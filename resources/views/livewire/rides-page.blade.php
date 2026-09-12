@@ -1799,10 +1799,325 @@
                     </button>
                 </div>
 
-                {{-- Single shared search engine: compact ride-edit mode. --}}
-                @include('livewire.service-search-panel', [
-                    'searchPanelMode' => 'ride_edit',
-                ])
+                {{-- Dedicated RidesPage edit form.
+                     Do not include service-search-panel here: that view belongs to
+                     App\Livewire\ServiceSearchPanel and uses different Livewire state. --}}
+                <form wire:submit.prevent="updateQuery" class="space-y-5">
+                    {{-- Service tabs --}}
+                    <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        @foreach ([
+                            'one_way' => 'One Way',
+                            'return' => 'Round Trip',
+                            'local' => 'Local',
+                            'self_drive' => 'Self Drive',
+                        ] as $editTabValue => $editTabLabel)
+                            <button
+                                type="button"
+                                wire:click="changeEditTab('{{ $editTabValue }}')"
+                                class="rounded-xl border px-3 py-3 text-sm font-extrabold transition
+                                    {{ $edit_ride_type === $editTabValue
+                                        ? 'border-sky-500 bg-sky-500 text-white shadow-sm'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-sky-200 hover:bg-sky-50' }}"
+                            >
+                                {{ $editTabLabel }}
+                            </button>
+                        @endforeach
+                    </div>
+
+                    @if ($edit_ride_type === 'one_way')
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="relative">
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">From</label>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.350ms="edit_query_search"
+                                    autocomplete="off"
+                                    placeholder="Enter pickup city"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                                >
+                                @error('edit_query_search')
+                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                @if (mb_strlen(trim((string) $edit_query_search)) >= 3 && !empty($edit_cities_from))
+                                    <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                        @foreach ($edit_cities_from as $city)
+                                            <button
+                                                type="button"
+                                                wire:click="editUpdate1(@js($city['name']), {{ (int) $city['id'] }})"
+                                                class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                            >
+                                                {{ $city['name'] }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div class="relative">
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">To</label>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.350ms="edit_query2_search"
+                                    autocomplete="off"
+                                    placeholder="Enter destination city"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                                >
+                                @error('edit_query2_search')
+                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                @if (mb_strlen(trim((string) $edit_query2_search)) >= 3 && !empty($edit_cities_to))
+                                    <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                        @foreach ($edit_cities_to as $city)
+                                            <button
+                                                type="button"
+                                                wire:click="editUpdate2(@js($city['name']), {{ (int) $city['id'] }})"
+                                                class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                            >
+                                                {{ $city['name'] }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup Date</label>
+                                <input type="date" wire:model="edit_date" min="{{ date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup Time</label>
+                                <input type="time" wire:model="edit_time"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+
+                    @elseif ($edit_ride_type === 'return')
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div class="relative">
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup City</label>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.350ms="edit_queryFrom_search"
+                                    autocomplete="off"
+                                    placeholder="Enter pickup city"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                                >
+                                @error('edit_queryFrom_search')
+                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                @if (mb_strlen(trim((string) $edit_queryFrom_search)) >= 3 && !empty($edit_dataFrom))
+                                    <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                        @foreach ($edit_dataFrom as $city)
+                                            <button
+                                                type="button"
+                                                wire:click="editUpdateCityFrom(@js($city['description']))"
+                                                class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                            >
+                                                {{ $city['description'] }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+
+                            <div class="relative">
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Destination</label>
+                                <input
+                                    type="text"
+                                    wire:model.live.debounce.350ms="edit_queryTo_search"
+                                    autocomplete="off"
+                                    placeholder="Enter destination"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                                >
+                                @error('edit_queryTo_search')
+                                    <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                @if (mb_strlen(trim((string) $edit_queryTo_search)) >= 3 && !empty($edit_dataTo))
+                                    <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                        @foreach ($edit_dataTo as $city)
+                                            <button
+                                                type="button"
+                                                wire:click="editUpdateCityTo(@js($city['description']))"
+                                                class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                            >
+                                                {{ $city['description'] }}
+                                            </button>
+                                        @endforeach
+                                    </div>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Date</label>
+                                <input type="date" wire:model="edit_date" min="{{ date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Return Date</label>
+                                <input type="date" wire:model="edit_dateto" min="{{ $edit_date ?: date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_dateto') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Time</label>
+                                <input type="time" wire:model="edit_time"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+
+                    @elseif ($edit_ride_type === 'local')
+                        <div class="relative">
+                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup City</label>
+                            <input
+                                type="text"
+                                wire:model.live.debounce.350ms="edit_queryLocal"
+                                autocomplete="off"
+                                placeholder="Enter city"
+                                class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                            >
+                            @error('edit_queryLocal')
+                                <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                            @enderror
+
+                            @if (mb_strlen(trim((string) $edit_queryLocal)) >= 3 && !empty($edit_cities_from))
+                                <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                    @foreach ($edit_cities_from as $city)
+                                        <button
+                                            type="button"
+                                            wire:click="editUpdate3(@js($city['name']), {{ (int) $city['id'] }})"
+                                            class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                        >
+                                            {{ $city['name'] }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Rental Plan</label>
+                                <select wire:model="edit_plan"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                    <option value="4 Hour / 40 Km">4 Hour / 40 Km</option>
+                                    <option value="8 Hour / 80 Km">8 Hour / 80 Km</option>
+                                    <option value="12 Hour / 120 Km">12 Hour / 120 Km</option>
+                                </select>
+                                @error('edit_plan') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Date</label>
+                                <input type="date" wire:model="edit_date" min="{{ date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Start Time</label>
+                                <input type="time" wire:model="edit_time"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Cars</label>
+                                <input type="number" min="1" wire:model="edit_cars"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_cars') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+
+                    @elseif ($edit_ride_type === 'self_drive')
+                        <div class="relative">
+                            <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup City</label>
+                            <input
+                                type="text"
+                                wire:model.live.debounce.350ms="edit_querySelfDrive"
+                                autocomplete="off"
+                                placeholder="Enter pickup city"
+                                class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100"
+                            >
+                            @error('edit_querySelfDrive')
+                                <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p>
+                            @enderror
+
+                            @if (mb_strlen(trim((string) $edit_querySelfDrive)) >= 3 && !empty($edit_cities_from))
+                                <div class="absolute left-0 right-0 top-full z-[1000001] mt-2 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
+                                    @foreach ($edit_cities_from as $city)
+                                        <button
+                                            type="button"
+                                            wire:click="editUpdate4(@js($city['name']), {{ (int) $city['id'] }})"
+                                            class="block w-full rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-slate-700 hover:bg-sky-50 hover:text-sky-700"
+                                        >
+                                            {{ $city['name'] }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup Date</label>
+                                <input type="date" wire:model="edit_date" min="{{ date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Pickup Time</label>
+                                <input type="time" wire:model="edit_time"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Drop Date</label>
+                                <input type="date" wire:model="edit_dateto" min="{{ $edit_date ?: date('Y-m-d') }}"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_dateto') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Drop Time</label>
+                                <input type="time" wire:model="edit_endTime"
+                                    class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                @error('edit_endTime') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                        </div>
+                    @endif
+
+                    <div class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            wire:click="$set('showEditModal', false)"
+                            class="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-extrabold text-slate-700 transition hover:bg-slate-50"
+                        >
+                            Cancel
+                        </button>
+
+                        <button
+                            type="submit"
+                            wire:loading.attr="disabled"
+                            wire:target="updateQuery"
+                            class="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-sky-500 px-6 text-sm font-extrabold text-white shadow-lg shadow-sky-500/20 transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <span wire:loading.remove wire:target="updateQuery">Update Search</span>
+                            <span wire:loading wire:target="updateQuery">
+                                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                                Updating...
+                            </span>
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
 @endif
