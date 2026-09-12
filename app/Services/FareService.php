@@ -189,11 +189,18 @@ class FareService
 
         $gstPercent = max(0, min(28, $gstPercent));
 
-        $gstAmount = $gstIncluded
-            ? 0.0
-            : round($subtotalBeforeGst * $gstPercent / 100, 2);
+        if ($gstIncluded) {
+            $gstAmount = $gstPercent > 0
+                ? round($subtotalBeforeGst * $gstPercent / (100 + $gstPercent), 2)
+                : 0.0;
 
-        $total = round($subtotalBeforeGst + $gstAmount, 2);
+            $taxableAmount = round($subtotalBeforeGst - $gstAmount, 2);
+            $total = $subtotalBeforeGst;
+        } else {
+            $taxableAmount = $subtotalBeforeGst;
+            $gstAmount = round($taxableAmount * $gstPercent / 100, 2);
+            $total = round($taxableAmount + $gstAmount, 2);
+        }
 
         return [
             'route' => [
@@ -258,6 +265,7 @@ class FareService
 
                 'gst_included' => $gstIncluded,
                 'gst_percent' => $gstPercent,
+                'taxable_amount' => round($taxableAmount, 2),
                 'gst_amount' => round($gstAmount, 2),
             ],
 
