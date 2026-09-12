@@ -410,6 +410,111 @@ class ProductResource extends Resource
                                     ]),
                             ]),
 
+                        Section::make('One Way Pricing & Charges')
+                            ->description(
+                                'Manage toll, GST and additional charges for this One Way route.',
+                            )
+                            ->compact()
+                            ->visible(
+                                fn (Get $get): bool =>
+                                    $get('ride_type') === 'one_way',
+                            )
+                            ->schema([
+                                Section::make('Route Charges')
+                                    ->compact()
+                                    ->columns(3)
+                                    ->schema([
+                                        TextInput::make('toll_tax')
+                                            ->label('Toll Amount')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(0)
+                                            ->minValue(0)
+                                            ->helperText(
+                                                'Estimated or fixed toll for this route.',
+                                            ),
+
+                                        Toggle::make('toll_included')
+                                            ->label('Toll Included')
+                                            ->default(false)
+                                            ->helperText(
+                                                'ON means toll is already included in the displayed fare.',
+                                            ),
+
+                                        TextInput::make('border_tax')
+                                            ->label('State / Border Tax')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(0)
+                                            ->minValue(0),
+
+                                        Toggle::make('state_tax_included')
+                                            ->label('State Tax Included')
+                                            ->default(false),
+
+                                        TextInput::make('driver_allowances')
+                                            ->label('Driver Allowance')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(0)
+                                            ->minValue(0),
+
+                                        Toggle::make('parking_included')
+                                            ->label('Parking Included')
+                                            ->default(false),
+                                    ]),
+
+                                Section::make('GST')
+                                    ->compact()
+                                    ->columns(2)
+                                    ->schema([
+                                        Toggle::make('gst_included')
+                                            ->label('GST Included in Fare')
+                                            ->default(false)
+                                            ->helperText(
+                                                'ON means the displayed fare already includes GST.',
+                                            ),
+
+                                        TextInput::make('gst_percentage')
+                                            ->label('GST %')
+                                            ->numeric()
+                                            ->suffix('%')
+                                            ->default(5)
+                                            ->minValue(0)
+                                            ->maxValue(100)
+                                            ->step(0.01),
+                                    ]),
+
+                                Section::make('Optional Customer Charges')
+                                    ->description(
+                                        'These amounts can be added when the customer selects the related option.',
+                                    )
+                                    ->compact()
+                                    ->columns(3)
+                                    ->schema([
+                                        TextInput::make('pat_charge')
+                                            ->label('PAT Charge')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(200)
+                                            ->minValue(0),
+
+                                        TextInput::make('roof_carrier_charge')
+                                            ->label('Roof Carrier Charge')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(300)
+                                            ->minValue(0),
+
+                                        TextInput::make('night_charge')
+                                            ->label('Night Charge')
+                                            ->numeric()
+                                            ->prefix('₹')
+                                            ->default(0)
+                                            ->minValue(0),
+                                    ]),
+                            ]),
+
                         Section::make('Content')
                             ->compact()
                             ->schema([
@@ -547,14 +652,6 @@ class ProductResource extends Resource
                         Hidden::make('extra_hr_charge')
                             ->default(0),
 
-                        Hidden::make('toll_tax')
-                            ->default(0),
-
-                        Hidden::make('border_tax')
-                            ->default(0),
-
-                        Hidden::make('driver_allowances')
-                            ->default(0),
                     ])
                     ->columnSpan([
                         'default' => 1,
