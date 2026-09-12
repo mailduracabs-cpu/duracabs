@@ -18,6 +18,7 @@ use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Group;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -420,6 +421,50 @@ class ProductResource extends Resource
                                     $get('ride_type') === 'one_way',
                             )
                             ->schema([
+                                Section::make('Vehicle Fares')
+                                    ->description(
+                                        'Existing route-wise vehicle fares from the prices table. Edit here and save the route.',
+                                    )
+                                    ->compact()
+                                    ->schema([
+                                        Repeater::make('prices')
+                                            ->relationship('prices')
+                                            ->label('')
+                                            ->defaultItems(0)
+                                            ->addActionLabel('Add Vehicle Fare')
+                                            ->reorderable(false)
+                                            ->columns(3)
+                                            ->schema([
+                                                Select::make('category_id')
+                                                    ->label('Vehicle Category')
+                                                    ->options(
+                                                        fn (): array => Category::query()
+                                                            ->whereRaw('LOWER(TRIM(name)) != ?', ['dummy'])
+                                                            ->orderBy('id')
+                                                            ->pluck('name', 'id')
+                                                            ->all(),
+                                                    )
+                                                    ->searchable()
+                                                    ->preload()
+                                                    ->required()
+                                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+
+                                                TextInput::make('price')
+                                                    ->label('Fare')
+                                                    ->numeric()
+                                                    ->prefix('₹')
+                                                    ->minValue(0)
+                                                    ->required(),
+
+                                                TextInput::make('max_price')
+                                                    ->label('Max Fare')
+                                                    ->numeric()
+                                                    ->prefix('₹')
+                                                    ->minValue(0)
+                                                    ->required(),
+                                            ]),
+                                    ]),
+
                                 Section::make('Route Charges')
                                     ->compact()
                                     ->columns(3)
