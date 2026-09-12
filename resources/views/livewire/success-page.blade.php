@@ -53,8 +53,14 @@
                     </div>
 
                     <div class="w-full md:w-auto text-left md:text-right">
-                        <div class="mb-2"><span class="text-sm md:text-base">Booking No:</span> <a href="tel:+917088873331" class="font-bold text-sm md:text-base">+91-7088873331</a></div>
-                        <div class="mb-2"><span class="text-sm md:text-base">WhatsApp No:</span> <a href="tel:+917088873332" class="font-bold text-sm md:text-base">+91-7088873332</a></div>
+                        <div class="mb-2">
+                            <span class="text-sm md:text-base">Booking No:</span>
+                            <span class="font-bold text-sm md:text-base">{{ $order->booking_no ?: $order->id }}</span>
+                        </div>
+                        <div class="mb-2">
+                            <span class="text-sm md:text-base">WhatsApp No:</span>
+                            <a href="https://wa.me/917088873331" target="_blank" rel="noopener" class="font-bold text-sm md:text-base">+91-7088873331</a>
+                        </div>
                         <p class="text-sm md:text-base">24 × 7 Customer Support</p>
                     </div>
                 </div>
@@ -77,7 +83,9 @@
                     </div>
 
                     <div class="w-full md:w-1/2 pb-6 md:text-right">
-                        <h2 class="text-xl md:text-3xl text-sky-600 font-bold uppercase">Booking ID: {{ $order->id }}</h2>
+                        <h2 class="text-xl md:text-3xl text-sky-600 font-bold uppercase">
+                            Booking ID: {{ $order->booking_no ?: $order->id }}
+                        </h2>
                         <p class="mt-2 text-base text-gray-800 dark:text-gray-400">
                             <span class="font-semibold">Generated:</span>
                             {{ $order->created_at?->setTimezone('Asia/Kolkata')->format('d-m-Y h:i a') }}
@@ -88,7 +96,7 @@
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-4 mb-10 border-b border-gray-200 dark:border-gray-700">
                     <div class="px-4 mb-4">
                         <p class="mb-2 text-sm text-gray-600 dark:text-gray-400">Order Number</p>
-                        <p class="font-semibold text-gray-800 dark:text-gray-300">{{ $order->id }}</p>
+                        <p class="font-semibold text-gray-800 dark:text-gray-300">{{ $order->booking_no ?: $order->id }}</p>
                     </div>
                     <div class="px-4 mb-4">
                         <p class="mb-2 text-sm text-gray-600 dark:text-gray-400">Start Date & Time</p>
@@ -122,8 +130,29 @@
                             @endif
 
                             @if ($rideType === 'one_way')
-                                <div class="flex justify-between gap-4 py-2"><span class="font-semibold">Total KM</span><span>{{ $product->km_limit ?? 0 }}</span></div>
-                                <div class="flex justify-between gap-4 py-2"><span class="font-semibold">Total Hours</span><span>{{ $product->hr_limit ?? 0 }}</span></div>
+                                @if ($actualDistanceKm !== null)
+                                    <div class="flex justify-between gap-4 py-2">
+                                        <span class="font-semibold">Route Distance</span>
+                                        <span>{{ number_format($actualDistanceKm, 2) }} KM</span>
+                                    </div>
+                                @elseif ($includedKmLimit > 0)
+                                    <div class="flex justify-between gap-4 py-2">
+                                        <span class="font-semibold">Included KM Limit</span>
+                                        <span>{{ number_format($includedKmLimit, 0) }} KM</span>
+                                    </div>
+                                @endif
+
+                                @if ($actualDurationHr !== null)
+                                    <div class="flex justify-between gap-4 py-2">
+                                        <span class="font-semibold">Estimated Driving Time</span>
+                                        <span>{{ number_format($actualDurationHr, 2) }} Hours</span>
+                                    </div>
+                                @elseif ($includedHrLimit > 0)
+                                    <div class="flex justify-between gap-4 py-2">
+                                        <span class="font-semibold">Included Hour Limit</span>
+                                        <span>{{ number_format($includedHrLimit, 0) }} Hours</span>
+                                    </div>
+                                @endif
                             @elseif ($rideType === 'return')
                                 <div class="flex justify-between gap-4 py-2"><span class="font-semibold">Total KM</span><span>{{ $order->total_km ?? 0 }}</span></div>
                                 <div class="flex justify-between gap-4 py-2"><span class="font-semibold">Total Days</span><span>{{ $days + 1 }}</span></div>
@@ -218,6 +247,69 @@
                                     <span>Total Payable</span>
                                     <span>{{ $money($payableAmount) }}</span>
                                 </div>
+
+                                @if (!$isSelfDriveBooking && $rideType === 'one_way')
+                                    <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                                        <h3 class="mb-3 text-sm font-bold text-slate-800">Fare Inclusions & Route Charges</h3>
+
+                                        <div class="space-y-2 text-sm">
+                                            <div class="flex justify-between gap-4">
+                                                <span>Toll Tax</span>
+                                                <span class="font-semibold {{ $tollIncluded ? 'text-emerald-700' : 'text-amber-700' }}">
+                                                    @if ($tollIncluded)
+                                                        Included
+                                                    @elseif (($configuredTollTax ?? 0) > 0)
+                                                        {{ $money($configuredTollTax) }} Extra
+                                                    @else
+                                                        Extra / As Actual
+                                                    @endif
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between gap-4">
+                                                <span>State Tax</span>
+                                                <span class="font-semibold {{ $stateTaxIncluded ? 'text-emerald-700' : 'text-amber-700' }}">
+                                                    @if ($stateTaxIncluded)
+                                                        Included
+                                                    @elseif (($configuredStateTax ?? 0) > 0)
+                                                        {{ $money($configuredStateTax) }} Extra
+                                                    @else
+                                                        Extra / As Actual
+                                                    @endif
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between gap-4">
+                                                <span>Parking</span>
+                                                <span class="font-semibold {{ $parkingIncluded ? 'text-emerald-700' : 'text-amber-700' }}">
+                                                    {{ $parkingIncluded ? 'Included' : 'Extra / As Actual' }}
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between gap-4">
+                                                <span>Driver Allowance</span>
+                                                <span class="font-semibold">
+                                                    @if (($configuredDriverAllowance ?? 0) > 0)
+                                                        {{ $money($configuredDriverAllowance) }}
+                                                    @else
+                                                        Included / No Fixed Charge
+                                                    @endif
+                                                </span>
+                                            </div>
+
+                                            <div class="flex justify-between gap-4">
+                                                <span>Night Driver Charge</span>
+                                                <span class="font-semibold {{ (($configuredNightCharge ?? 0) > 0) ? 'text-amber-700' : 'text-emerald-700' }}">
+                                                    @if (($configuredNightCharge ?? 0) > 0)
+                                                        {{ $money($configuredNightCharge) }} if applicable
+                                                    @else
+                                                        No Fixed Night Charge
+                                                    @endif
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
 
                             <div>
@@ -255,13 +347,48 @@
                             <li>The refundable security deposit is subject to vehicle inspection, fuel level, damage and pending penalties.</li>
                         @else
                             @if ($rideType === 'one_way')
-                                <li>Extra hours will be charged at {{ $money($product->extra_hr_charge ?? 0) }} per hour.</li>
-                                <li>Extra kilometres will be charged at {{ $money($product->extra_km_charge ?? 0) }} per kilometre.</li>
+                                @if (($extraHrCharge ?? 0) > 0)
+                                    <li>
+                                        Extra hours beyond the included limit will be charged at
+                                        {{ $money($extraHrCharge) }} per hour for the selected
+                                        {{ $selectedCategoryName ?: 'cab category' }}.
+                                    </li>
+                                @endif
+                                @if (($extraKmCharge ?? 0) > 0)
+                                    <li>
+                                        Extra kilometres beyond the included limit will be charged at
+                                        {{ $money($extraKmCharge) }} per kilometre for the selected
+                                        {{ $selectedCategoryName ?: 'cab category' }}.
+                                    </li>
+                                @endif
                             @elseif ($rideType === 'return')
                                 <li>Extra kilometres will be charged at {{ $money($perKm) }} per kilometre.</li>
                             @endif
-                            <li>Inter-state tax, toll and parking are excluded unless explicitly included in the selected fare.</li>
-                            <li>Night driving between 10:00 PM and 6:00 AM may attract a driver allowance.</li>
+                            @if ($rideType === 'one_way')
+                                <li>
+                                    Toll Tax:
+                                    <strong>{{ $tollIncluded ? 'Included' : ((($configuredTollTax ?? 0) > 0) ? $money($configuredTollTax) . ' extra' : 'Extra / As Actual') }}</strong>.
+                                </li>
+                                <li>
+                                    State Tax:
+                                    <strong>{{ $stateTaxIncluded ? 'Included' : ((($configuredStateTax ?? 0) > 0) ? $money($configuredStateTax) . ' extra' : 'Extra / As Actual') }}</strong>.
+                                </li>
+                                <li>
+                                    Parking:
+                                    <strong>{{ $parkingIncluded ? 'Included' : 'Extra / As Actual' }}</strong>.
+                                </li>
+                                <li>
+                                    Driver allowance:
+                                    <strong>{{ (($configuredDriverAllowance ?? 0) > 0) ? $money($configuredDriverAllowance) : 'Included / No fixed charge' }}</strong>.
+                                </li>
+                                <li>
+                                    Night driver charge:
+                                    <strong>{{ (($configuredNightCharge ?? 0) > 0) ? $money($configuredNightCharge) . ' if applicable' : 'No fixed night charge configured' }}</strong>.
+                                </li>
+                            @else
+                                <li>Inter-state tax, toll and parking are excluded unless explicitly included in the selected fare.</li>
+                                <li>Night driving may attract a driver allowance where applicable.</li>
+                            @endif
                         @endif
                     </ul>
 

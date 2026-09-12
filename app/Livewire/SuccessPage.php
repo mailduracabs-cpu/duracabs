@@ -87,29 +87,138 @@ class SuccessPage extends Component
 
         $category = null;
 
-        // Category rates belong only to the legacy taxi flow. Self-drive
-        // success pages display the stored pricing snapshot instead.
-        if (! $isSelfDrive) {
-            $category = Category::query()
-                ->select(['driver_charge', 'km_charge'])
-                ->where('is_active', 1)
-                ->where('name', $order->productName)
-                ->first();
-        }
-
         $orderItems = $order->items;
         $product = optional($orderItems->first())->product;
+
+        /*
+         * Taxi category pricing is authoritative for one-way category charges.
+         * Resolve the exact selected category from the booking snapshot first,
+         * then fall back to orders.taxi_type and finally the Product category.
+         */
+        if (! $isSelfDrive) {
+            $bookingDraft = $this->normaliseArray(
+                Arr::get($extraOptions, 'booking_draft', [])
+            );
+
+            $snapshotCategoryId = Arr::get($bookingDraft, 'product.category_id')
+                ?? Arr::get($bookingDraft, 'fare.category_id')
+                ?? Arr::get($pricingBreakdown, 'category.id');
+
+            $snapshotCategoryName = trim((string) (
+                Arr::get($bookingDraft, 'product.category_name')
+                ?? $order->taxi_type
+                ?? ''
+            ));
+
+            $categoryQuery = Category::query()
+                ->select([
+                    'id',
+                    'name',
+                    'driver_charge',
+                    'km_charge',
+                    'extra_km_charge',
+                    'extra_hr_charge',
+                    'pet_friendly_charge',
+                    'roof_carrier_charge',
+                    'extra_pickup_charge',
+                    'extra_drop_charge',
+                ])
+                ->where('is_active', 1);
+
+            if (is_numeric($snapshotCategoryId) && (int) $snapshotCategoryId > 0) {
+                $category = (clone $categoryQuery)
+                    ->whereKey((int) $snapshotCategoryId)
+                    ->first();
+            }
+
+            if (! $category && $snapshotCategoryName !== '') {
+                $category = (clone $categoryQuery)
+                    ->where('name', $snapshotCategoryName)
+                    ->first();
+            }
+
+            if (! $category && $product && ! empty($product->category_id)) {
+                $category = (clone $categoryQuery)
+                    ->whereKey((int) $product->category_id)
+                    ->first();
+            }
+        }
 
         if (! $product) {
             $product = (object) [
                 'ride_type' => $order->ride_type,
                 'name' => $order->productName,
-                'km_limit' => $order->total_km ?? 0,
+                'km_limit' => 0,
                 'hr_limit' => 0,
-                'extra_hr_charge' => 0,
-                'extra_km_charge' => 0,
             ];
         }
+
+        $bookingDraft = $this->normaliseArray(
+            Arr::get($extraOptions, 'booking_draft', [])
+        );
+        $draftTrip = $this->normaliseArray(
+            Arr::get($bookingDraft, 'trip', [])
+        );
+
+        $actualDistanceKm = null;
+        foreach (['distance_km', 'actual_distance_km'] as $distanceKey) {
+            $value = Arr::get($draftTrip, $distanceKey);
+            if (is_numeric($value) && (float) $value > 0) {
+                $actualDistanceKm = round((float) $value, 2);
+                break;
+            }
+        }
+
+        if ($actualDistanceKm === null && is_numeric($order->total_km ?? null) && (float) $order->total_km > 0) {
+            $actualDistanceKm = round((float) $order->total_km, 2);
+        }
+
+        $actualDurationHr = null;
+        foreach (['duration_hr', 'duration_hours', 'actual_duration_hr'] as $durationKey) {
+            $value = Arr::get($draftTrip, $durationKey);
+            if (is_numeric($value) && (float) $value > 0) {
+                $actualDurationHr = round((float) $value, 2);
+                break;
+            }
+        }
+
+        $includedKmLimit = max(0, (float) ($product->km_limit ?? 0));
+        $includedHrLimit = max(0, (float) ($product->hr_limit ?? 0));
+
+        /*
+         * Route inclusion / payable-charge information for one-way bookings.
+         * Prefer the booking snapshot when available, then fall back to the
+         * current Product record for older bookings.
+         */
+        $routeSnapshot = $this->normaliseArray(
+            Arr::get($bookingDraft, 'fare.route_charges', [])
+        );
+
+        $tollIncluded = (bool) (
+            Arr::get($routeSnapshot, 'toll_included')
+            ?? ($product->toll_included ?? false)
+        );
+        $parkingIncluded = (bool) (
+            Arr::get($routeSnapshot, 'parking_included')
+            ?? ($product->parking_included ?? false)
+        );
+        $stateTaxIncluded = (bool) (
+            Arr::get($routeSnapshot, 'state_tax_included')
+            ?? ($product->state_tax_included ?? false)
+        );
+
+        $configuredTollTax = $this->money(
+            Arr::get($routeSnapshot, 'toll_tax', $product->toll_tax ?? 0)
+        );
+        $configuredStateTax = $this->money(
+            Arr::get($routeSnapshot, 'state_tax', $product->border_tax ?? 0)
+        );
+        $configuredDriverAllowance = $this->money(
+            Arr::get($routeSnapshot, 'driver_allowance', $product->driver_allowances ?? 0)
+        );
+        $configuredNightCharge = $this->money(
+            Arr::get($routeSnapshot, 'night_charge', $product->night_charge ?? 0)
+        );
 
         $invoiceSum = (float) $order->invoices->sum(
             static fn ($invoice): float => (float) ($invoice->ammount ?? 0)
@@ -124,6 +233,20 @@ class SuccessPage extends Component
             'InvoiceSum' => $invoiceSum,
             'driverCharge' => $category?->driver_charge ?? 0,
             'perKm' => $category?->km_charge ?? 0,
+            'extraKmCharge' => $category?->extra_km_charge ?? 0,
+            'extraHrCharge' => $category?->extra_hr_charge ?? 0,
+            'selectedCategoryName' => $category?->name ?? ($order->taxi_type ?? null),
+            'actualDistanceKm' => $actualDistanceKm,
+            'actualDurationHr' => $actualDurationHr,
+            'includedKmLimit' => $includedKmLimit,
+            'includedHrLimit' => $includedHrLimit,
+            'tollIncluded' => $tollIncluded,
+            'parkingIncluded' => $parkingIncluded,
+            'stateTaxIncluded' => $stateTaxIncluded,
+            'configuredTollTax' => $configuredTollTax,
+            'configuredStateTax' => $configuredStateTax,
+            'configuredDriverAllowance' => $configuredDriverAllowance,
+            'configuredNightCharge' => $configuredNightCharge,
             'isSelfDrive' => $isSelfDrive,
             'pricingBreakdown' => $pricingBreakdown,
             'selectedOptions' => $selectedOptions,
