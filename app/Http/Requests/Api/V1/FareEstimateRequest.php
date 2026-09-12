@@ -23,6 +23,13 @@ class FareEstimateRequest extends FormRequest
             'pickup_time' => 'nullable|string|max:20',
             'distance_km' => 'nullable|numeric|min:0',
             'duration_hr' => 'nullable|numeric|min:0',
+
+            // Optional One Way extras selected by customer.
+            'pat_selected' => 'nullable|boolean',
+            'roof_carrier_selected' => 'nullable|boolean',
+            'night_charge_selected' => 'nullable|boolean',
+
+            // Backward compatibility with older callers.
             'night_charge' => 'nullable|numeric|min:0',
             'gst_percent' => 'nullable|numeric|min:0|max:28',
         ];
