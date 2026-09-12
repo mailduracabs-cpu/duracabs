@@ -83,12 +83,12 @@ class FareService
             ?? 0
         );
 
-        $extraKmCharge = (float) (
-            $route->extra_km_charge
-            ?? ($category->km_charge ?? 0)
-        );
-
-        $extraHrCharge = (float) ($route->extra_hr_charge ?? 0);
+        /*
+         * Extra KM / Extra Hour rates are category-authoritative.
+         * Route-level fields are intentionally not used here.
+         */
+        $extraKmCharge = max(0, (float) ($category?->extra_km_charge ?? 0));
+        $extraHrCharge = max(0, (float) ($category?->extra_hr_charge ?? 0));
         $kmLimit = (float) ($route->km_limit ?? 0);
         $hrLimit = (float) ($route->hr_limit ?? 0);
 
@@ -145,6 +145,21 @@ class FareService
             FILTER_VALIDATE_BOOLEAN
         );
 
+        $extraPickupSelected = filter_var(
+            $data['extra_pickup_selected'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        $extraDropSelected = filter_var(
+            $data['extra_drop_selected'] ?? false,
+            FILTER_VALIDATE_BOOLEAN
+        );
+
+        // Extra Pickup / Drop are checkout-only One Way add-ons.
+        // They are chargeable only when the stop is on the main route.
+        $extraPickupCharge = $extraPickupSelected ? 500.0 : 0.0;
+        $extraDropCharge = $extraDropSelected ? 500.0 : 0.0;
+
         $patCharge = $patSelected
             ? max(0, (float) ($route->pat_charge ?? 0))
             : 0.0;
@@ -174,7 +189,9 @@ class FareService
             + $driverAllowanceExtra
             + $patCharge
             + $roofCarrierCharge
-            + $nightCharge,
+            + $nightCharge
+            + $extraPickupCharge
+            + $extraDropCharge,
             2
         );
 
@@ -262,6 +279,11 @@ class FareService
 
                 'night_charge_selected' => $nightChargeSelected,
                 'night_charge' => round($nightCharge, 2),
+
+                'extra_pickup_selected' => $extraPickupSelected,
+                'extra_pickup_charge' => round($extraPickupCharge, 2),
+                'extra_drop_selected' => $extraDropSelected,
+                'extra_drop_charge' => round($extraDropCharge, 2),
 
                 'gst_included' => $gstIncluded,
                 'gst_percent' => $gstPercent,

@@ -19,6 +19,7 @@ class MapsService
     private const AUTOCOMPLETE_CACHE_SECONDS = 300;
     private const PLACE_DETAILS_CACHE_SECONDS = 1800;
     private const GEOCODE_CACHE_SECONDS = 1800;
+    private const DISTANCE_CACHE_SECONDS = 86400;
 
     private static function apiKey(): ?string
     {
@@ -244,25 +245,57 @@ class MapsService
             return self::missingKeyResponse();
         }
 
-        $result = self::request('/distancematrix/json', [
-            'origins' => trim($origin),
-            'destinations' => trim($destination),
-            'units' => 'metric',
-            'key' => $key,
-        ], 'distance matrix');
+        $origin = trim($origin);
+        $destination = trim($destination);
 
-        if (!$result['status']) {
-            return $result;
+        if ($origin === '' || $destination === '') {
+            return [
+                'status' => false,
+                'message' => 'Origin and destination are required',
+                'data' => [],
+            ];
         }
 
-        $json = $result['data'];
-        $error = self::googleError($json);
+        return Cache::remember(
+            self::cacheKey('distance_matrix', [$origin, $destination, 'metric']),
+            self::DISTANCE_CACHE_SECONDS,
+            static function () use ($key, $origin, $destination): array {
+                $result = self::request('/distancematrix/json', [
+                    'origins' => $origin,
+                    'destinations' => $destination,
+                    'units' => 'metric',
+                    'language' => 'en',
+                    'key' => $key,
+                ], 'distance matrix');
 
-        return $error ?: [
-            'status' => true,
-            'message' => 'Distance fetched',
-            'data' => $json,
-        ];
+                if (!$result['status']) {
+                    return $result;
+                }
+
+                $json = $result['data'];
+                $error = self::googleError($json);
+
+                if ($error) {
+                    return $error;
+                }
+
+                $elementStatus = (string) data_get($json, 'rows.0.elements.0.status', '');
+
+                if ($elementStatus !== 'OK') {
+                    return [
+                        'status' => false,
+                        'message' => $elementStatus !== '' ? $elementStatus : 'Google could not calculate this route',
+                        'data' => app()->environment('local') ? $json : [],
+                    ];
+                }
+
+                return [
+                    'status' => true,
+                    'message' => 'Distance fetched',
+                    'data' => $json,
+                ];
+            }
+        );
     }
 
     public static function directions(string $origin, string $destination): array

@@ -35,6 +35,8 @@ class Category extends Model
         'luggage_capacity',
 
         'km_charge',
+        'extra_km_charge',
+        'extra_hr_charge',
         'driver_charge',
         'range',
 

@@ -106,6 +106,20 @@ class CategoryResource extends Resource
                                     ->prefix('₹')
                                     ->placeholder('10'),
 
+                                TextInput::make('extra_km_charge')
+                                    ->label('Extra KM Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->helperText('One Way: included KM limit ke baad per KM charge.')
+                                    ->placeholder('12'),
+
+                                TextInput::make('extra_hr_charge')
+                                    ->label('Extra Hour Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->helperText('One Way: included hour limit ke baad per hour charge.')
+                                    ->placeholder('150'),
+
                                 TextInput::make('driver_charge')
                                     ->label('Driver Charge')
                                     ->numeric()
@@ -165,6 +179,14 @@ class CategoryResource extends Resource
                 Tables\Columns\TextColumn::make('km_charge')
                     ->label('₹/KM')
                     ->sortable(),
+
+                Tables\Columns\TextColumn::make('extra_km_charge')
+                    ->label('Extra ₹/KM')
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('extra_hr_charge')
+                    ->label('Extra ₹/Hr')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('security')
                     ->label('Security')

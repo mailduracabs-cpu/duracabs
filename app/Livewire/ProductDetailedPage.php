@@ -4,6 +4,7 @@ namespace App\Livewire;
 
 use App\Services\OtpService;
 use App\Services\FareService;
+use App\Services\MapsService;
 use App\Services\SeoAutoLinkService;
 use App\Models\Brand;
 use App\Models\Product;
@@ -56,6 +57,14 @@ class ProductDetailedPage extends Component
     public array $oneWayFareBreakup = [];
     public float $oneWaySubtotal = 0.0;
     public float $oneWayTotal = 0.0;
+
+    // Google Maps actual one-way route metrics.
+    public ?float $actualDistanceKm = null;
+    public ?float $actualDurationHours = null;
+    public ?int $actualDurationMinutes = null;
+    public ?string $actualDistanceText = null;
+    public ?string $actualDurationText = null;
+    public ?string $routeMetricsError = null;
 
     public $quantity = 1;
 
@@ -124,6 +133,10 @@ class ProductDetailedPage extends Component
         $this->time = request()->query('time', '');
         $this->endDate = request()->query('end_date', '');
         $this->endTime = request()->query('end_time', '');
+
+        if ((string) $routeProduct->ride_type === 'one_way') {
+            $this->loadActualOneWayRouteMetrics();
+        }
     }
 
     public function test()
@@ -373,6 +386,8 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                 $farePayload = app(FareService::class)->estimate([
                     'route_id' => (int) $ride->getKey(),
                     'category_id' => (int) $selectedPrice->category_id,
+                    'distance_km' => $this->actualDistanceKm,
+                    'duration_hr' => $this->actualDurationHours,
                     'pat_selected' => $this->patSelected,
                     'roof_carrier_selected' => $this->roofCarrierSelected,
                     'night_charge_selected' => $this->nightChargeSelected,
@@ -411,7 +426,12 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                     'time' => (string) $this->time,
                     'end_date' => null,
                     'end_time' => null,
-                    'hours' => null,
+                    'hours' => $bookingType === 'one_way' ? $this->actualDurationHours : null,
+                    'distance_km' => $bookingType === 'one_way' ? $this->actualDistanceKm : null,
+                    'duration_hr' => $bookingType === 'one_way' ? $this->actualDurationHours : null,
+                    'duration_minutes' => $bookingType === 'one_way' ? $this->actualDurationMinutes : null,
+                    'distance_text' => $bookingType === 'one_way' ? $this->actualDistanceText : null,
+                    'duration_text' => $bookingType === 'one_way' ? $this->actualDurationText : null,
                     'plan' => $bookingType === 'local' ? (string) $this->plan : null,
                     'quantity' => $quantity,
                 ],
@@ -458,6 +478,8 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                     'border_tax_payable' => $bookingType === 'one_way'
                         ? (float) ($farePayload['fare_breakup']['border_tax_payable'] ?? 0)
                         : 0.0,
+                    'distance_km' => $bookingType === 'one_way' ? $this->actualDistanceKm : null,
+                    'duration_hr' => $bookingType === 'one_way' ? $this->actualDurationHours : null,
                     'total' => $bookingTotal,
                     'total_fare' => $bookingTotal,
                     'display_price' => $bookingType === 'one_way' ? $bookingTotal : $this->price,
@@ -672,6 +694,8 @@ private function refreshOneWayFare(): void
         $fare = app(FareService::class)->estimate([
             'route_id' => (int) $ride->getKey(),
             'category_id' => (int) $selectedPrice->category_id,
+            'distance_km' => $this->actualDistanceKm,
+            'duration_hr' => $this->actualDurationHours,
             'pat_selected' => $this->patSelected,
             'roof_carrier_selected' => $this->roofCarrierSelected,
             'night_charge_selected' => $this->nightChargeSelected,
@@ -690,6 +714,88 @@ private function refreshOneWayFare(): void
         $this->oneWayFareBreakup = [];
         $this->oneWaySubtotal = 0.0;
         $this->oneWayTotal = 0.0;
+    }
+}
+
+private function loadActualOneWayRouteMetrics(): void
+{
+    $this->actualDistanceKm = null;
+    $this->actualDurationHours = null;
+    $this->actualDurationMinutes = null;
+    $this->actualDistanceText = null;
+    $this->actualDurationText = null;
+    $this->routeMetricsError = null;
+
+    try {
+        $ride = Product::query()
+            ->with('brand')
+            ->where('slug', $this->slug)
+            ->where('is_active', 1)
+            ->first();
+
+        if (! $ride || (string) $ride->ride_type !== 'one_way') {
+            return;
+        }
+
+        $dropCity = ! empty($ride->booking_to)
+            ? Brand::query()->find($ride->booking_to)
+            : null;
+
+        $pickup = trim((string) ($ride->brand?->name ?? ''));
+        $drop = trim((string) ($dropCity?->name ?? ''));
+
+        if ($pickup === '' || $drop === '') {
+            $this->routeMetricsError = 'Pickup or destination city is missing.';
+            return;
+        }
+
+        $origin = Str::contains(Str::lower($pickup), 'india') ? $pickup : $pickup . ', India';
+        $destination = Str::contains(Str::lower($drop), 'india') ? $drop : $drop . ', India';
+
+        $result = MapsService::distance($origin, $destination);
+
+        if (! ($result['status'] ?? false)) {
+            $this->routeMetricsError = (string) ($result['message'] ?? 'Google route information is unavailable.');
+            return;
+        }
+
+        $element = data_get($result, 'data.rows.0.elements.0');
+
+        if (! is_array($element) || (string) ($element['status'] ?? '') !== 'OK') {
+            $this->routeMetricsError = 'Google could not calculate this route.';
+            return;
+        }
+
+        $distanceMeters = (int) data_get($element, 'distance.value', 0);
+        $durationSeconds = (int) data_get($element, 'duration.value', 0);
+
+        if ($distanceMeters > 0) {
+            $this->actualDistanceKm = round($distanceMeters / 1000, 2);
+            $this->actualDistanceText = trim((string) data_get($element, 'distance.text', ''));
+
+            if ($this->actualDistanceText === '') {
+                $this->actualDistanceText = rtrim(rtrim(number_format($this->actualDistanceKm, 2, '.', ''), '0'), '.') . ' km';
+            }
+        }
+
+        if ($durationSeconds > 0) {
+            $this->actualDurationMinutes = (int) ceil($durationSeconds / 60);
+            $this->actualDurationHours = round($durationSeconds / 3600, 2);
+            $this->actualDurationText = trim((string) data_get($element, 'duration.text', ''));
+
+            if ($this->actualDurationText === '') {
+                $hours = intdiv($this->actualDurationMinutes, 60);
+                $minutes = $this->actualDurationMinutes % 60;
+                $this->actualDurationText = trim(($hours > 0 ? $hours . ' hr ' : '') . ($minutes > 0 ? $minutes . ' min' : ''));
+            }
+        }
+    } catch (\Throwable $e) {
+        $this->routeMetricsError = 'Google route information is temporarily unavailable.';
+
+        Log::warning('Google one way route metrics lookup failed', [
+            'slug' => $this->slug,
+            'error' => $e->getMessage(),
+        ]);
     }
 }
 
@@ -1238,6 +1344,10 @@ private function buildRouteSeoContent(
 
         if ($fare) {
             $intro .= " Current listed fares for {$pickup} to {$drop} start from {$fare}, subject to the selected vehicle and trip details.";
+        }
+
+        if ($this->actualDistanceText && $this->actualDurationText) {
+            $intro .= " Google Maps currently estimates the road route at {$this->actualDistanceText} with an approximate driving time of {$this->actualDurationText}.";
         }
 
         $overview = "The {$routeName} taxi service is suitable for travellers looking for a dedicated cab from {$pickup} to {$drop}. "

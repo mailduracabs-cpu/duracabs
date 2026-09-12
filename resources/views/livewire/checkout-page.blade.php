@@ -316,13 +316,21 @@
                         @if (!empty($this->extraAmountArr))
                             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                                 <h2 class="text-xl font-black text-slate-900">Optional Booking Preferences</h2>
+                                @if (($bookingDraft['type'] ?? null) === 'one_way')
+                                    <p class="mt-1 text-sm leading-6 text-slate-500">Pet Friendly, Roof Carrier aur route par Extra Pickup / Extra Drop yahin add karein.</p>
+                                @endif
                                 <div class="mt-5 space-y-3">
                                     @foreach ($this->extraAmountArr as $key => $item)
                                         <label class="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-sky-300 hover:bg-sky-50/40">
                                             <span class="flex items-start gap-3">
                                                 <input type="checkbox" wire:click="newWehicalValueFun({{ $key }})" {{ $item['is_checked'] ? 'checked' : '' }} class="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
                                                 <span>
-                                                    <strong class="block text-sm text-slate-900">{{ $item['title'] }}</strong>
+                                                    <span class="flex flex-wrap items-center gap-2">
+                                                        <strong class="block text-sm text-slate-900">{{ $item['title'] }}</strong>
+                                                        @if (in_array($item['type'] ?? '', ['extra_pickup', 'extra_drop'], true))
+                                                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800">On Route Only</span>
+                                                        @endif
+                                                    </span>
                                                     <small class="mt-1 block text-xs leading-5 text-slate-500">{{ $item['description'] ?? '' }}</small>
                                                 </span>
                                             </span>
@@ -469,6 +477,17 @@
                                     <span>{{ $isSelfDriveCheckout ? 'Base Rental Charge' : 'Base Fare' }}</span>
                                     <strong class="text-slate-900">{{ Number::currency($rentalCharge, 'INR') }}</strong>
                                 </div>
+
+                                @if (!$isSelfDriveCheckout)
+                                    @foreach ($this->extraAmountArr as $summaryOption)
+                                        @if (($summaryOption['is_checked'] ?? false) && ($summaryOption['type'] ?? '') !== 'security')
+                                            <div class="flex items-center justify-between gap-4 text-slate-600">
+                                                <span>{{ $summaryOption['title'] ?? 'Optional Charge' }}</span>
+                                                <strong class="text-slate-900">+ {{ Number::currency($summaryOption['price'] ?? 0, 'INR') }}</strong>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                @endif
 
                                 @if ($isSelfDriveCheckout && $securityDeposit > 0)
                                     <div class="flex items-center justify-between gap-4 text-slate-600">

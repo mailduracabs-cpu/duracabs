@@ -5,8 +5,10 @@ namespace App\Livewire;
 use App\Models\Address;
 use App\Models\Coupons;
 use App\Models\Order;
+use App\Models\Price;
 use App\Models\Product;
 use App\Models\Vehicle;
+use App\Services\FareService;
 use App\Services\SelfDrivePricingService;
 use App\Services\WhatsAppService;
 use Carbon\Carbon;
@@ -166,7 +168,93 @@ class CheckoutPage extends Component
             return $this->recalculateSelfDriveTotals();
         }
 
+        if ($this->isOneWayBooking()) {
+            return $this->recalculateOneWayTotals();
+        }
+
         return $this->recalculateTaxiTotals();
+    }
+
+    /**
+     * One Way pricing is recalculated by the central FareService so checkout
+     * never adds a second hard-coded GST or duplicates route pricing rules.
+     */
+    private function recalculateOneWayTotals(): float
+    {
+        try {
+            $productId = (int) (
+                $this->bookingDraft['product_id']
+                ?? data_get($this->bookingDraft, 'product.id')
+                ?? 0
+            );
+
+            $selectionId = (int) ($this->bookingDraft['selection_id'] ?? 0);
+            $price = $selectionId > 0
+                ? Price::query()->where('product_id', $productId)->find($selectionId)
+                : null;
+
+            $categoryId = (int) (
+                $price?->category_id
+                ?? data_get($this->bookingDraft, 'fare.breakup.category_id')
+                ?? 0
+            );
+
+            if ($productId <= 0 || $categoryId <= 0) {
+                throw new \RuntimeException('Selected One Way vehicle fare is no longer available.');
+            }
+
+            $trip = (array) ($this->bookingDraft['trip'] ?? []);
+            $fare = (array) ($this->bookingDraft['fare'] ?? []);
+            $selected = collect($this->extraAmountArr)
+                ->where('is_checked', true)
+                ->pluck('type')
+                ->all();
+
+            $payload = [
+                'route_id' => $productId,
+                'category_id' => $categoryId,
+                'pat_selected' => in_array('pet_friendly', $selected, true),
+                'roof_carrier_selected' => in_array('roof_carrier', $selected, true),
+                'extra_pickup_selected' => in_array('extra_pickup', $selected, true),
+                'extra_drop_selected' => in_array('extra_drop', $selected, true),
+                // Night selection is preserved only when it already exists in the draft.
+                'night_charge_selected' => (bool) ($fare['night_charge_selected'] ?? false),
+            ];
+
+            $distanceKm = $trip['distance_km'] ?? $fare['distance_km'] ?? null;
+            $durationHr = $trip['duration_hr'] ?? $fare['duration_hr'] ?? null;
+
+            if (is_numeric($distanceKm)) {
+                $payload['distance_km'] = (float) $distanceKm;
+            }
+
+            if (is_numeric($durationHr)) {
+                $payload['duration_hr'] = (float) $durationHr;
+            }
+
+            $pricing = app(FareService::class)->estimate($payload);
+            $this->pricingBreakdown = $pricing;
+
+            $breakup = (array) ($pricing['fare_breakup'] ?? []);
+            $this->tollTax = $this->money($breakup['toll_payable'] ?? 0);
+            $this->taxAmount = $this->money($breakup['gst_amount'] ?? 0);
+            $this->extraTotal = $this->totalPrice;
+
+            $beforeDiscount = $this->money($pricing['total_fare'] ?? 0);
+            $this->discountAmount = $this->couponData
+                ? round(($this->money($this->couponData) / 100) * $beforeDiscount, 2)
+                : 0.0;
+
+            $this->grandTotal = $this->money($beforeDiscount - $this->discountAmount);
+
+            return (float) $this->grandTotal;
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->resetCalculatedAmounts();
+            $this->pricingError = $exception->getMessage();
+
+            return 0;
+        }
     }
 
     /**
@@ -582,6 +670,61 @@ Address::query()->create([
     }
 
     /*
+     * One Way checkout add-ons. Pet Friendly and Roof Carrier prices come
+     * from the route admin configuration. Extra Pickup / Drop are fixed at
+     * ₹500 each and are valid only when the stop is on the main route.
+     */
+    if ($type === 'one_way') {
+        $productId = (int) (
+            $this->bookingDraft['product_id']
+            ?? data_get($this->bookingDraft, 'product.id')
+            ?? 0
+        );
+
+        $product = $productId > 0
+            ? Product::query()->select(['id', 'pat_charge', 'roof_carrier_charge'])->find($productId)
+            : null;
+
+        if (! $product) {
+            $this->extraAmountArr = [];
+            return;
+        }
+
+        $this->extraAmountArr = [
+            [
+                'is_checked' => false,
+                'type' => 'pet_friendly',
+                'title' => 'Pet Friendly',
+                'description' => 'Travel with your pet. Subject to vehicle suitability.',
+                'price' => $this->optionPrice($product->pat_charge ?? 0),
+            ],
+            [
+                'is_checked' => false,
+                'type' => 'roof_carrier',
+                'title' => 'Roof Carrier',
+                'description' => 'Roof carrier request for additional luggage.',
+                'price' => $this->optionPrice($product->roof_carrier_charge ?? 0),
+            ],
+            [
+                'is_checked' => false,
+                'type' => 'extra_pickup',
+                'title' => 'Extra Pickup',
+                'description' => '₹500 — available only when the additional pickup is on the main route.',
+                'price' => 500.0,
+            ],
+            [
+                'is_checked' => false,
+                'type' => 'extra_drop',
+                'title' => 'Extra Drop',
+                'description' => '₹500 — available only when the additional drop is on the main route.',
+                'price' => 500.0,
+            ],
+        ];
+
+        return;
+    }
+
+    /*
      * With-driver optional preferences are loaded from
      * products.fare_cards JSON.
      */
@@ -678,6 +821,11 @@ Address::query()->create([
         return (string) ($this->bookingDraft['type'] ?? '') === 'self_drive';
     }
 
+    private function isOneWayBooking(): bool
+    {
+        return (string) ($this->bookingDraft['type'] ?? '') === 'one_way';
+    }
+
     private function resolveSelfDriveVehicle(bool $requireBookable = true): ?Vehicle
     {
         $vehicleId = (int) ($this->bookingDraft['vehicle_id'] ?? 0);
@@ -766,6 +914,10 @@ Address::query()->create([
     {
         if ($this->isSelfDriveBooking() && $this->pricingBreakdown !== []) {
             return $this->money($this->pricingBreakdown['rent'] ?? 0);
+        }
+
+        if ($this->isOneWayBooking() && $this->pricingBreakdown !== []) {
+            return $this->money(data_get($this->pricingBreakdown, 'fare_breakup.base_fare', 0));
         }
 
         return $this->getLegacyBaseFare();

@@ -183,7 +183,7 @@
         @php
             $ow = $oneWayFareBreakup ?? [];
             $baseFare = (float) ($ow['base_fare'] ?? $price ?? 0);
-            $patAmount = (float) ($ride->pat_charge ?? 0);
+            $petFriendlyAmount = (float) ($ride->pat_charge ?? 0); // legacy column: pat_charge = Pet Friendly charge
             $roofAmount = (float) ($ride->roof_carrier_charge ?? 0);
             $nightAmount = (float) ($ride->night_charge ?? 0);
             $gstPercentValue = (float) ($ow['gst_percent'] ?? $ride->gst_percentage ?? 0);
@@ -217,14 +217,31 @@
                             </div>
                         </div>
 
-                        @if ($patAmount > 0 || $roofAmount > 0 || $nightAmount > 0)
+                        @if ($actualDistanceKm || $actualDurationMinutes)
+                            <div class="grid gap-3 sm:grid-cols-2">
+                                <div class="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Google Distance</p>
+                                    <p class="mt-1 text-lg font-black text-slate-900">{{ $actualDistanceText ?: (rtrim(rtrim(number_format((float) $actualDistanceKm, 2), '0'), '.') . ' km') }}</p>
+                                </div>
+                                <div class="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Estimated Driving Time</p>
+                                    <p class="mt-1 text-lg font-black text-slate-900">{{ $actualDurationText ?: (rtrim(rtrim(number_format((float) $actualDurationHours, 2), '0'), '.') . ' hr') }}</p>
+                                </div>
+                            </div>
+                        @elseif ($routeMetricsError)
+                            <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
+                                Live Google distance/time is temporarily unavailable. Fare can still be viewed and booked.
+                            </div>
+                        @endif
+
+                        @if ($petFriendlyAmount > 0 || $roofAmount > 0 || $nightAmount > 0)
                             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                                 <p class="mb-3 text-sm font-black text-slate-900">Optional Add-ons</p>
                                 <div class="space-y-3">
-                                    @if ($patAmount > 0)
+                                    @if ($petFriendlyAmount > 0)
                                         <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
-                                            <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="patSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">PAT</span><span class="block text-xs text-slate-500">Optional route add-on</span></span></span>
-                                            <strong class="text-sm text-slate-900">+{{ Number::currency($patAmount, 'INR') }}</strong>
+                                            <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="patSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Pet Friendly</span><span class="block text-xs text-slate-500">Travel with your pet</span></span></span>
+                                            <strong class="text-sm text-slate-900">+{{ Number::currency($petFriendlyAmount, 'INR') }}</strong>
                                         </label>
                                     @endif
                                     @if ($roofAmount > 0)
@@ -246,8 +263,15 @@
                         <div class="overflow-hidden rounded-2xl border border-slate-200">
                             <div class="bg-slate-900 px-4 py-3 text-sm font-black text-white">Fare Summary</div>
                             <div class="space-y-2 px-4 py-4 text-sm">
+                                @if ($actualDistanceKm)
+                                    <div class="flex items-center justify-between"><span class="text-slate-600">Total Distance</span><strong>{{ $actualDistanceText ?: number_format((float) $actualDistanceKm, 1) . ' km' }}</strong></div>
+                                @endif
+                                @if ($actualDurationMinutes)
+                                    <div class="flex items-center justify-between"><span class="text-slate-600">Estimated Time</span><strong>{{ $actualDurationText ?: number_format((float) $actualDurationHours, 2) . ' hr' }}</strong></div>
+                                @endif
+                                <div class="my-2 border-t border-dashed border-slate-200"></div>
                                 <div class="flex items-center justify-between"><span class="text-slate-600">Base Fare</span><strong>{{ Number::currency($baseFare, 'INR') }}</strong></div>
-                                @if ($patSelected && (float) ($ow['pat_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">PAT</span><strong>+{{ Number::currency((float) $ow['pat_charge'], 'INR') }}</strong></div>@endif
+                                @if ($patSelected && (float) ($ow['pat_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Pet Friendly</span><strong>+{{ Number::currency((float) $ow['pat_charge'], 'INR') }}</strong></div>@endif
                                 @if ($roofCarrierSelected && (float) ($ow['roof_carrier_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Roof Carrier</span><strong>+{{ Number::currency((float) $ow['roof_carrier_charge'], 'INR') }}</strong></div>@endif
                                 @if ($nightChargeSelected && (float) ($ow['night_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Night Charge</span><strong>+{{ Number::currency((float) $ow['night_charge'], 'INR') }}</strong></div>@endif
                                 @if ((float) ($ow['toll_payable'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Toll</span><strong>+{{ Number::currency((float) $ow['toll_payable'], 'INR') }}</strong></div>@elseif (!empty($ow['toll_included']))<div class="flex items-center justify-between text-emerald-700"><span>Toll</span><strong>Included</strong></div>@endif
@@ -853,7 +877,7 @@
                                         @if ($fareUnlocked)
                                             @if ($ride->ride_type === 'one_way')
                                                 <button type="button"
-                                                    onclick="showFareSummaryOneWay('{{ addslashes($ride->name) }}', '{{ addslashes($price->category->name) }}', {{ $price->price }}, {{ $price->max_price }}, {{ $ride->toll_tax ?? 0 }}, {{ $ride->km_limit ?? 0 }}, {{ $ride->hr_limit ?? 0 }}, {{ $ride->extra_km_charge ?? 0 }}, {{ $ride->extra_hr_charge ?? 0 }})"
+                                                    onclick="showFareSummaryOneWay('{{ addslashes($ride->name) }}', '{{ addslashes($price->category->name) }}', {{ (float) $price->price }}, {{ (float) $price->max_price }}, {{ (float) ($ride->toll_tax ?? 0) }}, {{ !empty($ride->toll_included) ? 'true' : 'false' }}, {{ !empty($ride->gst_included) ? 'true' : 'false' }}, {{ (float) ($ride->gst_percentage ?? 0) }}, {{ (float) ($actualDistanceKm ?? 0) }}, '{{ addslashes((string) ($actualDistanceText ?? '')) }}', {{ (int) ($actualDurationMinutes ?? 0) }}, '{{ addslashes((string) ($actualDurationText ?? '')) }}', {{ (float) ($ride->km_limit ?? 0) }}, {{ (float) ($ride->hr_limit ?? 0) }}, {{ (float) ($ride->extra_km_charge ?? 0) }}, {{ (float) ($ride->extra_hr_charge ?? 0) }})"
                                                     class="ride-fare-icon-button">
                                                     <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
                                                 </button>
@@ -1214,11 +1238,22 @@
                     @endif
 
                     {{-- =========================================================
-                        ACTUAL PAGE FACTS
-                        Do not present km_limit/hr_limit as real road
-                        distance or journey duration.
+                        ACTUAL GOOGLE ROUTE FACTS
+                        km_limit/hr_limit remain package limits only.
                     ========================================================== --}}
                     <div class="mt-8 rounded-2xl border border-sky-100 bg-sky-50/70 p-5">
+                        @if ($ride->ride_type === 'one_way' && ($actualDistanceKm || $actualDurationMinutes))
+                            <div class="mb-4 grid gap-3 sm:grid-cols-2">
+                                <div class="rounded-xl bg-white p-4 ring-1 ring-sky-100">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-sky-700">Google Road Distance</p>
+                                    <p class="mt-1 text-xl font-black text-slate-900">{{ $actualDistanceText ?: number_format((float) $actualDistanceKm, 1) . ' km' }}</p>
+                                </div>
+                                <div class="rounded-xl bg-white p-4 ring-1 ring-emerald-100">
+                                    <p class="text-xs font-bold uppercase tracking-wide text-emerald-700">Estimated Driving Time</p>
+                                    <p class="mt-1 text-xl font-black text-slate-900">{{ $actualDurationText ?: number_format((float) $actualDurationHours, 2) . ' hr' }}</p>
+                                </div>
+                            </div>
+                        @endif
                         <div class="flex items-center gap-3">
                             <div class="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-sky-800 shadow-sm ring-1 ring-sky-100">
                                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -1459,7 +1494,7 @@
                     </div>
                     
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                        <span class="text-gray-600 font-medium">GST (5%):</span>
+                        <span id="gstLabel" class="text-gray-600 font-medium">GST:</span>
                         <span id="gstAmount" class="font-semibold text-gray-900"></span>
                     </div>
                 </div>
@@ -1522,36 +1557,52 @@
     </div>
 
     <script>
-        function showFareSummaryOneWay(rideName, categoryName, price, maxPrice, tollTax, kmLimit, hrLimit, extra_km_charge, extra_hr_charge) {
+        function showFareSummaryOneWay(rideName, categoryName, price, maxPrice, tollTax, tollIncluded, gstIncluded, gstPercent, distanceKm, distanceText, durationMinutes, durationText, kmLimit, hrLimit, extra_km_charge, extra_hr_charge) {
             const modal = document.getElementById('fareSummaryModal');
             if (!modal) return;
-            
-            // Calculate GST on total amount (add GST on top, don't deduct)
-            const baseFare = price;
-            const gstAmount = (price * 5) / 100;
-            const finalTotal = price + gstAmount;
-            
-            // Update popup content for one way
-            document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
+
+            const baseFare = Number(price || 0);
+            const gstRate = Math.max(0, Number(gstPercent || 0));
+            const isGstIncluded = Boolean(gstIncluded);
+            const isTollIncluded = Boolean(tollIncluded);
+            let gstAmount = 0;
+            let finalTotal = baseFare;
+
+            if (gstRate > 0) {
+                if (isGstIncluded) {
+                    gstAmount = baseFare * gstRate / (100 + gstRate);
+                    finalTotal = baseFare;
+                } else {
+                    gstAmount = baseFare * gstRate / 100;
+                    finalTotal = baseFare + gstAmount;
+                }
+            }
+
+            document.getElementById('carCategory').textContent = categoryName;
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
-            document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
+            document.getElementById('gstLabel').textContent = 'GST (' + gstRate + '%):';
+            document.getElementById('gstAmount').textContent = (isGstIncluded ? 'Included ₹ ' : '₹ ') + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
-            
-            // Hide driver allowance for one way
             document.getElementById('driverAllowanceSection').style.display = 'none';
-            
-            // Show toll tax section
             document.getElementById('tollTaxSection').style.display = 'block';
-            document.getElementById('tollTaxStatus').textContent = tollTax > 0 ? 'Included' : 'Excluded';
-            
-            // Update notes for one way
-            document.getElementById('fareNotes').innerHTML = 
-                `Extra Charge After: <span id="extraKmLimit">${kmLimit}</span> KMS. will be ₹<span id="extraKmRate">${extra_km_charge}.00</span>/KM.<br>
-                Extra Charge After: <span id="extraHrLimit">${hrLimit}</span> HRS. will be ₹<span id="extraHrRate">${extra_hr_charge}.00</span>/HR.<br>
-                <strong>Toll-Tax:</strong> ${tollTax > 0 ? 'Included' : 'Excluded'} |
-                <strong>Parking:</strong> Extra (if applicable)`;
-            
-            // Show modal with animation
+            document.getElementById('tollTaxStatus').textContent = isTollIncluded ? 'Included' : (Number(tollTax || 0) > 0 ? 'Extra ₹ ' + Math.round(Number(tollTax)) : 'Excluded');
+            document.getElementById('tollTaxStatus').className = 'font-semibold ' + (isTollIncluded ? 'text-green-600' : 'text-red-600');
+
+            const routeDistance = distanceText || (Number(distanceKm || 0) > 0 ? Number(distanceKm).toFixed(1) + ' km' : 'Unavailable');
+            const routeDuration = durationText || (Number(durationMinutes || 0) > 0 ? Math.floor(Number(durationMinutes) / 60) + ' hr ' + (Number(durationMinutes) % 60) + ' min' : 'Unavailable');
+            const gstNote = gstRate > 0
+                ? `<strong>GST @ ${gstRate}%:</strong> ${isGstIncluded ? 'Included in displayed fare' : 'Extra as shown above'}<br>`
+                : '';
+
+            document.getElementById('fareNotes').innerHTML =
+                `<strong>Google Route Distance:</strong> ${routeDistance}<br>
+                 <strong>Estimated Driving Time:</strong> ${routeDuration}<br>
+                 ${gstNote}
+                 Extra Charge After: ${kmLimit} KMS. will be ₹${Number(extra_km_charge || 0).toFixed(2)}/KM.<br>
+                 Extra Charge After: ${hrLimit} HRS. will be ₹${Number(extra_hr_charge || 0).toFixed(2)}/HR.<br>
+                 <strong>Toll-Tax:</strong> ${isTollIncluded ? 'Included' : 'As applicable'} |
+                 <strong>Parking:</strong> Extra if not included in package`;
+
             modal.classList.remove('hidden');
             setTimeout(() => {
                 modal.querySelector('.transform').classList.remove('scale-95');
@@ -1571,6 +1622,7 @@
             // Update popup content for local
             document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
+            document.getElementById('gstLabel').textContent = 'GST (5%):';
             document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
             
@@ -1610,6 +1662,7 @@
             // Update popup content for self drive
             document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
+            document.getElementById('gstLabel').textContent = 'GST (5%):';
             document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
             
@@ -1709,36 +1762,52 @@
         @media(max-width:700px){.product-ride-theme{padding-left:.5rem!important;padding-right:.5rem!important}.product-premium-header{padding:17px;border-radius:20px}.product-premium-header h1{font-size:1.45rem}.product-trip-summary{padding:14px;border-radius:18px}.product-trip-route{align-items:flex-start}.product-trip-route button{width:42px;height:42px;padding:0!important}.product-trip-route button .hidden{display:none!important}.product-ride-card{grid-template-columns:1fr}.product-ride-card .ride-package-media{min-height:165px;border-right:0;border-bottom:1px solid #eef2f7}.product-ride-card .ride-package-media img{height:130px}.product-ride-card .ride-package-content{padding:17px}.product-ride-card .ride-package-price{border-left:0;border-top:1px solid #edf2f7;padding:16px}.product-ride-card .ride-package-price del,.product-ride-card .ride-package-price>strong{text-align:left}.product-toolbar{display:flex!important}.product-breadcrumb{font-size:.75rem}}
     </style>
     <script>
-        function showFareSummaryOneWay(rideName, categoryName, price, maxPrice, tollTax, kmLimit, hrLimit, extra_km_charge, extra_hr_charge) {
+        function showFareSummaryOneWay(rideName, categoryName, price, maxPrice, tollTax, tollIncluded, gstIncluded, gstPercent, distanceKm, distanceText, durationMinutes, durationText, kmLimit, hrLimit, extra_km_charge, extra_hr_charge) {
             const modal = document.getElementById('fareSummaryModal');
             if (!modal) return;
-            
-            // Calculate GST on total amount (add GST on top, don't deduct)
-            const baseFare = price;
-            const gstAmount = (price * 5) / 100;
-            const finalTotal = price + gstAmount;
-            
-            // Update popup content for one way
-            document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
+
+            const baseFare = Number(price || 0);
+            const gstRate = Math.max(0, Number(gstPercent || 0));
+            const isGstIncluded = Boolean(gstIncluded);
+            const isTollIncluded = Boolean(tollIncluded);
+            let gstAmount = 0;
+            let finalTotal = baseFare;
+
+            if (gstRate > 0) {
+                if (isGstIncluded) {
+                    gstAmount = baseFare * gstRate / (100 + gstRate);
+                    finalTotal = baseFare;
+                } else {
+                    gstAmount = baseFare * gstRate / 100;
+                    finalTotal = baseFare + gstAmount;
+                }
+            }
+
+            document.getElementById('carCategory').textContent = categoryName;
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
-            document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
+            document.getElementById('gstLabel').textContent = 'GST (' + gstRate + '%):';
+            document.getElementById('gstAmount').textContent = (isGstIncluded ? 'Included ₹ ' : '₹ ') + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
-            
-            // Hide driver allowance for one way
             document.getElementById('driverAllowanceSection').style.display = 'none';
-            
-            // Show toll tax section
             document.getElementById('tollTaxSection').style.display = 'block';
-            document.getElementById('tollTaxStatus').textContent = tollTax > 0 ? 'Included' : 'Excluded';
-            
-            // Update notes for one way
-            document.getElementById('fareNotes').innerHTML = 
-                `Extra Charge After: <span id="extraKmLimit">${kmLimit}</span> KMS. will be ₹<span id="extraKmRate">${extra_km_charge}.00</span>/KM.<br>
-                Extra Charge After: <span id="extraHrLimit">${hrLimit}</span> HRS. will be ₹<span id="extraHrRate">${extra_hr_charge}.00</span>/HR.<br>
-                <strong>Toll-Tax:</strong> ${tollTax > 0 ? 'Included' : 'Excluded'} |
-                <strong>Parking:</strong> Extra (if applicable)`;
-            
-            // Show modal with animation
+            document.getElementById('tollTaxStatus').textContent = isTollIncluded ? 'Included' : (Number(tollTax || 0) > 0 ? 'Extra ₹ ' + Math.round(Number(tollTax)) : 'Excluded');
+            document.getElementById('tollTaxStatus').className = 'font-semibold ' + (isTollIncluded ? 'text-green-600' : 'text-red-600');
+
+            const routeDistance = distanceText || (Number(distanceKm || 0) > 0 ? Number(distanceKm).toFixed(1) + ' km' : 'Unavailable');
+            const routeDuration = durationText || (Number(durationMinutes || 0) > 0 ? Math.floor(Number(durationMinutes) / 60) + ' hr ' + (Number(durationMinutes) % 60) + ' min' : 'Unavailable');
+            const gstNote = gstRate > 0
+                ? `<strong>GST @ ${gstRate}%:</strong> ${isGstIncluded ? 'Included in displayed fare' : 'Extra as shown above'}<br>`
+                : '';
+
+            document.getElementById('fareNotes').innerHTML =
+                `<strong>Google Route Distance:</strong> ${routeDistance}<br>
+                 <strong>Estimated Driving Time:</strong> ${routeDuration}<br>
+                 ${gstNote}
+                 Extra Charge After: ${kmLimit} KMS. will be ₹${Number(extra_km_charge || 0).toFixed(2)}/KM.<br>
+                 Extra Charge After: ${hrLimit} HRS. will be ₹${Number(extra_hr_charge || 0).toFixed(2)}/HR.<br>
+                 <strong>Toll-Tax:</strong> ${isTollIncluded ? 'Included' : 'As applicable'} |
+                 <strong>Parking:</strong> Extra if not included in package`;
+
             modal.classList.remove('hidden');
             setTimeout(() => {
                 modal.querySelector('.transform').classList.remove('scale-95');
@@ -1758,6 +1827,7 @@
             // Update popup content for local
             document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
+            document.getElementById('gstLabel').textContent = 'GST (5%):';
             document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
             
@@ -1797,6 +1867,7 @@
             // Update popup content for self drive
             document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
             document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
+            document.getElementById('gstLabel').textContent = 'GST (5%):';
             document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
             document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
             
