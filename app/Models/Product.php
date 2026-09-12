@@ -74,6 +74,16 @@ class Product extends Model
         'toll_tax',
         'border_tax',
         'driver_allowances',
+
+        'toll_included',
+        'gst_included',
+        'gst_percentage',
+        'pat_charge',
+        'roof_carrier_charge',
+        'parking_included',
+        'state_tax_included',
+        'night_charge',
+
         'plan',
 
         'meta_title',
@@ -124,6 +134,16 @@ class Product extends Model
         'toll_tax' => 'decimal:2',
         'border_tax' => 'decimal:2',
         'driver_allowances' => 'decimal:2',
+
+        'toll_included' => 'boolean',
+        'gst_included' => 'boolean',
+        'parking_included' => 'boolean',
+        'state_tax_included' => 'boolean',
+
+        'gst_percentage' => 'decimal:2',
+        'pat_charge' => 'decimal:2',
+        'roof_carrier_charge' => 'decimal:2',
+        'night_charge' => 'decimal:2',
     ];
 
     protected $attributes = [
