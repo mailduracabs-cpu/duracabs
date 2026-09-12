@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Services\OtpService;
+use App\Services\FareService;
 use App\Services\SeoAutoLinkService;
 use App\Models\Brand;
 use App\Models\Product;
@@ -46,6 +47,15 @@ class ProductDetailedPage extends Component
     public $petFrindly = false;
     public $roof_career = false;
     public $security = false;
+
+    // One Way optional charges + authoritative fare breakup
+    public ?int $selectedPriceId = null;
+    public bool $patSelected = false;
+    public bool $roofCarrierSelected = false;
+    public bool $nightChargeSelected = false;
+    public array $oneWayFareBreakup = [];
+    public float $oneWaySubtotal = 0.0;
+    public float $oneWayTotal = 0.0;
 
     public $quantity = 1;
 
@@ -122,14 +132,21 @@ class ProductDetailedPage extends Component
     
 }
 
-public function submitOneWay($productId)
+public function submitOneWay($priceId = null)
 {
     $this->validate([
         'date' => ['required', 'date'],
         'time' => ['required'],
     ]);
 
-    return $this->storeBookingDraft('one_way', $productId, __FUNCTION__);
+    $resolvedPriceId = (int) ($priceId ?: $this->selectedPriceId);
+
+    if ($resolvedPriceId <= 0) {
+        $this->addError('price', 'Please select a vehicle fare again.');
+        return null;
+    }
+
+    return $this->storeBookingDraft('one_way', $resolvedPriceId, __FUNCTION__);
 }
 
 public function submitLocal($productId)
@@ -346,8 +363,36 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
             $selectedPrice = $ride->prices->firstWhere('id', (int) $selectionId);
             $unitPrice = (float) ($selectedPrice?->price ?? $this->price ?? 0);
 
+            $farePayload = null;
+
+            if ($bookingType === 'one_way') {
+                if (! $selectedPrice || ! $selectedPrice->category_id) {
+                    throw new \RuntimeException('ONE_WAY_PRICE_UNAVAILABLE');
+                }
+
+                $farePayload = app(FareService::class)->estimate([
+                    'route_id' => (int) $ride->getKey(),
+                    'category_id' => (int) $selectedPrice->category_id,
+                    'pat_selected' => $this->patSelected,
+                    'roof_carrier_selected' => $this->roofCarrierSelected,
+                    'night_charge_selected' => $this->nightChargeSelected,
+                ]);
+
+                $this->oneWayFareBreakup = (array) ($farePayload['fare_breakup'] ?? []);
+                $this->oneWaySubtotal = (float) ($farePayload['subtotal'] ?? 0);
+                $this->oneWayTotal = (float) ($farePayload['total_fare'] ?? 0);
+            }
+
+            $bookingSubtotal = $bookingType === 'one_way'
+                ? (float) ($farePayload['subtotal'] ?? $unitPrice)
+                : ($unitPrice * $quantity);
+
+            $bookingTotal = $bookingType === 'one_way'
+                ? (float) ($farePayload['total_fare'] ?? $bookingSubtotal)
+                : $bookingSubtotal;
+
             session()->put('booking_draft', [
-                'version' => 1,
+                'version' => $bookingType === 'one_way' ? 2 : 1,
                 'type' => $bookingType,
                 'source' => 'product_detailed_page',
                 'selection_id' => is_numeric($selectionId) ? (int) $selectionId : $selectionId,
@@ -372,10 +417,54 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
                 ],
                 'fare' => [
                     'unit_price' => $unitPrice,
+                    'base_fare' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['base_fare'] ?? $unitPrice)
+                        : $unitPrice,
                     'quantity' => $quantity,
-                    'subtotal' => $unitPrice * $quantity,
-                    'display_price' => $this->price,
+                    'subtotal' => $bookingSubtotal,
+                    'taxable_amount' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['taxable_amount'] ?? $bookingSubtotal)
+                        : $bookingSubtotal,
+                    'gst_included' => $bookingType === 'one_way'
+                        ? (bool) ($farePayload['fare_breakup']['gst_included'] ?? false)
+                        : false,
+                    'gst_percent' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['gst_percent'] ?? 0)
+                        : 0.0,
+                    'gst_amount' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['gst_amount'] ?? 0)
+                        : 0.0,
+                    'pat_selected' => $bookingType === 'one_way' ? $this->patSelected : false,
+                    'pat_charge' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['pat_charge'] ?? 0)
+                        : 0.0,
+                    'roof_carrier_selected' => $bookingType === 'one_way' ? $this->roofCarrierSelected : false,
+                    'roof_carrier_charge' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['roof_carrier_charge'] ?? 0)
+                        : 0.0,
+                    'night_charge_selected' => $bookingType === 'one_way' ? $this->nightChargeSelected : false,
+                    'night_charge' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['night_charge'] ?? 0)
+                        : 0.0,
+                    'toll_included' => $bookingType === 'one_way'
+                        ? (bool) ($farePayload['fare_breakup']['toll_included'] ?? false)
+                        : false,
+                    'toll_payable' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['toll_payable'] ?? 0)
+                        : (float) $this->toll,
+                    'state_tax_included' => $bookingType === 'one_way'
+                        ? (bool) ($farePayload['fare_breakup']['state_tax_included'] ?? false)
+                        : false,
+                    'border_tax_payable' => $bookingType === 'one_way'
+                        ? (float) ($farePayload['fare_breakup']['border_tax_payable'] ?? 0)
+                        : 0.0,
+                    'total' => $bookingTotal,
+                    'total_fare' => $bookingTotal,
+                    'display_price' => $bookingType === 'one_way' ? $bookingTotal : $this->price,
                     'toll' => $this->toll,
+                    'breakup' => $bookingType === 'one_way'
+                        ? (array) ($farePayload['fare_breakup'] ?? [])
+                        : [],
                 ],
                 'product' => [
                     'slug' => (string) $ride->slug,
@@ -407,6 +496,7 @@ private function storeBookingDraft(string $bookingType, mixed $selectionId, stri
             'SELF_DRIVE_PERIOD_INVALID' => 'Pickup aur return date-time sahi select karein.',
             'SELF_DRIVE_PRICE_UNAVAILABLE' => 'Is vehicle ka hourly price available nahi hai.',
             'SELF_DRIVE_VEHICLE_ALREADY_BOOKED' => 'This car is not available on your selected dates. Please choose another date or time.',
+            'ONE_WAY_PRICE_UNAVAILABLE' => 'Selected One Way fare available nahi hai. Vehicle dobara select karein.',
             default => 'Booking start nahi ho saki. Page refresh karke dobara try karein.',
         };
 
@@ -506,12 +596,10 @@ private function selfDriveDateTimes(): array
 }
 
 
-public function tabValue($val){
-
+public function tabValue($val)
+{
     $requestedTab = is_array($val) ? ($val[0] ?? null) : null;
 
-    // For Self Drive, first let the customer select pickup/drop date and time.
-    // OTP/login happens only after the selected vehicle is confirmed available.
     if (! $this->fareUnlocked && $requestedTab !== 'self_drive') {
         $this->pendingTabValue = is_array($val) ? $val : null;
         $this->openFareGate();
@@ -524,24 +612,88 @@ public function tabValue($val){
     $this->name = $val[2];
     $this->categoryName = $val[3];
 
-    if($this->tab == 'one_way' || $this->tab == 'local'){
-        $this->toll = $val[4];
-        $this->newVehical = $val[5];
-        $this->petFrindly = $val[6];
-        $this->roof_career = $val[7];
+    if ($this->tab === 'one_way' || $this->tab === 'local') {
+        $this->toll = $val[4] ?? 0;
+        $this->newVehical = $val[5] ?? false;
+        $this->petFrindly = $val[6] ?? false;
+        $this->roof_career = $val[7] ?? false;
     }
 
-    if($this->tab == 'self_drive'){
+    if ($this->tab === 'one_way') {
+        $this->selectedPriceId = isset($val[8]) ? (int) $val[8] : null;
+        $this->patSelected = false;
+        $this->roofCarrierSelected = false;
+        $this->nightChargeSelected = false;
+        $this->refreshOneWayFare();
+    }
+
+    if ($this->tab === 'self_drive') {
         $this->security = $val[4];
-       
     }
-   
 }
-    
 
-    
+public function updatedPatSelected(): void
+{
+    $this->refreshOneWayFare();
+}
 
-    public function increaseQty(){
+public function updatedRoofCarrierSelected(): void
+{
+    $this->refreshOneWayFare();
+}
+
+public function updatedNightChargeSelected(): void
+{
+    $this->refreshOneWayFare();
+}
+
+private function refreshOneWayFare(): void
+{
+    if ($this->tab !== 'one_way' || ! $this->selectedPriceId) {
+        return;
+    }
+
+    try {
+        $ride = Product::query()
+            ->with('prices')
+            ->where('slug', $this->slug)
+            ->where('is_active', 1)
+            ->firstOrFail();
+
+        $selectedPrice = $ride->prices->firstWhere('id', $this->selectedPriceId);
+
+        if (! $selectedPrice || ! $selectedPrice->category_id) {
+            $this->oneWayFareBreakup = [];
+            $this->oneWaySubtotal = 0.0;
+            $this->oneWayTotal = 0.0;
+            return;
+        }
+
+        $fare = app(FareService::class)->estimate([
+            'route_id' => (int) $ride->getKey(),
+            'category_id' => (int) $selectedPrice->category_id,
+            'pat_selected' => $this->patSelected,
+            'roof_carrier_selected' => $this->roofCarrierSelected,
+            'night_charge_selected' => $this->nightChargeSelected,
+        ]);
+
+        $this->oneWayFareBreakup = (array) ($fare['fare_breakup'] ?? []);
+        $this->oneWaySubtotal = (float) ($fare['subtotal'] ?? 0);
+        $this->oneWayTotal = (float) ($fare['total_fare'] ?? 0);
+    } catch (\Throwable $e) {
+        Log::warning('One Way live fare calculation failed', [
+            'slug' => $this->slug,
+            'price_id' => $this->selectedPriceId,
+            'error' => $e->getMessage(),
+        ]);
+
+        $this->oneWayFareBreakup = [];
+        $this->oneWaySubtotal = 0.0;
+        $this->oneWayTotal = 0.0;
+    }
+}
+
+public function increaseQty(){
         $this->quantity++;
     }
 

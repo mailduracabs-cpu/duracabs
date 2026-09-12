@@ -180,49 +180,93 @@
    
 
  @if ($tab === 'one_way')
-        <div class="fixed  z-50 inset-0 bg-gray-900 bg-opacity-60 overflow-y-auto h-full w-full px-4 ">
-            <div class="relative top-40 mx-auto shadow-xl rounded-md bg-white max-w-md">
+        @php
+            $ow = $oneWayFareBreakup ?? [];
+            $baseFare = (float) ($ow['base_fare'] ?? $price ?? 0);
+            $patAmount = (float) ($ride->pat_charge ?? 0);
+            $roofAmount = (float) ($ride->roof_carrier_charge ?? 0);
+            $nightAmount = (float) ($ride->night_charge ?? 0);
+            $gstPercentValue = (float) ($ow['gst_percent'] ?? $ride->gst_percentage ?? 0);
+            $gstAmountValue = (float) ($ow['gst_amount'] ?? 0);
+            $taxableAmountValue = (float) ($ow['taxable_amount'] ?? $oneWaySubtotal ?? $baseFare);
+            $finalFareValue = (float) ($oneWayTotal ?: $baseFare);
+        @endphp
 
+        <div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/65 px-4 py-6">
+            <div class="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
+                <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-wide text-sky-700">One Way Booking</p>
+                        <h3 class="text-xl font-black text-slate-900">{{ $categoryName }}</h3>
+                    </div>
+                    <button type="button" wire:click="$set('tab', false)" class="rounded-full bg-slate-100 px-3 py-2 font-bold text-slate-600 hover:bg-slate-200">✕</button>
+                </div>
 
-                <form
-                    wire:submit.prevent='submitOneWay([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $price }}","{{ $name }}", "{{ $categoryName }}", "{{ $toll }}", "{{ $newVehical }}", "{{ $petFrindly }}", "{{ $roof_career }}"])'>
-                    <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
-                        <div class="flex">
-
-                            <div class="mt-3 w-full text-center sm:ml-4 sm:mt-0 sm:text-left">
-                                <h3 class="text-2xl text-center font-semibold leading-6 text-gray-900" id="modal-title">
-                                    Pickup Details
-                                </h3>
-                                <div class="mt-2 w-full">
-
-                                    <div class="">
-                                        <label for="" class="font-semibold">PickUp Date</label>
-                                        <input type="date" wire:model.live='date' maxlength="4" placeholder="date"
-                                            required
-                                            class="arriveDate bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
-                                    </div>
-                                    <div class="mt-3">
-                                        <label for="" class="font-semibold">PickUp Time</label>
-                                        <input type="time" wire:model.live='time' maxlength="4" placeholder="time"
-                                            required
-                                            class="arriveTime bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
-                                    </div>
-
-                                    <button type='submit'
-                                        class="main-color mt-4 text-xl w-full text-white p-2 rounded-sm">
-                                        Book Now
-                                    </button>
-
-
-
-
-                                </div>
+                <form wire:submit.prevent="submitOneWay({{ (int) ($selectedPriceId ?? 0) }})">
+                    <div class="space-y-5 p-5 sm:p-6">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="mb-2 block text-sm font-bold text-slate-800">Pickup Date</label>
+                                <input type="date" min="{{ now()->toDateString() }}" wire:model.live="date" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-sky-500 focus:ring-sky-100">
+                                @error('date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-2 block text-sm font-bold text-slate-800">Pickup Time</label>
+                                <input type="time" wire:model.live="time" required class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm text-slate-900 focus:border-sky-500 focus:ring-sky-100">
+                                @error('time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
+
+                        @if ($patAmount > 0 || $roofAmount > 0 || $nightAmount > 0)
+                            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p class="mb-3 text-sm font-black text-slate-900">Optional Add-ons</p>
+                                <div class="space-y-3">
+                                    @if ($patAmount > 0)
+                                        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
+                                            <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="patSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">PAT</span><span class="block text-xs text-slate-500">Optional route add-on</span></span></span>
+                                            <strong class="text-sm text-slate-900">+{{ Number::currency($patAmount, 'INR') }}</strong>
+                                        </label>
+                                    @endif
+                                    @if ($roofAmount > 0)
+                                        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
+                                            <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="roofCarrierSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Roof Carrier</span><span class="block text-xs text-slate-500">For extra luggage</span></span></span>
+                                            <strong class="text-sm text-slate-900">+{{ Number::currency($roofAmount, 'INR') }}</strong>
+                                        </label>
+                                    @endif
+                                    @if ($nightAmount > 0)
+                                        <label class="flex cursor-pointer items-center justify-between gap-4 rounded-xl bg-white px-4 py-3 shadow-sm">
+                                            <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="nightChargeSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Night Charge</span><span class="block text-xs text-slate-500">Select if applicable</span></span></span>
+                                            <strong class="text-sm text-slate-900">+{{ Number::currency($nightAmount, 'INR') }}</strong>
+                                        </label>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
+
+                        <div class="overflow-hidden rounded-2xl border border-slate-200">
+                            <div class="bg-slate-900 px-4 py-3 text-sm font-black text-white">Fare Summary</div>
+                            <div class="space-y-2 px-4 py-4 text-sm">
+                                <div class="flex items-center justify-between"><span class="text-slate-600">Base Fare</span><strong>{{ Number::currency($baseFare, 'INR') }}</strong></div>
+                                @if ($patSelected && (float) ($ow['pat_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">PAT</span><strong>+{{ Number::currency((float) $ow['pat_charge'], 'INR') }}</strong></div>@endif
+                                @if ($roofCarrierSelected && (float) ($ow['roof_carrier_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Roof Carrier</span><strong>+{{ Number::currency((float) $ow['roof_carrier_charge'], 'INR') }}</strong></div>@endif
+                                @if ($nightChargeSelected && (float) ($ow['night_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Night Charge</span><strong>+{{ Number::currency((float) $ow['night_charge'], 'INR') }}</strong></div>@endif
+                                @if ((float) ($ow['toll_payable'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Toll</span><strong>+{{ Number::currency((float) $ow['toll_payable'], 'INR') }}</strong></div>@elseif (!empty($ow['toll_included']))<div class="flex items-center justify-between text-emerald-700"><span>Toll</span><strong>Included</strong></div>@endif
+                                @if ((float) ($ow['border_tax_payable'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">State / Border Tax</span><strong>+{{ Number::currency((float) $ow['border_tax_payable'], 'INR') }}</strong></div>@elseif (!empty($ow['state_tax_included']))<div class="flex items-center justify-between text-emerald-700"><span>State Tax</span><strong>Included</strong></div>@endif
+                                <div class="my-2 border-t border-dashed border-slate-200"></div>
+                                @if (!empty($ow['gst_included']))
+                                    <div class="flex items-center justify-between"><span class="text-slate-600">Taxable Amount</span><strong>{{ Number::currency($taxableAmountValue, 'INR') }}</strong></div>
+                                    <div class="flex items-center justify-between text-emerald-700"><span>GST @ {{ rtrim(rtrim(number_format($gstPercentValue, 2), '0'), '.') }}% Included</span><strong>{{ Number::currency($gstAmountValue, 'INR') }}</strong></div>
+                                @elseif ($gstPercentValue > 0)
+                                    <div class="flex items-center justify-between"><span class="text-slate-600">GST @ {{ rtrim(rtrim(number_format($gstPercentValue, 2), '0'), '.') }}%</span><strong>+{{ Number::currency($gstAmountValue, 'INR') }}</strong></div>
+                                @endif
+                                <div class="mt-3 flex items-center justify-between rounded-xl bg-sky-50 px-3 py-3"><span class="font-black text-slate-900">Final Fare</span><strong class="text-xl text-sky-700">{{ Number::currency($finalFareValue, 'INR') }}</strong></div>
+                            </div>
+                        </div>
+
+                        @error('price') <p class="text-sm font-semibold text-red-600">{{ $message }}</p> @enderror
+                        <button type="submit" wire:loading.attr="disabled" wire:target="submitOneWay" class="main-color w-full rounded-xl p-3 text-lg font-black text-white disabled:opacity-60"><span wire:loading.remove wire:target="submitOneWay">Book Now · {{ Number::currency($finalFareValue, 'INR') }}</span><span wire:loading wire:target="submitOneWay">Preparing Booking...</span></button>
                     </div>
-
                 </form>
-
             </div>
         </div>
     @endif
@@ -835,7 +879,7 @@
 
                                         @if ($ride->ride_type === 'one_way')
                                             <button type="button"
-                                                wire:click='tabValue(["one_way","{{ $price->price }}","{{ $ride->name }}","{{ $price->category->name }}", "{{ $ride->toll_tax }}","{{ $price->category->new_vehicle }}","{{ $price->category->pet_friendly }}","{{ $price->category->roof_career }}"])'
+                                                wire:click='tabValue(["one_way","{{ $price->price }}","{{ $ride->name }}","{{ $price->category->name }}", "{{ $ride->toll_tax }}","{{ $price->category->new_vehicle }}","{{ $price->category->pet_friendly }}","{{ $price->category->roof_career }}","{{ $price->id }}"])'
                                                 wire:loading.attr="disabled"
                                                 class="ride-select-button">
                                                 <span wire:loading.remove>Select Vehicle</span>
