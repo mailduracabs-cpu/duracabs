@@ -1438,7 +1438,22 @@
                                                 </a>
                                             @else
                                                 <button type="button"
-                                                    onclick="showFareSummaryOneWay('{{ addslashes($ride->name) }}', '{{ addslashes($price->category->name) }}', {{ $displayPrice }}, {{ $displayMaxPrice }}, {{ $ride->toll_tax ?? 0 }}, {{ $ride->km_limit ?? 0 }}, {{ $ride->hr_limit ?? 0 }}, {{ $ride->extra_km_charge ?? 0 }}, {{ $ride->extra_hr_charge ?? 0 }})"
+                                                    onclick="showFareSummaryOneWay(
+                                                        @js((string) $ride->name),
+                                                        @js((string) $price->category->name),
+                                                        {{ (float) $displayPrice }},
+                                                        {{ (float) $displayMaxPrice }},
+                                                        {{ (float) ($ride->toll_tax ?? 0) }},
+                                                        {{ (float) ($ride->km_limit ?? 0) }},
+                                                        {{ (float) ($ride->hr_limit ?? 0) }},
+                                                        {{ (float) ($price->category->extra_km_charge ?? $price->category->km_charge ?? 0) }},
+                                                        {{ (float) ($price->category->extra_hr_charge ?? 0) }},
+                                                        @js((bool) ($ride->toll_included ?? false)),
+                                                        @js((bool) ($ride->state_tax_included ?? false)),
+                                                        {{ (float) ($ride->border_tax ?? 0) }},
+                                                        @js((bool) ($ride->gst_included ?? false)),
+                                                        {{ (float) ($ride->gst_percentage ?? 5) }}
+                                                    )"
                                                     class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
                                                     <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
                                                 </button>
@@ -1666,7 +1681,7 @@
                     </div>
 
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                        <span class="text-gray-600 font-medium">GST (5%):</span>
+                        <span class="text-gray-600 font-medium">GST (<span id="gstPercentLabel">5</span>%):</span>
                         <span id="gstAmount" class="font-semibold text-gray-900"></span>
                     </div>
                 </div>
@@ -1689,7 +1704,8 @@
                                 Excess distance charges apply after <span id="extraKmLimit"></span> km at ₹<span
                                     id="extraKmRate"></span>/km.<br>
                                 Night allowance after 8:00 PM: ₹0<br>
-                                <strong>Toll-Tax:</strong> Excluded |
+                                <strong>Toll-Tax:</strong> <span id="fareNoteTollStatus">Excluded</span> |
+                                <strong>State Tax:</strong> <span id="fareNoteStateTaxStatus">Excluded</span> |
                                 <strong>Parking:</strong> Extra (if applicable)
                             </div>
                         </div>
@@ -2015,5 +2031,121 @@
         </div>
     </div>
 </template>
+
+
+<script>
+    /*
+     * One Way fare-details display.
+     * All configurable rates come from the selected Price/Category and Product
+     * records rendered by Laravel. Checkout/booking totals remain authoritative
+     * in FareService; this function only mirrors that configuration in the modal.
+     */
+    window.showFareSummaryOneWay = function (
+        rideName,
+        categoryName,
+        price,
+        maxPrice,
+        tollTax,
+        kmLimit,
+        hrLimit,
+        extraKmRate,
+        extraHrRate,
+        tollIncluded,
+        stateTaxIncluded,
+        stateTax,
+        gstIncluded,
+        gstPercent
+    ) {
+        const money = (value) => '₹ ' + Number(value || 0).toLocaleString('en-IN', {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        });
+
+        const baseFare = Number(price || 0);
+        const tollAmount = Number(tollTax || 0);
+        const stateTaxAmount = Number(stateTax || 0);
+        const gstRate = Math.max(0, Number(gstPercent || 0));
+
+        const payableToll = tollIncluded ? 0 : tollAmount;
+        const payableStateTax = stateTaxIncluded ? 0 : stateTaxAmount;
+        const subtotalBeforeGst = baseFare + payableToll + payableStateTax;
+
+        let gstAmount = 0;
+        let total = subtotalBeforeGst;
+
+        if (gstRate > 0) {
+            if (gstIncluded) {
+                gstAmount = subtotalBeforeGst * gstRate / (100 + gstRate);
+            } else {
+                gstAmount = subtotalBeforeGst * gstRate / 100;
+                total += gstAmount;
+            }
+        }
+
+        const setText = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+
+        setText('carCategory', categoryName || rideName || 'Cab');
+        setText('baseFare', money(baseFare));
+        setText('gstPercentLabel', gstRate.toLocaleString('en-IN', { maximumFractionDigits: 2 }));
+        setText(
+            'gstAmount',
+            gstRate <= 0
+                ? 'Not Applicable'
+                : (gstIncluded ? `${money(gstAmount)} (Included)` : money(gstAmount))
+        );
+        setText('totalPrice', money(total));
+
+        setText('tollTaxStatus', tollIncluded ? 'Included' : (tollAmount > 0 ? money(tollAmount) : 'As Actual'));
+        setText('fareNoteTollStatus', tollIncluded ? 'Included' : (tollAmount > 0 ? money(tollAmount) : 'As Actual'));
+        setText('fareNoteStateTaxStatus', stateTaxIncluded ? 'Included' : (stateTaxAmount > 0 ? money(stateTaxAmount) : 'As Actual'));
+
+        setText('extraKmLimit', Number(kmLimit || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }));
+        setText('extraKmRate', Number(extraKmRate || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 }));
+
+        const notes = document.getElementById('fareNotes');
+        if (notes) {
+            const kmText = Number(kmLimit || 0) > 0
+                ? `Extra charge after ${Number(kmLimit).toLocaleString('en-IN')} KMS: ₹${Number(extraKmRate || 0).toLocaleString('en-IN')}/KM.`
+                : `Extra KM charge: ₹${Number(extraKmRate || 0).toLocaleString('en-IN')}/KM.`;
+
+            const hourText = Number(hrLimit || 0) > 0
+                ? `Extra charge after ${Number(hrLimit).toLocaleString('en-IN')} HRS: ₹${Number(extraHrRate || 0).toLocaleString('en-IN')}/HR.`
+                : `Extra Hour charge: ₹${Number(extraHrRate || 0).toLocaleString('en-IN')}/HR.`;
+
+            notes.innerHTML = `
+                One way trip — one pickup and one drop. Extra pickup or drop is chargeable.<br>
+                <strong>Toll-Tax:</strong> ${tollIncluded ? 'Included' : (tollAmount > 0 ? money(tollAmount) : 'As Actual')} |
+                <strong>State Tax:</strong> ${stateTaxIncluded ? 'Included' : (stateTaxAmount > 0 ? money(stateTaxAmount) : 'As Actual')} |
+                <strong>Parking:</strong> Extra (if applicable)<br>
+                ${kmText}<br>
+                ${hourText}
+            `;
+        }
+
+        const tollStatus = document.getElementById('tollTaxStatus');
+        if (tollStatus) {
+            tollStatus.classList.toggle('text-green-600', Boolean(tollIncluded));
+            tollStatus.classList.toggle('text-red-600', !tollIncluded);
+        }
+
+        const modal = document.getElementById('fareSummaryModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            document.documentElement.classList.add('overflow-hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+    };
+
+    window.closeFareSummary = function () {
+        const modal = document.getElementById('fareSummaryModal');
+        if (modal) modal.classList.add('hidden');
+
+        document.documentElement.classList.remove('overflow-hidden');
+        document.body.classList.remove('overflow-hidden');
+    };
+</script>
 
 </div>
