@@ -1939,6 +1939,7 @@
     </div>@endteleport
 </div>
 
+@if ($this instanceof \App\Livewire\ServiceSearchPanel)
 @script
 <script>
     (() => {
@@ -1972,4 +1973,5 @@
     })();
 </script>
 @endscript
+@endif
 
