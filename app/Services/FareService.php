@@ -155,17 +155,26 @@ class FareService
             FILTER_VALIDATE_BOOLEAN
         );
 
-        // Extra Pickup / Drop are checkout-only One Way add-ons.
-        // They are chargeable only when the stop is on the main route.
-        $extraPickupCharge = $extraPickupSelected ? 500.0 : 0.0;
-        $extraDropCharge = $extraDropSelected ? 500.0 : 0.0;
+        /*
+         * All One Way add-on prices are category-authoritative.
+         * Extra Pickup / Drop are valid only when the stop is on the main route.
+         * The legacy request key pat_selected is retained for API compatibility,
+         * but it represents the Pet Friendly option.
+         */
+        $extraPickupCharge = $extraPickupSelected
+            ? max(0, (float) ($category?->extra_pickup_charge ?? 0))
+            : 0.0;
+
+        $extraDropCharge = $extraDropSelected
+            ? max(0, (float) ($category?->extra_drop_charge ?? 0))
+            : 0.0;
 
         $patCharge = $patSelected
-            ? max(0, (float) ($route->pat_charge ?? 0))
+            ? max(0, (float) ($category?->pet_friendly_charge ?? 0))
             : 0.0;
 
         $roofCarrierCharge = $roofCarrierSelected
-            ? max(0, (float) ($route->roof_carrier_charge ?? 0))
+            ? max(0, (float) ($category?->roof_carrier_charge ?? 0))
             : 0.0;
 
         /*
@@ -232,6 +241,12 @@ class FareService
                 'name' => $category->name,
                 'slug' => $category->slug,
                 'model' => $category->model,
+                'extra_km_charge' => (float) ($category->extra_km_charge ?? 0),
+                'extra_hr_charge' => (float) ($category->extra_hr_charge ?? 0),
+                'pet_friendly_charge' => (float) ($category->pet_friendly_charge ?? 0),
+                'roof_carrier_charge' => (float) ($category->roof_carrier_charge ?? 0),
+                'extra_pickup_charge' => (float) ($category->extra_pickup_charge ?? 0),
+                'extra_drop_charge' => (float) ($category->extra_drop_charge ?? 0),
             ] : null,
 
             'price_id' => $routePrice?->id,

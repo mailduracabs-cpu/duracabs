@@ -120,6 +120,38 @@ class CategoryResource extends Resource
                                     ->helperText('One Way: included hour limit ke baad per hour charge.')
                                     ->placeholder('150'),
 
+                                TextInput::make('pet_friendly_charge')
+                                    ->label('Pet Friendly Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->default(200)
+                                    ->helperText('Checkout par Pet Friendly select hone par charge.')
+                                    ->placeholder('200'),
+
+                                TextInput::make('roof_carrier_charge')
+                                    ->label('Roof Carrier Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->default(300)
+                                    ->helperText('Checkout par Roof Carrier select hone par charge.')
+                                    ->placeholder('300'),
+
+                                TextInput::make('extra_pickup_charge')
+                                    ->label('Extra Pickup Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->default(500)
+                                    ->helperText('One Way checkout: additional pickup sirf main route par ho.')
+                                    ->placeholder('500'),
+
+                                TextInput::make('extra_drop_charge')
+                                    ->label('Extra Drop Charge')
+                                    ->numeric()
+                                    ->prefix('₹')
+                                    ->default(500)
+                                    ->helperText('One Way checkout: additional drop sirf main route par ho.')
+                                    ->placeholder('500'),
+
                                 TextInput::make('driver_charge')
                                     ->label('Driver Charge')
                                     ->numeric()

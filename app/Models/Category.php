@@ -37,6 +37,10 @@ class Category extends Model
         'km_charge',
         'extra_km_charge',
         'extra_hr_charge',
+        'pet_friendly_charge',
+        'roof_carrier_charge',
+        'extra_pickup_charge',
+        'extra_drop_charge',
         'driver_charge',
         'range',
 
@@ -57,6 +61,12 @@ class Category extends Model
         'new_vehicle' => 'boolean',
         'roof_career' => 'boolean',
         'pet_friendly' => 'boolean',
+        'extra_km_charge' => 'decimal:2',
+        'extra_hr_charge' => 'decimal:2',
+        'pet_friendly_charge' => 'decimal:2',
+        'roof_carrier_charge' => 'decimal:2',
+        'extra_pickup_charge' => 'decimal:2',
+        'extra_drop_charge' => 'decimal:2',
 
     ];
 

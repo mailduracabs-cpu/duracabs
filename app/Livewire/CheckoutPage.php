@@ -3,6 +3,7 @@
 namespace App\Livewire;
 
 use App\Models\Address;
+use App\Models\Category;
 use App\Models\Coupons;
 use App\Models\Order;
 use App\Models\Price;
@@ -670,9 +671,8 @@ Address::query()->create([
     }
 
     /*
-     * One Way checkout add-ons. Pet Friendly and Roof Carrier prices come
-     * from the route admin configuration. Extra Pickup / Drop are fixed at
-     * ₹500 each and are valid only when the stop is on the main route.
+     * One Way checkout add-ons are controlled from the selected Cab Category.
+     * This keeps all vehicle-specific charges in one admin screen.
      */
     if ($type === 'one_way') {
         $productId = (int) (
@@ -681,11 +681,22 @@ Address::query()->create([
             ?? 0
         );
 
-        $product = $productId > 0
-            ? Product::query()->select(['id', 'pat_charge', 'roof_carrier_charge'])->find($productId)
+        $selectionId = (int) ($this->bookingDraft['selection_id'] ?? 0);
+        $price = ($productId > 0 && $selectionId > 0)
+            ? Price::query()->where('product_id', $productId)->find($selectionId)
             : null;
 
-        if (! $product) {
+        $categoryId = (int) (
+            $price?->category_id
+            ?? data_get($this->bookingDraft, 'fare.breakup.category_id')
+            ?? 0
+        );
+
+        $category = $categoryId > 0
+            ? Category::query()->find($categoryId)
+            : null;
+
+        if (! $category) {
             $this->extraAmountArr = [];
             return;
         }
@@ -696,28 +707,28 @@ Address::query()->create([
                 'type' => 'pet_friendly',
                 'title' => 'Pet Friendly',
                 'description' => 'Travel with your pet. Subject to vehicle suitability.',
-                'price' => $this->optionPrice($product->pat_charge ?? 0),
+                'price' => $this->optionPrice($category->pet_friendly_charge ?? 0),
             ],
             [
                 'is_checked' => false,
                 'type' => 'roof_carrier',
                 'title' => 'Roof Carrier',
                 'description' => 'Roof carrier request for additional luggage.',
-                'price' => $this->optionPrice($product->roof_carrier_charge ?? 0),
+                'price' => $this->optionPrice($category->roof_carrier_charge ?? 0),
             ],
             [
                 'is_checked' => false,
                 'type' => 'extra_pickup',
                 'title' => 'Extra Pickup',
-                'description' => '₹500 — available only when the additional pickup is on the main route.',
-                'price' => 500.0,
+                'description' => 'Available only when the additional pickup is on the main route.',
+                'price' => $this->optionPrice($category->extra_pickup_charge ?? 0),
             ],
             [
                 'is_checked' => false,
                 'type' => 'extra_drop',
                 'title' => 'Extra Drop',
-                'description' => '₹500 — available only when the additional drop is on the main route.',
-                'price' => 500.0,
+                'description' => 'Available only when the additional drop is on the main route.',
+                'price' => $this->optionPrice($category->extra_drop_charge ?? 0),
             ],
         ];
 
