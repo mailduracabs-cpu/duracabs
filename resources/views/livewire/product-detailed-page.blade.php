@@ -202,8 +202,8 @@
                     <button type="button" wire:click="$set('tab', false)" class="grid h-8 w-8 place-items-center rounded-full bg-slate-100 font-bold text-slate-600 hover:bg-slate-200">✕</button>
                 </div>
 
-                <form wire:submit.prevent="submitOneWay({{ (int) ($selectedPriceId ?? 0) }})" class="min-h-0 flex-1 overflow-hidden">
-                    <div class="h-full space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4">
+                <form wire:submit.prevent="submitOneWay({{ (int) ($selectedPriceId ?? 0) }})" class="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4">
                         <div class="grid grid-cols-2 gap-2 sm:gap-3">
                             <div>
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Date</label>
@@ -263,13 +263,6 @@
                         <div class="overflow-hidden rounded-xl border border-slate-200">
                             <div class="bg-slate-900 px-3 py-2 text-xs font-black text-white">Fare Summary</div>
                             <div class="space-y-1.5 px-3 py-2.5 text-xs sm:text-sm">
-                                @if ($actualDistanceKm)
-                                    <div class="flex items-center justify-between"><span class="text-slate-600">Total Distance</span><strong>{{ $actualDistanceText ?: number_format((float) $actualDistanceKm, 1) . ' km' }}</strong></div>
-                                @endif
-                                @if ($actualDurationMinutes)
-                                    <div class="flex items-center justify-between"><span class="text-slate-600">Estimated Time</span><strong>{{ $actualDurationText ?: number_format((float) $actualDurationHours, 2) . ' hr' }}</strong></div>
-                                @endif
-                                <div class="my-2 border-t border-dashed border-slate-200"></div>
                                 <div class="flex items-center justify-between"><span class="text-slate-600">Base Fare</span><strong>{{ Number::currency($baseFare, 'INR') }}</strong></div>
                                 @if ($patSelected && (float) ($ow['pat_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Pet Friendly</span><strong>+{{ Number::currency((float) $ow['pat_charge'], 'INR') }}</strong></div>@endif
                                 @if ($roofCarrierSelected && (float) ($ow['roof_carrier_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Roof Carrier</span><strong>+{{ Number::currency((float) $ow['roof_carrier_charge'], 'INR') }}</strong></div>@endif
@@ -288,6 +281,8 @@
                         </div>
 
                         @error('price') <p class="text-sm font-semibold text-red-600">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="shrink-0 border-t border-slate-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4 sm:pb-3">
                         <button type="submit" wire:loading.attr="disabled" wire:target="submitOneWay" class="main-color min-h-11 w-full rounded-xl px-4 py-2.5 text-base font-black text-white disabled:opacity-60"><span wire:loading.remove wire:target="submitOneWay">Book Now · {{ Number::currency($finalFareValue, 'INR') }}</span><span wire:loading wire:target="submitOneWay">Preparing Booking...</span></button>
                     </div>
                 </form>
