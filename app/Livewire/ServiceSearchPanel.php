@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\WhatsAppService;
 use App\Livewire\Concerns\HandlesOtpCustomerAuthentication;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -1232,7 +1233,7 @@ class ServiceSearchPanel extends Component
 
     $value = trim((string) $value);
 
-    if (mb_strlen($value) < 3) {
+    if (mb_strlen($value) < 2) {
         $this->cities_from = null;
         return;
     }
@@ -1289,7 +1290,7 @@ class ServiceSearchPanel extends Component
         $this->tripCities[$index]['place_id'] = null;
         $this->tripCities[$index]['latitude'] = null;
         $this->tripCities[$index]['longitude'] = null;
-        $this->tripCities[$index]['suggestions'] = mb_strlen($search) >= 3
+        $this->tripCities[$index]['suggestions'] = mb_strlen($search) >= 2
             ? $this->googleAutocomplete($search)
             : [];
 
@@ -1496,7 +1497,34 @@ class ServiceSearchPanel extends Component
 
     private function googleAutocomplete(?string $input): array
     {
-        return app(GooglePlacesService::class)->autocomplete($input);
+        $search = preg_replace('/\s+/u', ' ', trim((string) $input));
+
+        if (mb_strlen($search) < 2) {
+            return [];
+        }
+
+        $cacheKey = 'google_places_autocomplete:' . sha1(
+            mb_strtolower($search, 'UTF-8')
+        );
+
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        $results = array_slice(
+            app(GooglePlacesService::class)->autocomplete($search),
+            0,
+            8
+        );
+
+        // Do not cache failures/empty API responses; allow the next request to retry.
+        if ($results !== []) {
+            Cache::put($cacheKey, $results, now()->addHours(12));
+        }
+
+        return $results;
     }
 
     private function googlePlaceDetails(string $placeId): ?array

@@ -261,7 +261,7 @@
                         <input
                             type="text"
                             id="one-way-from"
-                            wire:model.live.debounce.350ms="query_search"
+                            wire:model.live.debounce.120ms="query_search"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('query')
@@ -277,7 +277,7 @@
                     @endif
 
                     @if (
-                        mb_strlen(trim((string) $query_search)) >= 3
+                        mb_strlen(trim((string) $query_search)) >= 2
                         && ! empty($cities_from)
                     )
                         <div
@@ -399,7 +399,7 @@
                         <input
                             type="text"
                             id="one-way-to"
-                            wire:model.live.debounce.350ms="query2_search"
+                            wire:model.live.debounce.120ms="query2_search"
                             placeholder="Enter destination city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('query2')
@@ -415,7 +415,7 @@
                     @endif
 
                     @if (
-                        mb_strlen(trim((string) $query2_search)) >= 3
+                        mb_strlen(trim((string) $query2_search)) >= 2
                         && ! empty($cities_to)
                     )
                         <div
@@ -577,7 +577,7 @@
                         <input
                             type="text"
                             id="round-from"
-                            wire:model.live.debounce.350ms="queryFrom_search"
+                            wire:model.live.debounce.120ms="queryFrom_search"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('queryFrom')
@@ -590,7 +590,7 @@
                         <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('queryFrom') }}</p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $queryFrom_search)) >= 3)
+                    @if (mb_strlen(trim((string) $queryFrom_search)) >= 2 && ! empty($dataFrom))
                         <div data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
                             @foreach (($dataFrom ?? []) as $city)
                                 <button
@@ -625,7 +625,7 @@
                         <input
                             type="text"
                             id="round-to"
-                            wire:model.live.debounce.350ms="queryTo_search"
+                            wire:model.live.debounce.120ms="queryTo_search"
                             placeholder="Enter first destination"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('queryTo')
@@ -638,7 +638,7 @@
                         <p class="mt-1 text-xs font-medium text-red-600">{{ $getError('queryTo') }}</p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $queryTo_search)) >= 3)
+                    @if (mb_strlen(trim((string) $queryTo_search)) >= 2 && ! empty($dataTo))
                         <div data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl">
                             @foreach (($dataTo ?? []) as $city)
                                 <button
@@ -736,7 +736,7 @@
                                     <input
                                         type="text"
                                         id="trip-city-{{ $index }}"
-                                        wire:model.live.debounce.350ms="tripCities.{{ $index }}.search"
+                                        wire:model.live.debounce.120ms="tripCities.{{ $index }}.search"
                                         placeholder="Enter next destination"
                                         class="h-14 w-full rounded-xl border bg-white pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:ring-4
                                         {{ $hasError('tripCities.' . $index)
@@ -854,7 +854,7 @@
                         <input
                             type="text"
                             id="local-city"
-                            wire:model.live.debounce.350ms="queryLocal"
+                            wire:model.live.debounce.120ms="queryLocal"
                             placeholder="Enter city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('query')
@@ -869,7 +869,7 @@
                         </p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $queryLocal)) >= 3)
+                    @if (mb_strlen(trim((string) $queryLocal)) >= 2 && ! empty($cities_from))
                         <div
                             data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
@@ -1089,7 +1089,7 @@
                         <input
                             type="text"
                             id="self-drive-city"
-                            wire:model.live.debounce.350ms="querySelfDrive"
+                            wire:model.live.debounce.120ms="querySelfDrive"
                             placeholder="Enter pickup city"
                             class="h-14 w-full rounded-xl border bg-slate-50 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4
                             {{ $hasError('query')
@@ -1104,7 +1104,7 @@
                         </p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $querySelfDrive)) >= 3)
+                    @if (mb_strlen(trim((string) $querySelfDrive)) >= 2 && ! empty($cities_from))
                         <div
                             data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
