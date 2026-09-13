@@ -1630,77 +1630,133 @@
         </p>
     </section>
 
+    <style>
+        /* Fare modal uses dedicated CSS so it works even before Tailwind is rebuilt. */
+        #fareSummaryModal {
+            align-items: flex-end !important;
+            padding: 0 0 76px !important;
+            z-index: 999999 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            max-width: none !important;
+            max-height: none !important;
+            margin: 0 !important;
+            border: 0 !important;
+        }
+
+        #fareSummaryModal:popover-open {
+            display: flex !important;
+        }
+
+        #fareSummaryModal .fare-summary-panel {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            max-height: calc(100vh - 88px) !important;
+            max-height: calc(100dvh - 88px) !important;
+            overflow: hidden !important;
+            border-radius: 18px 18px 0 0 !important;
+        }
+
+        #fareSummaryModal .fare-summary-header,
+        #fareSummaryModal .fare-summary-footer {
+            flex: 0 0 auto !important;
+        }
+
+        #fareSummaryModal .fare-summary-body {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        @media (min-width: 640px) {
+            #fareSummaryModal {
+                align-items: center !important;
+                padding: 16px !important;
+            }
+
+            #fareSummaryModal .fare-summary-panel {
+                max-height: 90vh !important;
+                border-radius: 12px !important;
+            }
+        }
+    </style>
+
     <!-- Enhanced Fare details Popup -->
-    <div id="fareSummaryModal"
-        class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div id="fareSummaryModal" popover="manual"
+        class="fixed inset-0 z-[110] hidden flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4">
         <div
-            class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-300 scale-95">
+            class="fare-summary-panel flex max-h-[calc(100dvh-4.75rem)] w-full max-w-lg flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-xl">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-xl">
+            <div class="fare-summary-header shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-3 text-white sm:px-5 sm:py-4">
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center">
-                        <i class="fa-solid fa-calculator" aria-hidden="true"></i>
-                        <h3 class="text-xl font-bold">Fare Breakdown</h3>
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-sm" aria-hidden="true"></i>
+                        <h3 class="text-lg font-bold sm:text-xl">Fare Summary</h3>
                     </div>
                     <button onclick="closeFareSummary()"
-                        class="text-white hover:text-gray-200 transition duration-200">
+                        type="button" aria-label="Close fare summary"
+                        class="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/25">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
 
             <!-- Content -->
-            <div class="p-6 space-y-4">
+            <div class="fare-summary-body min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:space-y-4 sm:p-5">
                 <!-- Vehicle Information -->
-                <div class="bg-blue-50 p-4 rounded-lg">
-                    <div class="flex items-center justify-between">
+                <div class="rounded-xl bg-blue-50 p-3 sm:p-4">
+                    <div class="flex items-center justify-between gap-3">
                         <span class="text-gray-700 font-semibold flex items-center">
                             <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                             Vehicle Category:
                         </span>
-                        <span id="carCategory" class="font-bold text-blue-700"></span>
+                        <span id="carCategory" class="text-right text-sm font-bold leading-5 text-blue-700"></span>
                     </div>
                 </div>
 
                 <!-- Fare Breakdown -->
                 <div class="space-y-3">
-                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <div class="flex items-center justify-between border-b border-gray-100 py-2 text-sm">
                         <span class="text-gray-600 font-medium">Base Fare:</span>
                         <span id="baseFare" class="font-semibold text-gray-900"></span>
                     </div>
 
                     <div id="driverAllowanceSection"
-                        class="flex justify-between items-center py-2 border-b border-gray-100">
+                        class="flex items-center justify-between border-b border-gray-100 py-2 text-sm">
                         <span class="text-gray-600 font-medium">Driver Allowance:</span>
                         <span id="driverAllowance" class="font-semibold text-gray-900">Included</span>
                     </div>
 
-                    <div id="tollTaxSection" class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <div id="tollTaxSection" class="flex items-center justify-between border-b border-gray-100 py-2 text-sm">
                         <span class="text-gray-600 font-medium">Toll Tax:</span>
                         <span id="tollTaxStatus" class="font-semibold text-red-600">Excluded</span>
                     </div>
 
-                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                    <div class="flex items-center justify-between border-b border-gray-100 py-2 text-sm">
                         <span class="text-gray-600 font-medium">GST (<span id="gstPercentLabel">5</span>%):</span>
                         <span id="gstAmount" class="font-semibold text-gray-900"></span>
                     </div>
                 </div>
 
                 <!-- Total -->
-                <div class="bg-green-50 p-4 rounded-lg">
+                <div class="rounded-xl bg-green-50 p-3 sm:p-4">
                     <div class="flex justify-between items-center">
                         <span class="text-lg font-bold text-gray-800">Total Amount:</span>
-                        <span id="totalPrice" class="text-2xl font-bold text-green-600"></span>
+                        <span id="totalPrice" class="text-xl font-bold text-green-600 sm:text-2xl"></span>
                     </div>
                 </div>
 
                 <!-- Important Notes -->
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div class="flex items-start">
+                <div class="rounded-xl border border-yellow-200 bg-yellow-50 p-3">
+                    <div class="flex items-start gap-2">
                         <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
                         <div>
-                            <h4 class="font-semibold text-yellow-800 mb-2">Important Information:</h4>
-                            <div id="fareNotes" class="text-sm text-yellow-700">
+                            <h4 class="mb-1 font-semibold text-yellow-800">Important Information:</h4>
+                            <div id="fareNotes" class="text-xs leading-5 text-yellow-700 sm:text-sm">
                                 Excess distance charges apply after <span id="extraKmLimit"></span> km at ₹<span
                                     id="extraKmRate"></span>/km.<br>
                                 Night allowance after 8:00 PM: ₹0<br>
@@ -1713,7 +1769,7 @@
                 </div>
 
                 <!-- Footer Note -->
-                <div class="text-center text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                <div class="rounded-lg bg-gray-50 p-2.5 text-center text-xs leading-5 text-gray-500 sm:text-sm">
                     <div class="flex items-center justify-center">
                         <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
                         Excess distance charges, where applicable, are payable directly to the service provider.
@@ -1722,10 +1778,11 @@
             </div>
 
             <!-- Action Buttons -->
-            <div class="px-6 pb-6">
+            <div class="fare-summary-footer shrink-0 border-t border-slate-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 sm:px-5 sm:pb-4">
                 <div class="flex space-x-3">
                     <button onclick="closeFareSummary()"
-                        class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold transition duration-200 flex items-center justify-center">
+                        type="button"
+                        class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gray-700 px-4 py-2.5 font-semibold text-white transition hover:bg-gray-800">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                         Close
                     </button>
@@ -2350,6 +2407,36 @@
 
 <script>
     /*
+     * The animated rides wrapper can create a transformed containing block.
+     * Move this fixed modal under <body> so its position and height are always
+     * calculated from the real browser viewport, not the long rides page.
+     */
+    window.mountFareSummaryModal = function () {
+        const modals = Array.from(document.querySelectorAll('#fareSummaryModal'));
+        const modal = modals.pop();
+
+        if (!modal) return null;
+
+        modals.forEach((duplicate) => duplicate.remove());
+
+        if (modal.parentElement !== document.body) {
+            document.body.appendChild(modal);
+        }
+
+        return modal;
+    };
+
+    const initialiseFareSummaryModal = () => window.mountFareSummaryModal();
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialiseFareSummaryModal, { once: true });
+    } else {
+        initialiseFareSummaryModal();
+    }
+
+    document.addEventListener('livewire:navigated', initialiseFareSummaryModal);
+
+    /*
      * One Way fare-details display.
      * All configurable rates come from the selected Price/Category and Product
      * records rendered by Laravel. Checkout/booking totals remain authoritative
@@ -2446,9 +2533,16 @@
             tollStatus.classList.toggle('text-red-600', !tollIncluded);
         }
 
-        const modal = document.getElementById('fareSummaryModal');
+        const modal = window.mountFareSummaryModal();
         if (modal) {
             modal.classList.remove('hidden');
+
+            if (typeof modal.showPopover === 'function' && !modal.matches(':popover-open')) {
+                modal.showPopover();
+            }
+
+            const scrollArea = modal.querySelector('.fare-summary-body');
+            if (scrollArea) scrollArea.scrollTop = 0;
             document.documentElement.classList.add('overflow-hidden');
             document.body.classList.add('overflow-hidden');
         }
@@ -2456,7 +2550,13 @@
 
     window.closeFareSummary = function () {
         const modal = document.getElementById('fareSummaryModal');
-        if (modal) modal.classList.add('hidden');
+        if (modal) {
+            if (typeof modal.hidePopover === 'function' && modal.matches(':popover-open')) {
+                modal.hidePopover();
+            }
+
+            modal.classList.add('hidden');
+        }
 
         document.documentElement.classList.remove('overflow-hidden');
         document.body.classList.remove('overflow-hidden');

@@ -1012,20 +1012,14 @@ class RidesPage extends Component
                 ]
             );
 
-            $action = $this->pendingBookingAction;
-            $payload = $this->pendingBookingPayload;
-
+            /*
+             * OTP verification only unlocks the fares. Do not automatically
+             * replay the Select Vehicle action that opened the OTP gate;
+             * otherwise the customer is sent straight to checkout and sees
+             * the fare summary before confirming a vehicle.
+             */
             $this->pendingBookingAction = null;
             $this->pendingBookingPayload = null;
-
-            if ($action && method_exists($this, $action)) {
-                /*
-                 * The pending booking method may return a redirect response.
-                 * Return it to Livewire instead of discarding it, otherwise
-                 * the OTP modal closes but the page appears to be stuck.
-                 */
-                return $this->{$action}($payload);
-            }
 
             return null;
         } catch (\Throwable $exception) {

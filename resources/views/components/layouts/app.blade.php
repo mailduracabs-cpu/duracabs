@@ -316,38 +316,22 @@
         >
     @endif
 
-    {{-- Application assets --}}
-@livewireStyles
+    {{-- Application assets: load Livewire, Vite and page styles once. --}}
+    @livewireStyles
 
-{{-- Application assets --}}
-@livewireStyles
+    @vite([
+        'resources/css/app.css',
+        'resources/js/app.js',
+    ])
 
-@vite([
-    'resources/css/app.css',
-    'resources/js/app.js',
-])
+    {{-- Font Awesome --}}
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+        referrerpolicy="no-referrer"
+    />
 
-
-{{-- Font Awesome --}}
-<link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
-    referrerpolicy="no-referrer"
-/>
-
-@stack('styles')
-
-
-
-
-
-
-@vite([
-    'resources/css/app.css',
-    'resources/js/app.js',
-])
-
-@stack('styles')
+    @stack('styles')
 
     {{-- Consent Mode defaults --}}
     <script>
