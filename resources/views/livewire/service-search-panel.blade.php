@@ -39,26 +39,26 @@
     };
 @endphp
 
-<style>
-    /* iOS Safari gives native date/time controls a wide intrinsic size. */
-    .service-search-panel input[type="date"],
-    .service-search-panel input[type="time"] {
-        display: block;
-        box-sizing: border-box;
-        width: 100% !important;
-        min-width: 0 !important;
-        max-width: 100% !important;
-        -webkit-appearance: none;
-        appearance: none;
-    }
-
-    .service-search-panel form > .grid > * {
-        min-width: 0;
-        max-width: 100%;
-    }
-</style>
-
 <div class="service-search-panel relative" style="z-index: 999999;" x-data="{ activeTab: @js($selected_tab), submitting: false }">
+    <style>
+        /* Keep component output on one Livewire root while fixing iOS controls. */
+        .service-search-panel input[type="date"],
+        .service-search-panel input[type="time"] {
+            display: block;
+            box-sizing: border-box;
+            width: 100% !important;
+            min-width: 0 !important;
+            max-width: 100% !important;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        .service-search-panel form > .grid > * {
+            min-width: 0;
+            max-width: 100%;
+        }
+    </style>
+
     <div
         class="mx-auto mt-6 w-full max-w-6xl overflow-visible rounded-3xl bg-white shadow-2xl shadow-slate-900/15">
 
