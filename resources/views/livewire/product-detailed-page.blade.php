@@ -193,18 +193,18 @@
         @endphp
 
         <template x-teleport="body">
-        <div class="fixed inset-0 z-[999999] flex h-[100dvh] w-screen items-end justify-center overflow-hidden bg-slate-950/65 pb-[76px] sm:items-center sm:p-4" wire:click.self="$set('tab', false)">
-            <div class="flex max-h-[calc(100dvh-82px)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-2xl">
-                <div class="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2.5 sm:px-5 sm:py-3">
+        <div class="fixed inset-0 z-[999999] flex h-[100dvh] w-screen items-center justify-center overflow-hidden bg-slate-950/60 p-3 backdrop-blur-[2px] sm:p-5" wire:click.self="$set('tab', false)">
+            <div class="flex max-h-[calc(100dvh-24px)] w-full max-w-[420px] flex-col overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_24px_70px_rgba(15,23,42,.32)] sm:max-h-[88vh]">
+                <div class="flex shrink-0 items-center justify-between border-b border-slate-100 bg-white px-4 py-3.5 sm:px-5">
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wide text-sky-700">One Way Booking</p>
-                        <h3 class="text-base font-black leading-5 text-slate-900 sm:text-lg">{{ $categoryName }}</h3>
+                        <p class="text-[10px] font-extrabold uppercase tracking-[.14em] text-sky-700">One Way · Fare Review</p>
+                        <h3 class="mt-0.5 text-base font-black leading-5 text-slate-900">{{ $categoryName }}</h3>
                     </div>
-                    <button type="button" wire:click="$set('tab', false)" class="grid h-8 w-8 place-items-center rounded-full bg-slate-100 font-bold text-slate-600 hover:bg-slate-200">✕</button>
+                    <button type="button" wire:click="$set('tab', false)" aria-label="Close" class="grid h-8 w-8 place-items-center rounded-full border border-slate-200 bg-slate-50 text-sm font-bold text-slate-500 transition hover:bg-slate-100">✕</button>
                 </div>
 
                 <form wire:submit.prevent="submitOneWay({{ (int) ($selectedPriceId ?? 0) }})" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-                    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 sm:p-4">
+                    <div class="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
                         <div class="grid grid-cols-2 gap-2 sm:gap-3">
                             <div>
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Date</label>
@@ -236,23 +236,23 @@
                         @endif
 
                         @if ($petFriendlyAmount > 0 || $roofAmount > 0 || $nightAmount > 0)
-                            <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-2.5">
                                 <p class="mb-2 text-xs font-black text-slate-900">Optional Add-ons</p>
                                 <div class="space-y-2">
                                     @if ($petFriendlyAmount > 0)
-                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm">
+                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm">
                                             <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="patSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Pet Friendly</span><span class="block text-xs text-slate-500">Travel with your pet</span></span></span>
                                             <strong class="text-sm text-slate-900">+{{ Number::currency($petFriendlyAmount, 'INR') }}</strong>
                                         </label>
                                     @endif
                                     @if ($roofAmount > 0)
-                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm">
+                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm">
                                             <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="roofCarrierSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Roof Carrier</span><span class="block text-xs text-slate-500">For extra luggage</span></span></span>
                                             <strong class="text-sm text-slate-900">+{{ Number::currency($roofAmount, 'INR') }}</strong>
                                         </label>
                                     @endif
                                     @if ($nightAmount > 0)
-                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 shadow-sm">
+                                        <label class="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-slate-100 bg-white px-3 py-2 shadow-sm">
                                             <span class="flex items-center gap-3"><input type="checkbox" wire:model.live="nightChargeSelected" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"><span><span class="block text-sm font-bold text-slate-900">Night Charge</span><span class="block text-xs text-slate-500">Select if applicable</span></span></span>
                                             <strong class="text-sm text-slate-900">+{{ Number::currency($nightAmount, 'INR') }}</strong>
                                         </label>
@@ -262,7 +262,7 @@
                         @endif
 
                         <div class="overflow-hidden rounded-xl border border-slate-200">
-                            <div class="bg-slate-900 px-3 py-2 text-xs font-black text-white">Fare Summary</div>
+                            <div class="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-700">Fare Summary</div>
                             <div class="space-y-1.5 px-3 py-2.5 text-xs sm:text-sm">
                                 <div class="flex items-center justify-between"><span class="text-slate-600">Base Fare</span><strong>{{ Number::currency($baseFare, 'INR') }}</strong></div>
                                 @if ($patSelected && (float) ($ow['pat_charge'] ?? 0) > 0)<div class="flex items-center justify-between"><span class="text-slate-600">Pet Friendly</span><strong>+{{ Number::currency((float) $ow['pat_charge'], 'INR') }}</strong></div>@endif
@@ -283,8 +283,8 @@
 
                         @error('price') <p class="text-sm font-semibold text-red-600">{{ $message }}</p> @enderror
                     </div>
-                    <div class="shrink-0 border-t border-slate-100 bg-white px-3 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-2 sm:px-4 sm:pb-3">
-                        <button type="submit" wire:loading.attr="disabled" wire:target="submitOneWay" class="main-color min-h-11 w-full rounded-xl px-4 py-2.5 text-base font-black text-white disabled:opacity-60"><span wire:loading.remove wire:target="submitOneWay">Book Now · {{ Number::currency($finalFareValue, 'INR') }}</span><span wire:loading wire:target="submitOneWay">Preparing Booking...</span></button>
+                    <div class="shrink-0 border-t border-slate-100 bg-white px-4 pb-[max(.75rem,env(safe-area-inset-bottom))] pt-2.5 sm:px-5 sm:pb-3">
+                        <button type="submit" wire:loading.attr="disabled" wire:target="submitOneWay" class="main-color min-h-11 w-full rounded-xl px-4 py-2.5 text-sm font-black text-white shadow-lg shadow-sky-500/20 disabled:opacity-60"><span wire:loading.remove wire:target="submitOneWay">Continue · {{ Number::currency($finalFareValue, 'INR') }}</span><span wire:loading wire:target="submitOneWay">Preparing Booking...</span></button>
                     </div>
                 </form>
             </div>
