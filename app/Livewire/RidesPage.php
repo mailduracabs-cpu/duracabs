@@ -622,13 +622,42 @@ class RidesPage extends Component
                     default => false,
                 };
 
+                // The checkout needs the exact selected Price row/category.
+                // Product ID alone identifies the route and previously caused
+                // every card to fall back to the first (usually Hatchback) fare.
+                $selectedPriceId = match ($bookingType) {
+                    'one_way' => $legacyPayload[11] ?? null,
+                    'local' => $legacyPayload[13] ?? null,
+                    default => null,
+                };
+
+                $selectedCategoryId = match ($bookingType) {
+                    'one_way' => $legacyPayload[12] ?? null,
+                    'local' => $legacyPayload[14] ?? null,
+                    default => null,
+                };
+
+                $selectedPrice = is_numeric($selectedPriceId)
+                    ? $product->prices->firstWhere('id', (int) $selectedPriceId)
+                    : null;
+
+                if ($selectedPrice && (int) $selectedPrice->product_id !== (int) $product->getKey()) {
+                    $selectedPrice = null;
+                }
+
+                $selectedCategoryId = is_numeric($selectedCategoryId)
+                    ? (int) $selectedCategoryId
+                    : (int) ($selectedPrice?->category_id ?? 0);
+
                 $subtotal = $unitPrice * $quantity;
 
                 session()->put('booking_draft', [
                     'version' => 1,
                     'type' => $bookingType,
                     'source' => 'rides_page',
-                    'selection_id' => is_numeric($resolvedSelectionId) ? (int) $resolvedSelectionId : $resolvedSelectionId,
+                    'selection_id' => $selectedPrice
+                        ? (int) $selectedPrice->getKey()
+                        : (is_numeric($resolvedSelectionId) ? (int) $resolvedSelectionId : $resolvedSelectionId),
                     'product_id' => (int) $product->getKey(),
                     'vehicle_id' => null,
                     'customer' => [
@@ -665,12 +694,15 @@ class RidesPage extends Component
                         'subtotal' => $subtotal,
                         'total' => $subtotal,
                         'toll' => is_numeric($selectedToll) ? (float) $selectedToll : 0,
+                        'price_id' => $selectedPrice ? (int) $selectedPrice->getKey() : null,
+                        'category_id' => $selectedCategoryId > 0 ? $selectedCategoryId : null,
                     ],
                     'product' => [
                         'id' => (int) $product->getKey(),
                         'name' => (string) ($selectedProductName ?: $product->name ?: ''),
                         'slug' => (string) ($product->slug ?? ''),
                         'category_name' => (string) ($selectedCategoryName ?: ''),
+                        'category_id' => $selectedCategoryId > 0 ? $selectedCategoryId : null,
                         'ride_type' => (string) ($product->ride_type ?? $bookingType),
                         'new_vehicle' => (bool) $selectedNewVehicle,
                         'pet_friendly' => (bool) $selectedPetFriendly,

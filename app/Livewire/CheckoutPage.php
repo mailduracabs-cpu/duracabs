@@ -189,18 +189,35 @@ class CheckoutPage extends Component
                 ?? 0
             );
 
-            $selectionId = (int) ($this->bookingDraft['selection_id'] ?? 0);
+            $selectionId = (int) (
+                data_get($this->bookingDraft, 'fare.price_id')
+                ?? $this->bookingDraft['selection_id']
+                ?? 0
+            );
             $price = $selectionId > 0
                 ? Price::query()->where('product_id', $productId)->find($selectionId)
                 : null;
 
             $categoryId = (int) (
-                $price?->category_id
+                data_get($this->bookingDraft, 'fare.category_id')
+                ?? data_get($this->bookingDraft, 'product.category_id')
+                ?? $price?->category_id
                 ?? data_get($this->bookingDraft, 'fare.breakup.category_id')
                 ?? 0
             );
 
-            if ($productId <= 0 || $categoryId <= 0) {
+            if ($price && (int) $price->category_id !== $categoryId) {
+                $price = null;
+            }
+
+            if (! $price && $productId > 0 && $categoryId > 0) {
+                $price = Price::query()
+                    ->where('product_id', $productId)
+                    ->where('category_id', $categoryId)
+                    ->first();
+            }
+
+            if ($productId <= 0 || $categoryId <= 0 || ! $price) {
                 throw new \RuntimeException('Selected One Way vehicle fare is no longer available.');
             }
 

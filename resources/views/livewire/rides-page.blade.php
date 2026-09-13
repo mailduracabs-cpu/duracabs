@@ -1433,7 +1433,7 @@
                                                     class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
                                                     <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
                                                 </button>
-                                                <a href="#" wire:click.prevent='addToCartLocal([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $plan }}","{{ $cars }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}"])' class="ride-select-button">
+                                                <a href="#" wire:click.prevent='addToCartLocal([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $plan }}","{{ $cars }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}",{{ $price->id }},{{ $price->category_id }}])' class="ride-select-button">
                                                     <span>Select Vehicle</span><i class="fa-solid fa-arrow-right"></i>
                                                 </a>
                                             @else
@@ -1457,7 +1457,7 @@
                                                     class="ride-fare-icon-button" aria-label="View fare details" title="Fare details">
                                                     <i class="fa-solid fa-circle-info"></i><span>Fare details</span>
                                                 </button>
-                                                <a href="#" wire:click.prevent='addToCartOneWay([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}"])' class="ride-select-button">
+                                                <a href="#" wire:click.prevent='addToCartOneWay([{{ $ride->id }},"{{ $time }}","{{ $tab }}","{{ $date }}","{{ $displayPrice }}","{{ $ride->name }}", "{{ $price->category->name }}","{{ $ride->toll_tax }}","{{ $ride->category->new_vehicle }}","{{ $ride->category->pet_friendly }}","{{ $ride->category->roof_career }}",{{ $price->id }},{{ $price->category_id }}])' class="ride-select-button">
                                                     <span>Select Vehicle</span><i class="fa-solid fa-arrow-right"></i>
                                                 </a>
                                             @endif
