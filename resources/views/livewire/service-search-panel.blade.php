@@ -257,7 +257,10 @@
                         </p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $query_search)) >= 3)
+                    @if (
+                        mb_strlen(trim((string) $query_search)) >= 3
+                        && ! empty($cities_from)
+                    )
                         <div
                             data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
@@ -392,7 +395,10 @@
                         </p>
                     @endif
 
-                    @if (mb_strlen(trim((string) $query2_search)) >= 3)
+                    @if (
+                        mb_strlen(trim((string) $query2_search)) >= 3
+                        && ! empty($cities_to)
+                    )
                         <div
                             data-suggestions class="absolute left-0 top-full z-[1000000] mt-2 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl"
                         >
@@ -1974,4 +1980,3 @@
 </script>
 @endscript
 @endif
-
