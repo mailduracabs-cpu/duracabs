@@ -192,7 +192,8 @@
             $finalFareValue = (float) ($oneWayTotal ?: $baseFare);
         @endphp
 
-        <div class="fixed inset-0 z-[999999] flex items-end justify-center overflow-hidden bg-slate-950/65 pb-[76px] sm:items-center sm:p-4">
+        <template x-teleport="body">
+        <div class="fixed inset-0 z-[999999] flex h-[100dvh] w-screen items-end justify-center overflow-hidden bg-slate-950/65 pb-[76px] sm:items-center sm:p-4" wire:click.self="$set('tab', false)">
             <div class="flex max-h-[calc(100dvh-82px)] w-full max-w-md flex-col overflow-hidden rounded-t-2xl bg-white shadow-2xl sm:max-h-[90vh] sm:rounded-2xl">
                 <div class="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2.5 sm:px-5 sm:py-3">
                     <div>
@@ -288,6 +289,7 @@
                 </form>
             </div>
         </div>
+        </template>
     @endif
 
     @if ($tab === 'local')
