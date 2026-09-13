@@ -1441,17 +1441,17 @@
         </div>
     </section>
 
-    <!-- Enhanced Fare Summary Popup -->
-    <div id="fareSummaryModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4 transform transition-all duration-300 scale-95">
+    <!-- Single fare-details popup shared by every product card. -->
+    <div id="fareSummaryModal" role="dialog" aria-modal="true" aria-labelledby="fareSummaryTitle" class="fixed inset-0 z-[1000000] hidden flex items-end justify-center bg-slate-950/60 p-0 sm:items-center sm:p-4">
+        <div class="flex max-h-[calc(100dvh-5.5rem)] w-full max-w-lg transform flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl transition-all duration-200 scale-95 sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl">
             <!-- Header -->
-            <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-xl">
+            <div class="shrink-0 bg-gradient-to-r from-blue-600 to-sky-600 px-5 py-4 text-white sm:px-6">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
                         </svg>
-                        <h3 class="text-xl font-bold">Fare Breakdown</h3>
+                        <h3 id="fareSummaryTitle" class="text-lg font-black sm:text-xl">Fare Summary</h3>
                     </div>
                     <button onclick="closeFareSummary()" class="text-white hover:text-gray-200 transition duration-200">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1462,9 +1462,9 @@
             </div>
             
             <!-- Content -->
-            <div class="p-6 space-y-4">
+            <div class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:space-y-4 sm:p-6">
                 <!-- Vehicle Information -->
-                <div class="bg-blue-50 p-4 rounded-lg">
+                <div class="rounded-xl bg-blue-50 p-3 sm:p-4">
                     <div class="flex items-center justify-between">
                         <span class="text-gray-700 font-semibold flex items-center">
                             <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1477,7 +1477,7 @@
                 </div>
                 
                 <!-- Fare Breakdown -->
-                <div class="space-y-3">
+                <div class="space-y-2 text-sm sm:space-y-3">
                     <div class="flex justify-between items-center py-2 border-b border-gray-100">
                         <span class="text-gray-600 font-medium">Base Fare:</span>
                         <span id="baseFare" class="font-semibold text-gray-900"></span>
@@ -1500,7 +1500,7 @@
                 </div>
                 
                 <!-- Total -->
-                <div class="bg-green-50 p-4 rounded-lg">
+                <div class="rounded-xl bg-emerald-50 p-3 sm:p-4">
                     <div class="flex justify-between items-center">
                         <span class="text-lg font-bold text-gray-800">Total Amount:</span>
                         <span id="totalPrice" class="text-2xl font-bold text-green-600"></span>
@@ -1508,7 +1508,7 @@
                 </div>
                 
                 <!-- Important Notes -->
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 sm:p-4">
                     <div class="flex items-start">
                         <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
@@ -1537,9 +1537,9 @@
             </div>
             
             <!-- Action Buttons -->
-            <div class="px-6 pb-6">
+            <div class="shrink-0 border-t border-slate-100 bg-white px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 sm:px-6 sm:pb-5">
                 <div class="flex space-x-3">
-                    <button onclick="closeFareSummary()" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold transition duration-200 flex items-center justify-center">
+                    <button type="button" onclick="closeFareSummary()" class="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-slate-700 px-4 py-3 font-bold text-white transition hover:bg-slate-800">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -1727,209 +1727,5 @@
         });
     </script>
 	
-	 <style>
-        .product-ride-theme{--ride-blue:#0969da;--ride-sky:#0ea5e9;--ride-ink:#0f172a;--ride-muted:#64748b;--ride-line:#e2e8f0;background:linear-gradient(180deg,#f8fbff 0%,#fff 36%,#f8fafc 100%)}
-        .product-ride-theme .ride-shell{background:transparent}
-        .product-breadcrumb{padding:0 .35rem}
-        .product-premium-header{border:1px solid rgba(148,163,184,.22);border-radius:24px;padding:22px;background:linear-gradient(135deg,#ffffff 0%,#f0f8ff 62%,#e8f4ff 100%);box-shadow:0 18px 45px rgba(15,23,42,.08)}
-        .product-premium-header h1{letter-spacing:-.03em}.product-premium-header p{max-width:58rem}
-        .product-trip-summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:18px 20px;border:1px solid rgba(148,163,184,.22);border-radius:22px;background:#fff;box-shadow:0 14px 36px rgba(15,23,42,.07)}
-        .product-trip-route{display:flex;align-items:center;justify-content:space-between;gap:18px;min-width:0}.product-trip-route>div:first-child{display:flex;align-items:center;gap:14px;min-width:0}.product-trip-route>div:first-child>div:first-child{width:44px;height:44px;border-radius:15px;background:linear-gradient(135deg,#0ea5e9,#2563eb);display:flex;align-items:center;justify-content:center;box-shadow:0 10px 24px rgba(37,99,235,.24)}
-        .product-trip-route h2,.product-trip-route span{color:#0f172a!important}.product-trip-route button{background:#eff6ff!important;color:#0969da!important;border:1px solid #bfdbfe}.product-trip-route button span{color:#0969da!important}
-        .product-trip-type{display:flex;align-items:center;gap:12px;min-width:210px;border-left:1px solid #e2e8f0;padding-left:18px}.product-trip-type>div:first-child{width:42px;height:42px;border-radius:14px;background:#ecfdf5;display:flex;align-items:center;justify-content:center}.product-trip-type svg{fill:#16a34a!important}.product-trip-type h2,.product-trip-type p{color:#0f172a!important}
-        .product-sidebar .product-help-card{border:1px solid #e2e8f0;border-radius:20px;box-shadow:0 12px 30px rgba(15,23,42,.06);position:sticky;top:90px}.product-help-card h2{font-weight:800;color:#0f172a!important}.product-help-card p{color:#64748b;line-height:1.6}.product-help-card a{font-size:1rem}
-        .product-toolbar{border:1px solid #e2e8f0;border-radius:18px;background:#fff;box-shadow:0 10px 28px rgba(15,23,42,.05)}
-        .product-package-list{display:grid;gap:16px}
-        .product-ride-card{display:grid;grid-template-columns:220px minmax(0,1fr) 210px;overflow:hidden;border:1px solid #dbe7f3;border-radius:22px;background:#fff;box-shadow:0 12px 34px rgba(15,23,42,.07);transition:.22s ease}
-        .product-ride-card:hover{transform:translateY(-3px);border-color:#93c5fd;box-shadow:0 20px 44px rgba(37,99,235,.13)}
-        .product-ride-card .ride-package-media{position:relative;display:flex;align-items:center;justify-content:center;min-height:205px;padding:22px;background:linear-gradient(145deg,#f8fafc,#eff6ff);border-right:1px solid #edf2f7}
-        .product-ride-card .ride-package-media a{display:flex;width:100%;height:100%;align-items:center;justify-content:center}
-        .product-ride-card .ride-package-media img{width:100%;height:155px;object-fit:contain;filter:drop-shadow(0 12px 16px rgba(15,23,42,.16))}
-        .product-ride-card .ride-package-badge{position:absolute;left:14px;top:14px;z-index:2;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
-        .ride-package-badge--green{background:#dcfce7;color:#15803d}.ride-package-badge--blue{background:#dbeafe;color:#1d4ed8}.ride-package-badge--purple{background:#f3e8ff;color:#7e22ce}
-        .product-ride-card .ride-package-content{display:flex;min-width:0;flex-direction:column;justify-content:center;padding:22px 24px}
-        .product-ride-card .ride-package-content h3{font-size:1.25rem;font-weight:850;line-height:1.25;color:#0f172a}
-        .product-ride-card .ride-package-rating{display:flex;align-items:center;gap:3px;margin-top:8px;color:#facc15;font-size:14px}.product-ride-card .ride-package-rating span{margin-left:6px;color:#64748b;font-size:12px;font-weight:700}
-        .product-ride-card .ride-package-model{margin-top:8px;color:#64748b;font-size:13px;line-height:1.5}
-        .product-ride-card .ride-package-features{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}.product-ride-card .ride-package-features span{display:inline-flex;align-items:center;gap:6px;border:1px solid #e2e8f0;border-radius:999px;background:#f8fafc;padding:7px 10px;color:#334155;font-size:11px;font-weight:700}.product-ride-card .ride-package-features i{color:#0ea5e9}
-        .product-ride-card .ride-package-price{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:9px;padding:20px;border-left:1px solid #edf2f7;background:linear-gradient(180deg,#fff,#f8fbff)}
-        .product-ride-card .ride-package-price del{color:#94a3b8;text-align:right;font-size:14px}.product-ride-card .ride-package-price>strong{color:#0f172a;text-align:right;font-size:1.45rem;line-height:1.1}.product-ride-card .ride-package-price strong small{font-size:11px;color:#64748b}
-        .product-ride-card .ride-fare-icon-button{display:flex;min-height:40px;align-items:center;justify-content:center;gap:7px;border:1px solid #bfdbfe;border-radius:12px;background:#eff6ff;color:#1d4ed8;font-size:12px;font-weight:800}.product-ride-card .ride-fare-icon-button:hover{background:#dbeafe}
-        .product-ride-card .ride-select-button{display:flex;min-height:46px;align-items:center;justify-content:center;gap:8px;border:0;border-radius:13px;background:linear-gradient(135deg,#2563eb,#0284c7);padding:12px 14px;color:#fff;font-size:13px;font-weight:850;box-shadow:0 10px 22px rgba(37,99,235,.2)}.product-ride-card .ride-select-button:hover{background:linear-gradient(135deg,#1d4ed8,#0369a1)}
-        .ride-price-lock{position:relative;overflow:hidden;border:1px dashed #bfdbfe;border-radius:13px;background:#f8fbff;padding:10px;text-align:center}.ride-price-lock-old,.ride-price-lock-main{display:block;filter:blur(5px);user-select:none}.ride-price-lock-old{color:#94a3b8;text-decoration:line-through;font-size:12px}.ride-price-lock-main{color:#0f172a;font-size:20px;font-weight:850}.ride-price-lock em{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;color:#0369a1;font-size:11px;font-style:normal;font-weight:800}
-        .product-results-section+section,.product-ride-theme section.font-poppins{border-radius:22px}.product-ride-theme details{border-color:#e2e8f0}.product-ride-theme h2{letter-spacing:-.02em}
-        @media(max-width:1023px){.product-sidebar{display:none}.product-content{width:100%}.product-trip-summary{grid-template-columns:1fr}.product-trip-type{border-left:0;border-top:1px solid #e2e8f0;padding:14px 0 0;min-width:0}.product-ride-card{grid-template-columns:190px minmax(0,1fr) 190px}}
-        @media(max-width:700px){.product-ride-theme{padding-left:.5rem!important;padding-right:.5rem!important}.product-premium-header{padding:17px;border-radius:20px}.product-premium-header h1{font-size:1.45rem}.product-trip-summary{padding:14px;border-radius:18px}.product-trip-route{align-items:flex-start}.product-trip-route button{width:42px;height:42px;padding:0!important}.product-trip-route button .hidden{display:none!important}.product-ride-card{grid-template-columns:1fr}.product-ride-card .ride-package-media{min-height:165px;border-right:0;border-bottom:1px solid #eef2f7}.product-ride-card .ride-package-media img{height:130px}.product-ride-card .ride-package-content{padding:17px}.product-ride-card .ride-package-price{border-left:0;border-top:1px solid #edf2f7;padding:16px}.product-ride-card .ride-package-price del,.product-ride-card .ride-package-price>strong{text-align:left}.product-toolbar{display:flex!important}.product-breadcrumb{font-size:.75rem}}
-    </style>
-    <script>
-        function showFareSummaryOneWay(rideName, categoryName, price, maxPrice, tollTax, tollIncluded, gstIncluded, gstPercent, distanceKm, distanceText, durationMinutes, durationText, kmLimit, hrLimit, extra_km_charge, extra_hr_charge) {
-            const modal = document.getElementById('fareSummaryModal');
-            if (!modal) return;
-
-            const baseFare = Number(price || 0);
-            const gstRate = Math.max(0, Number(gstPercent || 0));
-            const isGstIncluded = Boolean(gstIncluded);
-            const isTollIncluded = Boolean(tollIncluded);
-            let gstAmount = 0;
-            let finalTotal = baseFare;
-
-            if (gstRate > 0) {
-                if (isGstIncluded) {
-                    gstAmount = baseFare * gstRate / (100 + gstRate);
-                    finalTotal = baseFare;
-                } else {
-                    gstAmount = baseFare * gstRate / 100;
-                    finalTotal = baseFare + gstAmount;
-                }
-            }
-
-            document.getElementById('carCategory').textContent = categoryName;
-            document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
-            document.getElementById('gstLabel').textContent = 'GST (' + gstRate + '%):';
-            document.getElementById('gstAmount').textContent = (isGstIncluded ? 'Included ₹ ' : '₹ ') + Math.round(gstAmount);
-            document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
-            document.getElementById('driverAllowanceSection').style.display = 'none';
-            document.getElementById('tollTaxSection').style.display = 'block';
-            document.getElementById('tollTaxStatus').textContent = isTollIncluded ? 'Included' : (Number(tollTax || 0) > 0 ? 'Extra ₹ ' + Math.round(Number(tollTax)) : 'Excluded');
-            document.getElementById('tollTaxStatus').className = 'font-semibold ' + (isTollIncluded ? 'text-green-600' : 'text-red-600');
-
-            const routeDistance = distanceText || (Number(distanceKm || 0) > 0 ? Number(distanceKm).toFixed(1) + ' km' : 'Unavailable');
-            const routeDuration = durationText || (Number(durationMinutes || 0) > 0 ? Math.floor(Number(durationMinutes) / 60) + ' hr ' + (Number(durationMinutes) % 60) + ' min' : 'Unavailable');
-            const gstNote = gstRate > 0
-                ? `<strong>GST @ ${gstRate}%:</strong> ${isGstIncluded ? 'Included in displayed fare' : 'Extra as shown above'}<br>`
-                : '';
-
-            document.getElementById('fareNotes').innerHTML =
-                `<strong>Google Route Distance:</strong> ${routeDistance}<br>
-                 <strong>Estimated Driving Time:</strong> ${routeDuration}<br>
-                 ${gstNote}
-                 Extra Charge After: ${kmLimit} KMS. will be ₹${Number(extra_km_charge || 0).toFixed(2)}/KM.<br>
-                 Extra Charge After: ${hrLimit} HRS. will be ₹${Number(extra_hr_charge || 0).toFixed(2)}/HR.<br>
-                 <strong>Toll-Tax:</strong> ${isTollIncluded ? 'Included' : 'As applicable'} |
-                 <strong>Parking:</strong> Extra if not included in package`;
-
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.querySelector('.transform').classList.remove('scale-95');
-                modal.querySelector('.transform').classList.add('scale-100');
-            }, 10);
-        }
-        
-        function showFareSummaryLocal(rideName, categoryName, price, maxPrice, cars, plan, extra_km_charge, extra_hr_charge, driver_allowances) {
-            const modal = document.getElementById('fareSummaryModal');
-            if (!modal) return;
-            
-            // Calculate GST
-            const gstAmount = (price * 5) / 100;
-            const baseFare = price;
-            const finalTotal = price + gstAmount;
-            
-            // Update popup content for local
-            document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
-            document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
-            document.getElementById('gstLabel').textContent = 'GST (5%):';
-            document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
-            document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
-            
-            // Show driver allowance for local
-            document.getElementById('driverAllowanceSection').style.display = 'block';
-            document.getElementById('driverAllowance').textContent = 'Included';
-            
-            // Show toll tax section
-            document.getElementById('tollTaxSection').style.display = 'block';
-            document.getElementById('tollTaxStatus').textContent = 'Excluded';
-            
-            // Update notes for local
-            document.getElementById('fareNotes').innerHTML = 
-                `Package: ${plan}<br>
-                Extra KM Charge: ₹${extra_km_charge}.00/KM<br>
-                Extra HR Charge: ₹${extra_hr_charge}.00/HR<br>
-                <strong>Toll-Tax:</strong> Excluded |
-                <strong>Parking:</strong> Extra (if applicable)`;
-            
-            // Show modal with animation
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.querySelector('.transform').classList.remove('scale-95');
-                modal.querySelector('.transform').classList.add('scale-100');
-            }, 10);
-        }
-        
-        function showFareSummarySelfDrive(rideName, categoryName, price, maxPrice, days, security) {
-            const modal = document.getElementById('fareSummaryModal');
-            if (!modal) return;
-            
-            // Calculate GST
-            const gstAmount = (price * 5) / 100;
-            const baseFare = price;
-            const finalTotal = price + gstAmount;
-            
-            // Update popup content for self drive
-            document.getElementById('carCategory').textContent = categoryName + ' Or Equivalent';
-            document.getElementById('baseFare').textContent = '₹ ' + Math.round(baseFare);
-            document.getElementById('gstLabel').textContent = 'GST (5%):';
-            document.getElementById('gstAmount').textContent = '₹ ' + Math.round(gstAmount);
-            document.getElementById('totalPrice').textContent = '₹ ' + Math.round(finalTotal);
-            
-            // Hide driver allowance for self drive
-            document.getElementById('driverAllowanceSection').style.display = 'none';
-            
-            // Show toll tax section
-            document.getElementById('tollTaxSection').style.display = 'block';
-            document.getElementById('tollTaxStatus').textContent = 'Excluded';
-            
-            // Update notes for self drive
-            document.getElementById('fareNotes').innerHTML = 
-                `Self Drive Package: Per Hour Rate<br>
-                Security Deposit: ₹${security}<br>
-                <strong>Fuel:</strong> Extra |
-                <strong>Toll-Tax:</strong> Excluded |
-                <strong>Parking:</strong> Extra (if applicable)`;
-            
-            // Show modal with animation
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.querySelector('.transform').classList.remove('scale-95');
-                modal.querySelector('.transform').classList.add('scale-100');
-            }, 10);
-        }
-        
-        function closeFareSummary() {
-            const modal = document.getElementById('fareSummaryModal');
-            if (!modal) return;
-            
-            // Add closing animation
-            modal.querySelector('.transform').classList.remove('scale-100');
-            modal.querySelector('.transform').classList.add('scale-95');
-            
-            setTimeout(() => {
-                modal.classList.add('hidden');
-                modal.style.display = '';
-            }, 200);
-        }
-        
-        // Initialize modal event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            const modal = document.getElementById('fareSummaryModal');
-            if (!modal) return;
-            
-            // Close modal when clicking outside
-            modal.addEventListener('click', function(e) {
-                if (e.target === this) {
-                    closeFareSummary();
-                }
-            });
-            
-            // Close modal with Escape key
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    const modal = document.getElementById('fareSummaryModal');
-                    if (modal && !modal.classList.contains('hidden')) {
-                        closeFareSummary();
-                    }
-                }
-            });
-        });
-    </script>
 </div>
 </div>
