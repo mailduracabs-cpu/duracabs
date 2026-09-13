@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\Log;
 class GooglePlacesService
 {
     private const AUTOCOMPLETE_URL = 'https://maps.googleapis.com/maps/api/place/autocomplete/json';
+    private const NEW_AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete';
     private const PLACE_DETAILS_URL = 'https://maps.googleapis.com/maps/api/place/details/json';
+    private const NEW_PLACE_DETAILS_URL = 'https://places.googleapis.com/v1/places/';
     private const GEOCODING_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
 
     public function __construct(
@@ -27,7 +29,7 @@ class GooglePlacesService
     {
         $input = trim((string) $input);
 
-        if (mb_strlen($input) < 3) {
+        if (mb_strlen($input) < 2) {
             return [];
         }
 
@@ -46,37 +48,34 @@ class GooglePlacesService
                     'language' => 'en',
                     'key' => $apiKey,
                 ],
-                'timeout' => 10,
+                'connect_timeout' => 2,
+                'timeout' => 4,
             ]);
 
             $data = json_decode($response->getBody()->getContents(), true);
             $status = $data['status'] ?? null;
 
-            if ($status === 'ZERO_RESULTS') {
-                return [];
+            if ($status === 'OK') {
+                return is_array($data['predictions'] ?? null)
+                    ? $data['predictions']
+                    : [];
             }
 
-            if ($status !== 'OK') {
+            if ($status !== 'ZERO_RESULTS') {
                 Log::warning('Google Places autocomplete returned an error.', [
                     'status' => $status,
                     'error_message' => $data['error_message'] ?? null,
                     'input' => $input,
                 ]);
-
-                return [];
             }
-
-            return is_array($data['predictions'] ?? null)
-                ? $data['predictions']
-                : [];
         } catch (\Throwable $exception) {
-            Log::error('Google Places autocomplete request failed.', [
+            Log::warning('Legacy Google Places autocomplete request failed; trying Places API (New).', [
                 'input' => $input,
                 'message' => $exception->getMessage(),
             ]);
-
-            return [];
         }
+
+        return $this->newAutocomplete($input, $apiKey);
     }
 
     /**
@@ -107,7 +106,8 @@ class GooglePlacesService
                     'language' => 'en',
                     'key' => $apiKey,
                 ],
-                'timeout' => 10,
+                'connect_timeout' => 2,
+                'timeout' => 4,
             ]);
 
             $data = json_decode($response->getBody()->getContents(), true);
@@ -120,7 +120,7 @@ class GooglePlacesService
                     'place_id' => $placeId,
                 ]);
 
-                return null;
+                return $this->newPlaceDetails($placeId, $apiKey);
             }
 
             $address = trim((string) ($result['formatted_address'] ?? ''));
@@ -144,7 +144,7 @@ class GooglePlacesService
                 'message' => $exception->getMessage(),
             ]);
 
-            return null;
+            return $this->newPlaceDetails($placeId, $apiKey);
         }
     }
 
@@ -237,6 +237,98 @@ class GooglePlacesService
         return $key !== '' ? $key : null;
     }
 
+    /**
+     * Fallback for projects where Places API (New) is enabled instead of the
+     * legacy Places Web Service.
+     *
+     * @return array<int, array{description: string, place_id: string}>
+     */
+    private function newAutocomplete(string $input, string $apiKey): array
+    {
+        try {
+            $response = $this->client->post(self::NEW_AUTOCOMPLETE_URL, [
+                'headers' => [
+                    'Content-Type' => 'application/json',
+                    'X-Goog-Api-Key' => $apiKey,
+                    'X-Goog-FieldMask' => 'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text',
+                ],
+                'json' => [
+                    'input' => $input,
+                    'includedRegionCodes' => ['in'],
+                    'languageCode' => 'en',
+                ],
+                'connect_timeout' => 2,
+                'timeout' => 4,
+            ]);
+
+            $data = json_decode($response->getBody()->getContents(), true);
+            $results = [];
+
+            foreach (($data['suggestions'] ?? []) as $suggestion) {
+                $prediction = $suggestion['placePrediction'] ?? null;
+                $placeId = trim((string) ($prediction['placeId'] ?? ''));
+                $description = trim((string) data_get($prediction, 'text.text', ''));
+
+                if ($placeId !== '' && $description !== '') {
+                    $results[] = [
+                        'description' => $description,
+                        'place_id' => $placeId,
+                    ];
+                }
+            }
+
+            return $results;
+        } catch (\Throwable $exception) {
+            Log::error('Google Places API (New) autocomplete request failed.', [
+                'input' => $input,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    private function newPlaceDetails(string $placeId, string $apiKey): ?array
+    {
+        try {
+            $response = $this->client->get(
+                self::NEW_PLACE_DETAILS_URL . rawurlencode($placeId),
+                [
+                    'headers' => [
+                        'X-Goog-Api-Key' => $apiKey,
+                        'X-Goog-FieldMask' => 'id,formattedAddress,addressComponents,location',
+                    ],
+                    'connect_timeout' => 2,
+                    'timeout' => 4,
+                ]
+            );
+
+            $result = json_decode($response->getBody()->getContents(), true);
+            $address = trim((string) ($result['formattedAddress'] ?? ''));
+            $latitude = data_get($result, 'location.latitude');
+            $longitude = data_get($result, 'location.longitude');
+
+            if ($address === '' || !is_numeric($latitude) || !is_numeric($longitude)) {
+                return null;
+            }
+
+            return [
+                'place_id' => (string) ($result['id'] ?? $placeId),
+                'formatted_address' => $address,
+                'city' => $this->extractCity($result['addressComponents'] ?? []),
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+            ];
+        } catch (\Throwable $exception) {
+            Log::error('Google Places API (New) details request failed.', [
+                'place_id' => $placeId,
+                'message' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
     private function extractCity(array $components): ?string
     {
         $priority = [
@@ -252,7 +344,11 @@ class GooglePlacesService
                     continue;
                 }
 
-                $city = trim((string) ($component['long_name'] ?? ''));
+                $city = trim((string) (
+                    $component['long_name']
+                    ?? $component['longText']
+                    ?? ''
+                ));
 
                 if ($city !== '') {
                     return $city;
