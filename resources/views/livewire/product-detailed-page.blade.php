@@ -205,15 +205,15 @@
 
                 <form wire:submit.prevent="submitOneWay({{ (int) ($selectedPriceId ?? 0) }})" class="flex min-h-0 flex-1 flex-col overflow-hidden">
                     <div class="min-h-0 flex-1 space-y-2.5 overflow-y-auto overscroll-contain px-4 py-3 sm:px-5">
-                        <div class="grid grid-cols-2 gap-2 sm:gap-3">
-                            <div>
+                        <div class="grid gap-3" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);">
+                            <div class="min-w-0">
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Date</label>
-                                <input type="date" min="{{ now()->toDateString() }}" wire:model.live="date" required class="h-10 w-full min-w-0 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
+                                <input type="date" min="{{ now()->toDateString() }}" wire:model.live="date" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
                                 @error('date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
-                            <div>
+                            <div class="min-w-0">
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Time</label>
-                                <input type="time" wire:model.live="time" required class="h-10 w-full min-w-0 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
+                                <input type="time" wire:model.live="time" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
                                 @error('time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
