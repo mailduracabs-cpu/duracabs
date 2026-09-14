@@ -34,4 +34,9 @@ class CompetitorPriceCheck extends Model
     {
         return $this->belongsTo(Price::class);
     }
+
+    public function product()
+    {
+        return $this->belongsTo(Product::class);
+    }
 }
