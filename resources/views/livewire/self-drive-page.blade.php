@@ -230,7 +230,7 @@
                             </div>
 
                             <div style="width:100%;min-width:0;" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div style="width:100%;min-width:0;" class="min-w-0">
+                                <div x-data="{ hasValue: @js(filled($date)) }" style="width:100%;min-width:0;" class="relative min-w-0">
                                 <label for="self-drive-start-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-sky-800">
                                     Pickup Date
                                 </label>
@@ -238,14 +238,19 @@
                                     id="self-drive-start-date"
                                     type="date"
                                     wire:model="date"
+                                    x-on:change="hasValue = $el.value !== ''"
                                     min="{{ date('Y-m-d') }}"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
                                     class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                    <i class="fa-regular fa-calendar text-sky-600"></i>
+                                    Select pickup date
+                                </span>
                                 </div>
 
-                                <div style="width:100%;min-width:0;" class="min-w-0">
+                                <div x-data="{ hasValue: @js(filled($time)) }" style="width:100%;min-width:0;" class="relative min-w-0">
                                 <label for="self-drive-start-time" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-sky-800">
                                     Pickup Time
                                 </label>
@@ -253,10 +258,15 @@
                                     id="self-drive-start-time"
                                     type="time"
                                     wire:model="time"
+                                    x-on:change="hasValue = $el.value !== ''"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
                                     class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                    <i class="fa-regular fa-clock text-sky-600"></i>
+                                    Select pickup time
+                                </span>
                                 </div>
                             </div>
 
@@ -279,7 +289,7 @@
                             </div>
 
                             <div style="width:100%;min-width:0;" class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div style="width:100%;min-width:0;" class="min-w-0">
+                                <div x-data="{ hasValue: @js(filled($dateto)) }" style="width:100%;min-width:0;" class="relative min-w-0">
                                 <label for="self-drive-end-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
                                     Drop-off Date
                                 </label>
@@ -287,14 +297,19 @@
                                     id="self-drive-end-date"
                                     type="date"
                                     wire:model="dateto"
+                                    x-on:change="hasValue = $el.value !== ''"
                                     min="{{ date('Y-m-d') }}"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
                                     class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                    <i class="fa-regular fa-calendar-check text-emerald-600"></i>
+                                    Select drop-off date
+                                </span>
                                 </div>
 
-                                <div style="width:100%;min-width:0;" class="min-w-0">
+                                <div x-data="{ hasValue: @js(filled($endTime)) }" style="width:100%;min-width:0;" class="relative min-w-0">
                                 <label for="self-drive-end-time" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
                                     Drop-off Time
                                 </label>
@@ -302,10 +317,15 @@
                                     id="self-drive-end-time"
                                     type="time"
                                     wire:model="endTime"
+                                    x-on:change="hasValue = $el.value !== ''"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
                                     class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                    <i class="fa-regular fa-clock text-emerald-600"></i>
+                                    Select drop-off time
+                                </span>
                                 </div>
                             </div>
 
