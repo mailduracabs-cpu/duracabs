@@ -230,7 +230,7 @@
                                 </div>
                             </div>
 
-                            <div class="mt-3 grid grid-cols-2 gap-2.5">
+                            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div class="min-w-0">
                                 <label for="self-drive-start-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-sky-800">
                                     Pickup Date
@@ -241,7 +241,8 @@
                                     wire:model="date"
                                     min="{{ date('Y-m-d') }}"
                                     required
-                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 sm:text-sm"
+                                    style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
                                 </div>
 
@@ -254,7 +255,8 @@
                                     type="time"
                                     wire:model="time"
                                     required
-                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 sm:text-sm"
+                                    style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
                                 </div>
                             </div>
@@ -278,7 +280,7 @@
                                 </div>
                             </div>
 
-                            <div class="mt-3 grid grid-cols-2 gap-2.5">
+                            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div class="min-w-0">
                                 <label for="self-drive-end-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
                                     Drop-off Date
@@ -289,7 +291,8 @@
                                     wire:model="dateto"
                                     min="{{ date('Y-m-d') }}"
                                     required
-                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:text-sm"
+                                    style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
                                 </div>
 
@@ -302,7 +305,8 @@
                                     type="time"
                                     wire:model="endTime"
                                     required
-                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:text-sm"
+                                    style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
                                 </div>
                             </div>
