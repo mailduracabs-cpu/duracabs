@@ -118,7 +118,7 @@
                                 type="button"
                                 x-on:click="
                                     rentalMode = @js($mode);
-                                    $wire.set('plan', @js($mode), false);
+                                    $wire.set('plan', @js($mode));
                                 "
                                 x-bind:class="rentalMode === @js($mode)
                                     ? 'bg-emerald-700 text-white shadow-md'
@@ -145,16 +145,16 @@
                                 >
                                     @switch($mode)
                                         @case('hourly')
-                                            Short rides
+                                            Pay by hour
                                             @break
                                         @case('daily')
-                                            Up to 7 days
+                                            24-hour rate
                                             @break
                                         @case('weekly')
-                                            7+ day rides
+                                            7-day offer
                                             @break
                                         @case('monthly')
-                                            Long-term
+                                            30-day offer
                                             @break
                                     @endswitch
                                 </span>

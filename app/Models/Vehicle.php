@@ -958,6 +958,56 @@ class Vehicle extends Model
         return round(($dailyPrice * 30) * 0.70, 2);
     }
 
+    /**
+     * Return the authoritative quote for the rental plan selected by the customer.
+     * Admin-entered weekly/monthly rates are used before the model fallbacks.
+     */
+    public function getRentalQuote(string $plan, int $selectedHours): array
+    {
+        $plan = in_array($plan, ['hourly', 'daily', 'weekly', 'monthly'], true)
+            ? $plan
+            : 'daily';
+        $selectedHours = max(1, $selectedHours);
+        $minimumHours = max(1, (int) ($this->minimum_booking_hours ?? 1));
+        $dailyRate = $this->getDailyRate();
+
+        $configuration = match ($plan) {
+            'hourly' => [$this->getHourlyRate(), 1, 'hour', 1],
+            'weekly' => [$this->getWeeklyRate(), 168, '7 days', 168],
+            'monthly' => [$this->getMonthlyRate(), 720, '30 days', 720],
+            default => [$dailyRate, 24, 'day', 24],
+        };
+
+        [$rate, $unitHours, $unitLabel, $minimumPlanHours] = $configuration;
+        $billableHours = max($selectedHours, $minimumHours, $minimumPlanHours);
+        $units = max(1, (int) ceil($billableHours / $unitHours));
+        $total = round($rate * $units, 2);
+        $regularTotal = match ($plan) {
+            'weekly' => $dailyRate > 0 ? round($dailyRate * 7 * $units, 2) : $total,
+            'monthly' => $dailyRate > 0 ? round($dailyRate * 30 * $units, 2) : $total,
+            default => $total,
+        };
+        $saving = max(0, round($regularTotal - $total, 2));
+
+        return [
+            'plan' => $plan,
+            'rate' => round($rate, 2),
+            'unit_hours' => $unitHours,
+            'unit_label' => $unitLabel,
+            'units' => $units,
+            'selected_hours' => $selectedHours,
+            'billable_hours' => $billableHours,
+            'minimum_hours' => max($minimumHours, $minimumPlanHours),
+            'regular_total' => $regularTotal,
+            'saving' => $saving,
+            'saving_percentage' => $regularTotal > 0
+                ? (int) round(($saving / $regularTotal) * 100)
+                : 0,
+            'total' => $total,
+            'is_available' => $rate > 0,
+        ];
+    }
+
     public function getSecurityDepositAmount(): float
     {
         return max(0, (float) $this->security_deposit);

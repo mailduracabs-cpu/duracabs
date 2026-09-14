@@ -345,6 +345,8 @@ class RidesPage extends Component
      */
     private function normaliseSelfDriveRentalPeriod(): void
     {
+        $this->plan = $this->normalisedSelfDrivePlan();
+
         try {
             $pickupDate = filled($this->date)
                 ? trim((string) $this->date)
@@ -414,6 +416,15 @@ class RidesPage extends Component
                 ]
             );
         }
+    }
+
+    private function normalisedSelfDrivePlan(): string
+    {
+        $plan = strtolower(trim((string) $this->plan));
+
+        return in_array($plan, ['hourly', 'daily', 'weekly', 'monthly'], true)
+            ? $plan
+            : 'daily';
     }
 
     
@@ -504,13 +515,14 @@ class RidesPage extends Component
                     return $lockedVehicle;
                 }, 3);
 
-                $unitPrice = max(0, (float) ($vehicle->hourly_price ?? 0));
                 $hours = $this->calculateSelfDriveHours();
-                $minimumBookingHours = max(1, (int) ($vehicle->minimum_booking_hours ?? 1));
-                $billableHours = max($hours, $minimumBookingHours);
-                $subtotal = $unitPrice * $billableHours * $quantity;
+                $quote = $vehicle->getRentalQuote($this->normalisedSelfDrivePlan(), $hours);
+                $unitPrice = (float) $quote['rate'];
+                $billableHours = (int) $quote['billable_hours'];
+                $minimumBookingHours = (int) $quote['minimum_hours'];
+                $subtotal = (float) $quote['total'] * $quantity;
 
-                if ($unitPrice <= 0) {
+                if (! $quote['is_available']) {
                     throw new \RuntimeException('SELF_DRIVE_PRICE_UNAVAILABLE');
                 }
 
@@ -536,19 +548,22 @@ class RidesPage extends Component
                         'end_time' => (string) $this->endTime,
                         'hours' => $hours,
                         'days' => $this->days,
-                        'plan' => null,
+                        'plan' => $quote['plan'],
                         'quantity' => $quantity,
                         'pickup_at' => $pickupAt->toDateTimeString(),
                         'drop_at' => $dropAt->toDateTimeString(),
                     ],
                     'fare' => [
                         'unit_price' => $unitPrice,
-                        'price_unit' => 'hour',
+                        'price_unit' => $quote['unit_label'],
+                        'units' => $quote['units'],
                         'hours' => $hours,
                         'billable_hours' => $billableHours,
                         'minimum_booking_hours' => $minimumBookingHours,
                         'quantity' => $quantity,
                         'subtotal' => $subtotal,
+                        'regular_total' => (float) $quote['regular_total'] * $quantity,
+                        'saving' => (float) $quote['saving'] * $quantity,
                         'total' => $subtotal,
                     ],
                     'vehicle' => [
@@ -1679,6 +1694,10 @@ class RidesPage extends Component
                 $params['dateto'] = $this->edit_dateto;
                 $params['endTime'] = $this->edit_endTime;
                 $params['days'] = $this->edit_days;
+                $editPlan = strtolower(trim((string) $this->edit_plan));
+                $params['plan'] = in_array($editPlan, ['hourly', 'daily', 'weekly', 'monthly'], true)
+                    ? $editPlan
+                    : $this->normalisedSelfDrivePlan();
 
                 if ($this->vehicle_id) {
                     $params['vehicle_id'] = $this->vehicle_id;
@@ -1903,23 +1922,42 @@ class RidesPage extends Component
                 }
             }
 
-            /*
-             * The Self Drive cards display the complete rental amount:
-             *
-             * hourly_price × max(selected rental hours, minimum booking hours)
-             *
-             * The old filter compared the slider against hourly_price only, so
-             * changing the amount did not match what the customer saw on cards.
-             */
+            // Use the selected plan's backend rate for filtering and sorting.
             $selectedRentalHours = max(1, $this->calculateSelfDriveHours());
+            $selectedPlan = $this->normalisedSelfDrivePlan();
+            $rateExpression = match ($selectedPlan) {
+                'hourly' => 'hourly_price',
+                'weekly' => 'COALESCE(NULLIF(weekly_price, 0), daily_price * 7 * 0.80)',
+                'monthly' => 'COALESCE(NULLIF(monthly_price, 0), daily_price * 30 * 0.70)',
+                default => 'daily_price',
+            };
+            $unitHours = match ($selectedPlan) {
+                'hourly' => 1,
+                'weekly' => 168,
+                'monthly' => 720,
+                default => 24,
+            };
+            $minimumPlanHours = match ($selectedPlan) {
+                'weekly' => 168,
+                'monthly' => 720,
+                'daily' => 24,
+                default => 1,
+            };
+            $displayedRentalExpression = sprintf(
+                '(%s * CEIL(GREATEST(?, COALESCE(minimum_booking_hours, 1), ?) / %d))',
+                $rateExpression,
+                $unitHours
+            );
+            $expressionBindings = [$selectedRentalHours, $minimumPlanHours];
 
-            $displayedRentalExpression =
-                '(hourly_price * GREATEST(?, COALESCE(minimum_booking_hours, 1)))';
-
-            if (is_numeric($this->price_range) && (float) $this->price_range > 0) {
+            if (
+                $selectedPlan !== 'monthly'
+                && is_numeric($this->price_range)
+                && (float) $this->price_range > 0
+            ) {
                 $ridesQuery->whereRaw(
                     $displayedRentalExpression . ' <= ?',
-                    [$selectedRentalHours, (float) $this->price_range]
+                    [...$expressionBindings, (float) $this->price_range]
                 );
             }
 
@@ -1927,10 +1965,10 @@ class RidesPage extends Component
                 $ridesQuery->latest('id');
             } else {
                 $ridesQuery
-                    ->orderByRaw('CASE WHEN hourly_price IS NULL OR hourly_price <= 0 THEN 1 ELSE 0 END')
+                    ->orderByRaw("CASE WHEN {$rateExpression} IS NULL OR {$rateExpression} <= 0 THEN 1 ELSE 0 END")
                     ->orderByRaw(
                         $displayedRentalExpression . ' ASC',
-                        [$selectedRentalHours]
+                        $expressionBindings
                     )
                     ->orderBy('id');
             }

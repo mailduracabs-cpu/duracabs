@@ -1078,28 +1078,25 @@
     <div class="sd-list">
         @forelse ($rides as $vehicle)
             @php
-                $hourlyPrice = max(
-                    0,
-                    (float) ($vehicle->hourly_price ?? 0)
+                $rentalQuote = $vehicle->getRentalQuote(
+                    strtolower((string) ($plan ?: 'daily')),
+                    $selfDriveHours
                 );
-
-                $minimumBookingHours = max(
-                    1,
-                    (int) ($vehicle->minimum_booking_hours ?? 1)
-                );
-
-                $billableHours = max(
-                    $selfDriveHours,
-                    $minimumBookingHours
-                );
+                $selectedPlan = $rentalQuote['plan'];
+                $planLabel = ucfirst($selectedPlan) . ' Plan';
+                $unitPrice = $rentalQuote['rate'];
+                $minimumBookingHours = $rentalQuote['minimum_hours'];
+                $billableHours = $rentalQuote['billable_hours'];
 
                 $securityDeposit = max(
                     0,
                     (float) ($vehicle->security_deposit ?? 0)
                 );
 
-                $rentalTotal = $hourlyPrice * $billableHours;
-                $hasValidPrice = $hourlyPrice > 0;
+                $rentalTotal = $rentalQuote['total'];
+                $regularTotal = $rentalQuote['regular_total'];
+                $saving = $rentalQuote['saving'];
+                $hasValidPrice = $rentalQuote['is_available'];
 
                 $vehicleImage = $vehicle->front_image_url
                     ?: asset('cab_images/default-car.png');
@@ -1271,7 +1268,7 @@
                 </div>
 
                 <div class="sd-premium-booking">
-                    <p class="sd-premium-price-label">Rental Charges</p>
+                    <p class="sd-premium-price-label">{{ $planLabel }} Charges</p>
 
                     @if ($hasValidPrice)
                         <div class="sd-premium-price">
@@ -1279,8 +1276,15 @@
                         </div>
 
                         <p class="sd-premium-rate">
-                            {{ Number::currency($hourlyPrice, 'INR') }} / hour
+                            {{ Number::currency($unitPrice, 'INR') }} / {{ $rentalQuote['unit_label'] }}
                         </p>
+
+                        @if ($saving > 0)
+                            <p class="mt-2 text-sm font-extrabold text-emerald-700">
+                                <span class="mr-1 text-slate-400 line-through">{{ Number::currency($regularTotal, 'INR') }}</span>
+                                Save {{ Number::currency($saving, 'INR') }} ({{ $rentalQuote['saving_percentage'] }}%)
+                            </p>
+                        @endif
 
                         <div class="sd-premium-billing">
                             <span>
@@ -1346,11 +1350,16 @@
                                 type="button"
                                 x-on:click="openSelfDriveFare(@js([
                                     'vehicleName' => $vehicle->display_name,
-                                    'hourlyPrice' => $hourlyPrice,
+                                    'planLabel' => $planLabel,
+                                    'unitPrice' => $unitPrice,
+                                    'unitLabel' => $rentalQuote['unit_label'],
+                                    'units' => $rentalQuote['units'],
                                     'selectedHours' => $selfDriveHours,
                                     'minimumHours' => $minimumBookingHours,
                                     'billableHours' => $billableHours,
                                     'rentalTotal' => $rentalTotal,
+                                    'regularTotal' => $regularTotal,
+                                    'saving' => $saving,
                                     'securityDeposit' => $securityDeposit,
                                     'payableAtBooking' => $rentalTotal + $securityDeposit,
                                 ]))"
@@ -2243,9 +2252,17 @@
                 </div>
 
                 <p class="mt-2 text-center text-[11px] font-semibold text-slate-500">
-                    <span x-text="selfDriveFare.billableHours || 0"></span> hrs ×
-                    <span x-text="formatInr(selfDriveFare.hourlyPrice)"></span>/hr
+                    <span x-text="selfDriveFare.units || 1"></span> ×
+                    <span x-text="formatInr(selfDriveFare.unitPrice)"></span>
+                    per <span x-text="selfDriveFare.unitLabel || 'rental unit'"></span>
                 </p>
+
+                <template x-if="Number(selfDriveFare.saving || 0) > 0">
+                    <div class="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm">
+                        <span class="font-bold text-emerald-800">Offer Saving</span>
+                        <strong class="text-emerald-700" x-text="formatInr(selfDriveFare.saving)"></strong>
+                    </div>
+                </template>
 
                 <template x-if="Number(selfDriveFare.selectedHours || 0) < Number(selfDriveFare.minimumHours || 0)">
                     <div class="mt-3 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2.5 text-xs font-semibold leading-5 text-sky-900">

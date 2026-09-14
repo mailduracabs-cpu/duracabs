@@ -59,6 +59,10 @@ class ServiceSearchPanel extends Component
         $this->selected_tab = $this->defaultTab;
         $this->bannerTab = $this->defaultTab;
 
+        if ($this->defaultTab === 'self_drive') {
+            $this->plan = 'daily';
+        }
+
         if ($this->defaultFromCity !== null) {
             $this->query = $this->defaultFromCity;
             $this->query_search = $this->defaultFromCity;
@@ -513,6 +517,8 @@ class ServiceSearchPanel extends Component
 
     public function verifySubmitOtpSelfDrive()
     {
+        $this->alignSelfDrivePeriodWithPlan();
+
         $customer = $this->authenticatedCustomer();
         $loggedInMobile = CustomerSearchActivity::normalizeMobile(
             $customer?->mobile
@@ -577,6 +583,7 @@ class ServiceSearchPanel extends Component
                 'time' => $this->time,
                 'endTime' => $this->endTime,
                 'days' => $rentalHours,
+                'plan' => $this->normalisedSelfDrivePlan(),
                 'vehicle_id' => $this->selectedSelfDriveVehicleId,
                 'place_id' => $this->selfDrivePlaceId,
                 'lat' => $this->selfDriveLatitude,
@@ -584,6 +591,15 @@ class ServiceSearchPanel extends Component
                 'address' => $this->querySelfDrive,
             ])
         );
+    }
+
+    private function normalisedSelfDrivePlan(): string
+    {
+        $plan = strtolower(trim((string) $this->plan));
+
+        return in_array($plan, ['hourly', 'daily', 'weekly', 'monthly'], true)
+            ? $plan
+            : 'daily';
     }
 
 
@@ -2003,6 +2019,7 @@ class ServiceSearchPanel extends Component
     public function updatedDate(): void
     {
         $this->clearError('date');
+        $this->alignSelfDrivePeriodWithPlan();
         $this->loadHomepageSelfDriveVehicles();
     }
 
@@ -2015,6 +2032,7 @@ class ServiceSearchPanel extends Component
     public function updatedTime(): void
     {
         $this->clearError('time');
+        $this->alignSelfDrivePeriodWithPlan();
         $this->loadHomepageSelfDriveVehicles();
     }
 
@@ -2032,6 +2050,36 @@ class ServiceSearchPanel extends Component
     public function updatedPlan()
     {
         $this->clearError('plan');
+        $this->alignSelfDrivePeriodWithPlan();
+    }
+
+    private function alignSelfDrivePeriodWithPlan(): void
+    {
+        if ($this->selected_tab !== 'self_drive' || blank($this->date) || blank($this->time)) {
+            return;
+        }
+
+        $startTimestamp = strtotime(trim((string) $this->date . ' ' . (string) $this->time));
+
+        if ($startTimestamp === false) {
+            return;
+        }
+
+        $minimumHours = match ($this->normalisedSelfDrivePlan()) {
+            'weekly' => 168,
+            'monthly' => 720,
+            'daily' => 24,
+            default => 1,
+        };
+        $minimumEnd = $startTimestamp + ($minimumHours * 3600);
+        $currentEnd = filled($this->dateto) && filled($this->endTime)
+            ? strtotime(trim((string) $this->dateto . ' ' . (string) $this->endTime))
+            : false;
+
+        if ($currentEnd === false || $currentEnd < $minimumEnd) {
+            $this->dateto = date('Y-m-d', $minimumEnd);
+            $this->endTime = date('H:i', $minimumEnd);
+        }
     }
 
     public function searchPackage()
