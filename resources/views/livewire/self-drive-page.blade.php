@@ -162,8 +162,8 @@
                         @endforeach
                     </div>
 
-                    <div class="grid grid-cols-1 overflow-visible rounded-2xl border border-slate-200 bg-white lg:grid-cols-4">
-                        <div class="relative z-[120] border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
+                    <div class="grid grid-cols-1 gap-3 overflow-visible rounded-2xl border border-slate-200 bg-slate-50/70 p-3 lg:grid-cols-[1.15fr_1.45fr_1.45fr_150px]">
+                        <div class="relative z-[120] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                             <label for="self-drive-city" class="flex items-center gap-2 text-xs font-bold text-slate-600">
                                 <i class="fa-solid fa-location-dot text-emerald-700"></i>
                                 Pickup City / Location
@@ -218,15 +218,22 @@
                             @endif
                         </div>
 
-                        <div class="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
-                            <label class="flex items-center gap-2 text-xs font-bold text-slate-600">
-                                <i class="fa-regular fa-calendar text-emerald-700"></i>
-                                Trip Start
-                            </label>
+                        <fieldset class="min-w-0 rounded-xl border border-sky-200 bg-sky-50/60 p-3 shadow-sm">
+                            <legend class="sr-only">Pickup details</legend>
+                            <div class="flex items-center gap-2">
+                                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-sky-100 text-sky-700">
+                                    <i class="fa-solid fa-arrow-up-from-bracket text-xs"></i>
+                                </span>
+                                <div>
+                                    <p class="text-sm font-black text-slate-900">Pickup Details</p>
+                                    <p class="text-[11px] font-semibold text-slate-500">When your trip starts</p>
+                                </div>
+                            </div>
 
-                            <div class="mt-2 grid grid-cols-2 gap-3">
-                                <label for="self-drive-start-date" class="sr-only">
-                                    Trip start date
+                            <div class="mt-3 grid grid-cols-2 gap-2.5">
+                                <div class="min-w-0">
+                                <label for="self-drive-start-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-sky-800">
+                                    Pickup Date
                                 </label>
                                 <input
                                     id="self-drive-start-date"
@@ -234,19 +241,22 @@
                                     wire:model="date"
                                     min="{{ date('Y-m-d') }}"
                                     required
-                                    class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 sm:text-sm"
                                 >
+                                </div>
 
-                                <label for="self-drive-start-time" class="sr-only">
-                                    Trip start time
+                                <div class="min-w-0">
+                                <label for="self-drive-start-time" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-sky-800">
+                                    Pickup Time
                                 </label>
                                 <input
                                     id="self-drive-start-time"
                                     type="time"
                                     wire:model="time"
                                     required
-                                    class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 sm:text-sm"
                                 >
+                                </div>
                             </div>
 
                             @if ($this->hasError('date'))
@@ -254,17 +264,24 @@
                             @elseif ($this->hasError('time'))
                                 <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('time') }}</p>
                             @endif
-                        </div>
+                        </fieldset>
 
-                        <div class="border-b border-slate-200 p-4 lg:border-b-0 lg:border-r">
-                            <label class="flex items-center gap-2 text-xs font-bold text-slate-600">
-                                <i class="fa-regular fa-calendar-check text-emerald-700"></i>
-                                Trip End
-                            </label>
+                        <fieldset class="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 shadow-sm">
+                            <legend class="sr-only">Drop-off details</legend>
+                            <div class="flex items-center gap-2">
+                                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+                                    <i class="fa-solid fa-flag-checkered text-xs"></i>
+                                </span>
+                                <div>
+                                    <p class="text-sm font-black text-slate-900">Drop-off Details</p>
+                                    <p class="text-[11px] font-semibold text-slate-500">When you will return the car</p>
+                                </div>
+                            </div>
 
-                            <div class="mt-2 grid grid-cols-2 gap-3">
-                                <label for="self-drive-end-date" class="sr-only">
-                                    Trip end date
+                            <div class="mt-3 grid grid-cols-2 gap-2.5">
+                                <div class="min-w-0">
+                                <label for="self-drive-end-date" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
+                                    Drop-off Date
                                 </label>
                                 <input
                                     id="self-drive-end-date"
@@ -272,19 +289,22 @@
                                     wire:model="dateto"
                                     min="{{ date('Y-m-d') }}"
                                     required
-                                    class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:text-sm"
                                 >
+                                </div>
 
-                                <label for="self-drive-end-time" class="sr-only">
-                                    Trip end time
+                                <div class="min-w-0">
+                                <label for="self-drive-end-time" class="mb-1 block text-[11px] font-extrabold uppercase tracking-wide text-emerald-800">
+                                    Drop-off Time
                                 </label>
                                 <input
                                     id="self-drive-end-time"
                                     type="time"
                                     wire:model="endTime"
                                     required
-                                    class="min-w-0 border-0 bg-transparent p-0 text-sm font-black text-slate-900 outline-none ring-0 focus:ring-0"
+                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-2 text-xs font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 sm:text-sm"
                                 >
+                                </div>
                             </div>
 
                             @if ($this->hasError('dateto'))
@@ -292,9 +312,9 @@
                             @elseif ($this->hasError('endTime'))
                                 <p class="mt-2 text-xs font-bold text-red-600">{{ $this->getError('endTime') }}</p>
                             @endif
-                        </div>
+                        </fieldset>
 
-                        <div class="flex items-center p-3">
+                        <div class="flex items-center">
                             <button
                                 type="submit"
                                 wire:loading.attr="disabled"
