@@ -1415,9 +1415,17 @@ public function increaseQty(){
 
         $fare = '₹' . number_format((float) $lowestFare, 0, '.', ',');
         $title = trim($title);
+        $currencyPattern = '(?:₹\s*|Rs\.?\s*|INR\s*)[\d,]+(?:\.\d{1,2})?';
 
-        if (preg_match('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $title)) {
-            return (string) preg_replace('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $fare, $title, 1);
+        if (preg_match('/' . $currencyPattern . '/iu', $title)) {
+            $title = (string) preg_replace(
+                '/(?:\b(?:from|starting\s+from)\s+)?' . $currencyPattern . '(?:\s+only)?/iu',
+                'from ' . $fare,
+                $title,
+                1,
+            );
+
+            return trim((string) preg_replace('/\s{2,}/', ' ', $title));
         }
 
         $parts = explode('|', $title, 2);
@@ -1443,22 +1451,19 @@ public function increaseQty(){
         $fareSentence = ($categoryName !== '' ? $categoryName . ' fares' : 'Fares')
             . ' start from ' . $fare . '.';
         $description = trim($description);
+        $currencyPattern = '(?:₹\s*|Rs\.?\s*|INR\s*)[\d,]+(?:\.\d{1,2})?';
 
-        $updated = preg_replace(
-            '/(?:[A-Za-z][A-Za-z ]{0,40}\s+)?[Ff]ares?\s+(?:start|starts|starting)\s+from\s+₹\s*[\d,]+(?:\.\d{1,2})?\.?/u',
-            $fareSentence,
+        // Remove every previously generated/manual "price starts at" or
+        // "fares start from" sentence, including legacy Rs./INR formats.
+        $description = (string) preg_replace(
+            '/(?:[A-Za-z0-9()+&\/-]+\s+){0,7}(?:fares?|price)\s+(?:start|starts|starting)\s+(?:at|from)\s+'
+                . $currencyPattern . '\s*\.?/iu',
+            '',
             $description,
-            1,
-            $count,
         );
 
-        if ($count > 0) {
-            return trim((string) $updated);
-        }
-
-        if (preg_match('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $description)) {
-            return trim((string) preg_replace('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $fare, $description, 1));
-        }
+        $description = trim((string) preg_replace('/\s{2,}/', ' ', $description));
+        $description = preg_replace('/\.\s*\./', '.', $description) ?: $description;
 
         return rtrim($description, " \t\n\r\0\x0B.") . '. ' . $fareSentence;
     }
