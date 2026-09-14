@@ -34,6 +34,8 @@ class ProductDetailedPage extends Component
     public $tab = false;
     public $date = false;
     public $time = false;
+    public string $minimumPickupDate = '';
+    public string $minimumPickupTime = '';
 
     public $endDate = false;
     public $endTime = false;
@@ -133,6 +135,7 @@ class ProductDetailedPage extends Component
         $this->time = request()->query('time', '');
         $this->endDate = request()->query('end_date', '');
         $this->endTime = request()->query('end_time', '');
+        $this->normalisePickupSelection();
 
         if ((string) $routeProduct->ride_type === 'one_way') {
             $this->loadActualOneWayRouteMetrics();
@@ -147,6 +150,10 @@ class ProductDetailedPage extends Component
 
 public function submitOneWay($priceId = null)
 {
+    if (! $this->validatePickupWindow()) {
+        return null;
+    }
+
     $this->validate([
         'date' => ['required', 'date'],
         'time' => ['required'],
@@ -164,6 +171,10 @@ public function submitOneWay($priceId = null)
 
 public function submitLocal($productId)
 {
+    if (! $this->validatePickupWindow()) {
+        return null;
+    }
+
     $this->validate([
         'date' => ['required', 'date'],
         'time' => ['required'],
@@ -177,6 +188,10 @@ public function submitSelfDrive($productId)
 {
     $this->resetErrorBag();
     $this->selfDriveAvailabilityMessage = null;
+
+    if (! $this->validatePickupWindow()) {
+        return null;
+    }
 
     $this->validate([
         'date' => ['required', 'date'],
@@ -554,14 +569,74 @@ public function updatedEndTime(): void
 
 public function updatedTime(): void
 {
+    $this->normalisePickupSelection(false);
     $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
 }
 
 public function updatedDate(): void
 {
+    $this->normalisePickupSelection(false);
     $this->selfDriveAvailabilityMessage = null;
     $this->recalculateSelfDriveHours();
+}
+
+/**
+ * Keep the browser controls and the authoritative server check on the same
+ * one-hour advance-booking window. Minute inputs cannot represent seconds, so
+ * the minimum is rounded up to the next full minute.
+ */
+private function refreshMinimumPickupWindow(): Carbon
+{
+    $minimum = Carbon::now()->addHour()->addMinute()->startOfMinute();
+    $this->minimumPickupDate = $minimum->toDateString();
+    $this->minimumPickupTime = $minimum->format('H:i');
+
+    return $minimum;
+}
+
+private function normalisePickupSelection(bool $fillEmpty = true): void
+{
+    $minimum = $this->refreshMinimumPickupWindow();
+    $pickup = $this->parsePickupDateTime($this->date, $this->time);
+
+    if ($pickup && $pickup->greaterThanOrEqualTo($minimum)) {
+        return;
+    }
+
+    if ($fillEmpty || ($this->date && $this->time)) {
+        $this->date = $this->minimumPickupDate;
+        $this->time = $this->minimumPickupTime;
+    } elseif ($this->date && Carbon::parse((string) $this->date)->startOfDay()->lt($minimum->copy()->startOfDay())) {
+        $this->date = $this->minimumPickupDate;
+    }
+}
+
+private function validatePickupWindow(string $dateProperty = 'date', string $timeProperty = 'time'): bool
+{
+    $minimum = $this->refreshMinimumPickupWindow();
+    $pickup = $this->parsePickupDateTime($this->{$dateProperty}, $this->{$timeProperty});
+
+    if (! $pickup || $pickup->lt($minimum)) {
+        $this->addError($dateProperty, 'Pickup date aur time current time se kam se kam 1 ghanta baad ka hona chahiye.');
+        $this->addError($timeProperty, 'Minimum pickup time ' . $minimum->format('d M Y, h:i A') . ' hai.');
+        return false;
+    }
+
+    return true;
+}
+
+private function parsePickupDateTime(mixed $date, mixed $time): ?Carbon
+{
+    if (! $date || ! $time) {
+        return null;
+    }
+
+    try {
+        return Carbon::createFromFormat('Y-m-d H:i', trim((string) $date) . ' ' . trim((string) $time));
+    } catch (\Throwable) {
+        return null;
+    }
 }
 
 private function recalculateSelfDriveHours(): void
@@ -967,12 +1042,13 @@ public function increaseQty(){
 
     public function openEditTripModal(): void
     {
+        $this->normalisePickupSelection();
         $ride = Product::query()->where('slug', $this->slug)->firstOrFail();
         $this->editPickupId = $ride->brand_id ? (int) $ride->brand_id : null;
         $this->editDropId = $ride->booking_to ? (int) $ride->booking_to : null;
         $this->editRideType = (string) ($ride->ride_type ?: 'one_way');
-        $this->editDate = (string) ($this->date ?: now()->toDateString());
-        $this->editTime = (string) ($this->time ?: '10:00');
+        $this->editDate = (string) $this->date;
+        $this->editTime = (string) $this->time;
         $this->editEndDate = (string) ($this->endDate ?: '');
         $this->editEndTime = (string) ($this->endTime ?: '');
         $this->showEditTripModal = true;
@@ -985,6 +1061,10 @@ public function increaseQty(){
 
     public function updateTripSearch()
     {
+        if (! $this->validatePickupWindow('editDate', 'editTime')) {
+            return null;
+        }
+
         $rules = [
             'editPickupId' => ['required', 'integer'],
             'editDate' => ['required', 'date', 'after_or_equal:today'],

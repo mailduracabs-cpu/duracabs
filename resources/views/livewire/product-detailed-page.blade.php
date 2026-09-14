@@ -156,12 +156,12 @@
                     @endif
                     <div>
                         <label class="mb-2 block text-sm font-semibold">Pickup Date</label>
-                        <input type="date" min="{{ now()->toDateString() }}" wire:model="editDate" class="w-full rounded-xl border-slate-300">
+                        <input type="date" min="{{ $minimumPickupDate }}" wire:model="editDate" class="w-full rounded-xl border-slate-300">
                         @error('editDate')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     <div>
                         <label class="mb-2 block text-sm font-semibold">Pickup Time</label>
-                        <input type="time" wire:model="editTime" class="w-full rounded-xl border-slate-300">
+                        <input type="time" min="{{ $editDate === $minimumPickupDate ? $minimumPickupTime : '00:00' }}" wire:model="editTime" class="w-full rounded-xl border-slate-300">
                         @error('editTime')<p class="mt-1 text-sm text-red-600">{{ $message }}</p>@enderror
                     </div>
                     @if ($editRideType === 'self_drive')
@@ -208,12 +208,12 @@
                         <div class="grid gap-3" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr);">
                             <div class="min-w-0">
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Date</label>
-                                <input type="date" min="{{ now()->toDateString() }}" wire:model.live="date" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
+                                <input type="date" min="{{ $minimumPickupDate }}" wire:model.live="date" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
                                 @error('date') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
                             <div class="min-w-0">
                                 <label class="mb-1 block text-xs font-bold text-slate-700">Pickup Time</label>
-                                <input type="time" wire:model.live="time" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
+                                <input type="time" min="{{ $date === $minimumPickupDate ? $minimumPickupTime : '00:00' }}" wire:model.live="time" required style="box-sizing:border-box;width:100%;min-width:0;max-width:100%;-webkit-appearance:none;appearance:none;" class="h-10 rounded-lg border border-slate-300 px-2 text-xs text-slate-900 focus:border-sky-500 focus:ring-sky-100 sm:text-sm">
                                 @error('time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
@@ -309,13 +309,13 @@
 
                                     <div class="">
                                         <label class="font-semibold" for="">PickUp Date</label>
-                                        <input type="date" wire:model.live='date' maxlength="4" placeholder="date"
+                                        <input type="date" min="{{ $minimumPickupDate }}" wire:model.live='date' maxlength="4" placeholder="date"
                                             required
                                             class="arriveDate bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                                     </div>
                                     <div class="mt-3">
                                         <label class="font-semibold" for="">PickUp Time</label>
-                                        <input type="time" wire:model.live='time' maxlength="4" placeholder="time"
+                                        <input type="time" min="{{ $date === $minimumPickupDate ? $minimumPickupTime : '00:00' }}" wire:model.live='time' maxlength="4" placeholder="time"
                                             required
                                             class="arriveTime bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                                     </div>
@@ -362,13 +362,13 @@
                                     <div class="">
                                         <label class="font-semibold w-100" for="">PickUp Date</label>
                                         
-                                        <input type="date" wire:model.live='date' maxlength="4" placeholder="date"
+                                        <input type="date" min="{{ $minimumPickupDate }}" wire:model.live='date' maxlength="4" placeholder="date"
                                             required
                                             class="arriveDate bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                                     </div>
                                     <div class="mt-3">
                                         <label class="font-semibold" for="">PickUp Time</label>
-                                        <input type="time" wire:model.live='time' maxlength="4" placeholder="time"
+                                        <input type="time" min="{{ $date === $minimumPickupDate ? $minimumPickupTime : '00:00' }}" wire:model.live='time' maxlength="4" placeholder="time"
                                             required
                                             class="arriveTime bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                                     </div>
@@ -376,7 +376,7 @@
 
                                     <div class="">
                                         <label class="font-semibold" for="">Drop Date</label>
-                                        <input type="date" wire:model.live='endDate' maxlength="4"
+                                        <input type="date" min="{{ $date ?: $minimumPickupDate }}" wire:model.live='endDate' maxlength="4"
                                             placeholder="date" required
                                             class="arriveDate bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full ps-10 p-2.5  dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" />
                                     </div>
