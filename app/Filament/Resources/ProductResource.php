@@ -481,7 +481,7 @@ class ProductResource extends Resource
 
                                         Toggle::make('toll_included')
                                             ->label('Toll Included')
-                                            ->default(false)
+                                            ->default(true)
                                             ->helperText(
                                                 'ON means toll is already included in the displayed fare.',
                                             ),
@@ -495,7 +495,7 @@ class ProductResource extends Resource
 
                                         Toggle::make('state_tax_included')
                                             ->label('State Tax Included')
-                                            ->default(false),
+                                            ->default(true),
 
                                         TextInput::make('driver_allowances')
                                             ->label('Driver Allowance')
