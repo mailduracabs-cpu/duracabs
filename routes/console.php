@@ -19,3 +19,11 @@ Schedule::command('crm:followups --limit=1000')
     ->withoutOverlapping(60)
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/crm-followups-daily.log'));
+
+Schedule::command('competitor-prices:update --apply')
+    ->dailyAt('03:00')
+    ->timezone('Asia/Kolkata')
+    ->withoutOverlapping(180)
+    ->onOneServer()
+    ->when(fn (): bool => (bool) config('competitor-pricing.auto_apply', false))
+    ->appendOutputTo(storage_path('logs/competitor-prices.log'));

@@ -18,6 +18,11 @@ class Price extends Model
         'max_price',
     ];
 
+    protected $casts = [
+        'price' => 'decimal:2',
+        'max_price' => 'decimal:2',
+    ];
+
     public function category()
     {
         return $this->belongsTo(Category::class, 'category_id');
@@ -26,5 +31,15 @@ class Price extends Model
     public function product()
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function competitorPricingRule()
+    {
+        return $this->hasOne(CompetitorPriceRule::class);
+    }
+
+    public function competitorPriceChecks()
+    {
+        return $this->hasMany(CompetitorPriceCheck::class);
     }
 }

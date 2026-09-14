@@ -276,6 +276,11 @@ class Product extends Model
         return $this->belongsTo(Brand::class);
     }
 
+    public function destination(): BelongsTo
+    {
+        return $this->belongsTo(Brand::class, 'booking_to');
+    }
+
     /**
      * Existing database relation for structured product links.
      * Do not rename this relation to keep old code compatible.
