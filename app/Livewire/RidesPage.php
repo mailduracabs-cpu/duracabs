@@ -1089,12 +1089,18 @@ class RidesPage extends Component
         $user = Auth::guard('customer')->user();
 
         if (! $user instanceof User) {
+            $user = Auth::guard('web')->user();
+        }
+
+        if (! $user instanceof User || ! $user->canUseCustomerLogin()) {
             return null;
         }
 
-        return $user->canUseCustomerLogin()
-            ? $user
-            : null;
+        if (! Auth::guard('customer')->check()) {
+            Auth::guard('customer')->login($user, true);
+        }
+
+        return $user;
     }
 
     private function normalizeCustomerMobile(mixed $mobile): string

@@ -74,6 +74,18 @@
         $showFaqs = (bool) data_get($settings, 'show_faqs', true);
     @endphp
 
+    <style>
+        @media (max-width: 639px) {
+            .self-drive-native-field:invalid {
+                color: transparent !important;
+            }
+
+            .self-drive-native-field:invalid::-webkit-datetime-edit {
+                color: transparent !important;
+            }
+        }
+    </style>
+
     <section
         class="relative w-full overflow-x-clip overflow-y-visible bg-slate-950"
         x-data="{
@@ -237,14 +249,14 @@
                                 <input
                                     id="self-drive-start-date"
                                     type="date"
+                                    class="self-drive-native-field h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                     wire:model="date"
                                     x-on:change="hasValue = $el.value !== ''"
                                     min="{{ date('Y-m-d') }}"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
-                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
-                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500 sm:hidden">
                                     <i class="fa-regular fa-calendar text-sky-600"></i>
                                     Select pickup date
                                 </span>
@@ -257,13 +269,13 @@
                                 <input
                                     id="self-drive-start-time"
                                     type="time"
+                                    class="self-drive-native-field h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                     wire:model="time"
                                     x-on:change="hasValue = $el.value !== ''"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
-                                    class="h-11 w-full min-w-0 rounded-lg border border-sky-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
                                 >
-                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500 sm:hidden">
                                     <i class="fa-regular fa-clock text-sky-600"></i>
                                     Select pickup time
                                 </span>
@@ -296,14 +308,14 @@
                                 <input
                                     id="self-drive-end-date"
                                     type="date"
+                                    class="self-drive-native-field h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                     wire:model="dateto"
                                     x-on:change="hasValue = $el.value !== ''"
                                     min="{{ date('Y-m-d') }}"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
-                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
-                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500 sm:hidden">
                                     <i class="fa-regular fa-calendar-check text-emerald-600"></i>
                                     Select drop-off date
                                 </span>
@@ -316,13 +328,13 @@
                                 <input
                                     id="self-drive-end-time"
                                     type="time"
+                                    class="self-drive-native-field h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                     wire:model="endTime"
                                     x-on:change="hasValue = $el.value !== ''"
                                     required
                                     style="box-sizing:border-box!important;display:block!important;width:100%!important;min-width:0!important;max-width:100%!important;height:52px!important;padding:0 14px!important;font-size:16px!important;line-height:52px!important;"
-                                    class="h-11 w-full min-w-0 rounded-lg border border-emerald-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                                 >
-                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500">
+                                <span x-show="!hasValue" x-cloak style="height:52px;" class="pointer-events-none absolute bottom-0 left-0 flex w-full items-center gap-2 px-4 text-sm font-bold text-slate-500 sm:hidden">
                                     <i class="fa-regular fa-clock text-emerald-600"></i>
                                     Select drop-off time
                                 </span>

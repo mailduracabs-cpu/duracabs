@@ -605,22 +605,26 @@ class ServiceSearchPanel extends Component
 
 
     /**
-     * Return only an active Customer-role user from the dedicated guard.
-     *
-     * Admin, Moderator, Transporter and Driver sessions are intentionally
-     * ignored, even when those sessions are active in the same browser.
+     * Resolve a valid customer from either website authentication guard.
+     * Older website logins use the web guard, while OTP login uses customer.
      */
     private function authenticatedCustomer(): ?User
     {
         $user = Auth::guard('customer')->user();
 
         if (! $user instanceof User) {
+            $user = Auth::guard('web')->user();
+        }
+
+        if (! $user instanceof User || ! $user->canUseCustomerLogin()) {
             return null;
         }
 
-        return $user->canUseCustomerLogin()
-            ? $user
-            : null;
+        if (! Auth::guard('customer')->check()) {
+            Auth::guard('customer')->login($user, true);
+        }
+
+        return $user;
     }
 
     /**
