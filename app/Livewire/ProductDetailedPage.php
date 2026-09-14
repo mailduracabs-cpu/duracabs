@@ -1174,9 +1174,10 @@ public function increaseQty(){
                 : $pickupName,
         };
 
-        $seoTitle = filled($ride->meta_title)
-            ? trim((string) $ride->meta_title)
-            : $this->buildFallbackSeoTitle($ride, $routeName, $tripLabel, $contentType);
+        $lowestPriceRecord = $prices
+            ->filter(fn ($price): bool => (float) ($price->price ?? 0) > 0)
+            ->sortBy(fn ($price): float => (float) $price->price)
+            ->first();
 
         $lowestFare = $ride->ride_type === 'self_drive'
             ? (
@@ -1184,14 +1185,27 @@ public function increaseQty(){
                     ? (float) $selectedVehicle->hourly_price
                     : ((float) $ride->price > 0 ? (float) $ride->price : null)
             )
-            : $prices->min('price');
-        $fareText = $lowestFare
-            ? ' Fares start from ' . Number::currency((float) $lowestFare, 'INR') . '.'
-            : '';
+            : ($lowestPriceRecord ? (float) $lowestPriceRecord->price : null);
 
-        $seoDescription = filled($ride->meta_description)
+        $lowestFareCategory = $ride->ride_type === 'self_drive'
+            ? 'Self Drive Car'
+            : trim((string) ($lowestPriceRecord?->category?->name ?? ''));
+
+        $seoTitleBase = filled($ride->meta_title)
+            ? trim((string) $ride->meta_title)
+            : $this->buildFallbackSeoTitle($ride, $routeName, $tripLabel, $contentType);
+
+        $seoTitle = $this->injectLowestFareIntoSeoTitle($seoTitleBase, $lowestFare);
+
+        $seoDescriptionBase = filled($ride->meta_description)
             ? trim((string) $ride->meta_description)
-            : $this->buildFallbackSeoDescription($routeName, $tripLabel, $contentType, $fareText);
+            : $this->buildFallbackSeoDescription($routeName, $tripLabel, $contentType, '');
+
+        $seoDescription = $this->injectLowestFareIntoSeoDescription(
+            $seoDescriptionBase,
+            $lowestFare,
+            $lowestFareCategory,
+        );
 			$routeSeoContent = $this->buildRouteSeoContent(
     ride: $ride,
     routeName: $routeName,
@@ -1391,6 +1405,62 @@ public function increaseQty(){
             'product' => "Explore {$routeName}, pricing, availability and booking details with Dura Cabs.",
             default => "Book {$routeName} {$tripLabel} with verified drivers, clean cars and transparent pricing.{$fareText} Check available cabs and reserve online with Dura Cabs.",
         };
+    }
+
+    private function injectLowestFareIntoSeoTitle(string $title, mixed $lowestFare): string
+    {
+        if (! is_numeric($lowestFare) || (float) $lowestFare <= 0) {
+            return trim($title);
+        }
+
+        $fare = '₹' . number_format((float) $lowestFare, 0, '.', ',');
+        $title = trim($title);
+
+        if (preg_match('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $title)) {
+            return (string) preg_replace('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $fare, $title, 1);
+        }
+
+        $parts = explode('|', $title, 2);
+        $mainTitle = rtrim(trim($parts[0]), '-–— ');
+        $pricedTitle = $mainTitle . ' from ' . $fare;
+
+        return isset($parts[1])
+            ? $pricedTitle . ' | ' . trim($parts[1])
+            : $pricedTitle;
+    }
+
+    private function injectLowestFareIntoSeoDescription(
+        string $description,
+        mixed $lowestFare,
+        string $categoryName = '',
+    ): string {
+        if (! is_numeric($lowestFare) || (float) $lowestFare <= 0) {
+            return trim($description);
+        }
+
+        $fare = '₹' . number_format((float) $lowestFare, 0, '.', ',');
+        $categoryName = trim($categoryName);
+        $fareSentence = ($categoryName !== '' ? $categoryName . ' fares' : 'Fares')
+            . ' start from ' . $fare . '.';
+        $description = trim($description);
+
+        $updated = preg_replace(
+            '/(?:[A-Za-z][A-Za-z ]{0,40}\s+)?[Ff]ares?\s+(?:start|starts|starting)\s+from\s+₹\s*[\d,]+(?:\.\d{1,2})?\.?/u',
+            $fareSentence,
+            $description,
+            1,
+            $count,
+        );
+
+        if ($count > 0) {
+            return trim((string) $updated);
+        }
+
+        if (preg_match('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $description)) {
+            return trim((string) preg_replace('/₹\s*[\d,]+(?:\.\d{1,2})?/u', $fare, $description, 1));
+        }
+
+        return rtrim($description, " \t\n\r\0\x0B.") . '. ' . $fareSentence;
     }
 
 private function buildRouteSeoContent(
