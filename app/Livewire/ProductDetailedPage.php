@@ -1465,7 +1465,23 @@ public function increaseQty(){
         $description = trim((string) preg_replace('/\s{2,}/', ' ', $description));
         $description = preg_replace('/\.\s*\./', '.', $description) ?: $description;
 
-        return rtrim($description, " \t\n\r\0\x0B.") . '. ' . $fareSentence;
+        $maximumLength = 160;
+        $separator = '. ';
+        $availableBaseLength = max(
+            0,
+            $maximumLength - mb_strlen($fareSentence) - mb_strlen($separator),
+        );
+
+        if (mb_strlen($description) > $availableBaseLength) {
+            $description = mb_substr($description, 0, $availableBaseLength);
+            $description = preg_replace('/\s+\S*$/u', '', $description) ?: $description;
+        }
+
+        $description = rtrim($description, " \t\n\r\0\x0B,.;:-");
+
+        return $description !== ''
+            ? $description . $separator . $fareSentence
+            : $fareSentence;
     }
 
 private function buildRouteSeoContent(
