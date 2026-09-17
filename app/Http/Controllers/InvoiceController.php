@@ -512,9 +512,11 @@ class InvoiceController extends Controller
                     ?? '',
                 'return_time' => $order->endTime
                     ?? '',
-                'vehicle_name' => $order->productName
-                    ?? $order->taxi_type
-                    ?? '',
+                'vehicle_name' => trim(
+                    (string) ($vehicle->car_company_name ?? '')
+                    . ' '
+                    . (string) ($vehicle->model_name ?? '')
+                ) ?: ($order->productName ?: ($order->taxi_type ?? '')),
                 'vehicle_number' =>
                     $vehicle->vehicle_number
                     ?? '',
