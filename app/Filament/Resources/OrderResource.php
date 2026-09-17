@@ -1232,12 +1232,7 @@ class OrderResource extends Resource
         ->with([
             'user',
             'items',
-        ])
-        ->where(function (Builder $builder): void {
-            $builder
-                ->whereNull('ride_type')
-                ->orWhere('ride_type', '!=', 'self_drive');
-        });
+        ]);
 
     $user = auth()->user();
 
@@ -1250,7 +1245,13 @@ class OrderResource extends Resource
     }
 
     if ($user->hasRole('Transporter')) {
-        return $query->where('transporter_id', $user->id);
+        return $query
+            ->where(function (Builder $builder): void {
+                $builder
+                    ->whereNull('ride_type')
+                    ->orWhere('ride_type', '!=', 'self_drive');
+            })
+            ->where('transporter_id', $user->id);
     }
 
     return $query->whereRaw('1 = 0');
