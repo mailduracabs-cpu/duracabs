@@ -376,27 +376,9 @@ class BookingService
         int $limit = 20
     ) {
         $limit = min(max($limit, 1), 100);
-        $mobile = $mobile
-            ? preg_replace('/\D+/', '', $mobile)
-            : null;
-
-        // Flutter My Bookings currently sends the customer mobile number,
-        // while self-drive bookings are linked by customer_id. Resolve a
-        // dedicated self-drive user ID from the mobile without changing the
-        // existing taxi/website booking filter behaviour.
-        $selfDriveUserId = $userId;
-
-        if (! $selfDriveUserId && $mobile && $this->tableExists('users')) {
-            $selfDriveUserId = DB::table('users')
-                ->whereRaw(
-                    "RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(mobile, ' ', ''), '-', ''), '+', ''), '91', ''), 10) = ?",
-                    [substr($mobile, -10)]
-                )
-                ->value('id');
-
-            $selfDriveUserId = $selfDriveUserId
-                ? (int) $selfDriveUserId
-                : null;
+        // Customer history must never fall back to an unfiltered/mobile lookup.
+        if (! $userId || $userId < 1) {
+            return collect();
         }
 
         $bookings = collect();
@@ -404,30 +386,7 @@ class BookingService
         if ($this->tableExists('orders')) {
             $query = DB::table('orders')->orderByDesc('id');
 
-            if ($userId || $mobile) {
-                $query->where(function ($builder) use ($userId, $mobile): void {
-                    if ($userId) {
-                        $builder->where('user_id', $userId);
-                    }
-
-                    if ($mobile && $this->tableExists('addresses')) {
-                        $ids = DB::table('addresses')
-                            ->whereRaw(
-                                "REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '+91', '') = ?",
-                                [$mobile]
-                            )
-                            ->pluck('order_id')
-                            ->filter()
-                            ->all();
-
-                        if ($ids) {
-                            $userId
-                                ? $builder->orWhereIn('id', $ids)
-                                : $builder->whereIn('id', $ids);
-                        }
-                    }
-                });
-            }
+            $query->where('user_id', $userId);
 
             $bookings = $bookings->merge(
                 $query->limit($limit)->get()->map(
@@ -465,16 +424,7 @@ class BookingService
                 ])
                 ->orderByDesc('self_drive_bookings.id');
 
-            if ($selfDriveUserId) {
-                $query->where(
-                    'self_drive_bookings.customer_id',
-                    $selfDriveUserId
-                );
-            } elseif ($mobile) {
-                // A mobile was supplied but no matching customer exists.
-                // Never expose another customer's self-drive bookings.
-                $query->whereRaw('1 = 0');
-            }
+            $query->where('self_drive_bookings.customer_id', $userId);
 
             $selfDrive = $query->limit($limit)->get()->map(function ($booking) {
                 $vehicleName = trim(
@@ -535,18 +485,20 @@ class BookingService
             ->values();
     }
 
-    public function detail($bookingId): array
+    public function detail($bookingId, ?int $userId = null): array
     {
         if (! $this->tableExists('orders')) {
             return $this->failure('Orders table not found.', 500);
         }
 
         $order = DB::table('orders')
-            ->where('id', $bookingId)
-            ->when(
-                $this->columnExists('orders', 'booking_no'),
-                fn ($query) => $query->orWhere('booking_no', $bookingId)
-            )
+            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId))
+            ->where(function ($query) use ($bookingId): void {
+                $query->where('id', $bookingId);
+                if ($this->columnExists('orders', 'booking_no')) {
+                    $query->orWhere('booking_no', $bookingId);
+                }
+            })
             ->first();
 
         if (! $order) {

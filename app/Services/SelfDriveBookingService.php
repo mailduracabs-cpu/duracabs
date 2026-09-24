@@ -323,19 +323,13 @@ class SelfDriveBookingService
 
     public function pendingBooking(array $data, ?User $authenticatedUser = null): array
     {
-        $customer = $this->resolveCustomer($data, $authenticatedUser);
-
+        if (! $authenticatedUser) {
+            return $this->failure('Unauthenticated.', 401);
+        }
         $query = SelfDriveBooking::query()
             ->with(['vehicle', 'customer'])
+            ->where('customer_id', $authenticatedUser->id)
             ->whereNotIn('booking_status', ['completed', 'cancelled', 'rejected']);
-
-        if ($customer) {
-            $query->where('customer_id', $customer->id);
-        } elseif (! empty($data['mobile']) && Schema::hasColumn('self_drive_bookings', 'customer_mobile')) {
-            $query->where('customer_mobile', $this->normalizeMobile($data['mobile']));
-        } else {
-            return $this->failure('Customer is required.', 401);
-        }
 
         $booking = $query->latest('id')->first();
 
@@ -349,6 +343,10 @@ class SelfDriveBookingService
 
     public function details(int|string $bookingId, ?User $customer = null): array
     {
+        if (! $customer) {
+            return $this->failure('Unauthenticated.', 401);
+        }
+
         $booking = $this->findBooking($bookingId);
 
         if (! $booking) {
@@ -356,7 +354,7 @@ class SelfDriveBookingService
         }
 
         if ($customer && (int) $booking->customer_id !== (int) $customer->id) {
-            return $this->failure('You are not allowed to view this booking.', 403);
+            return $this->failure('Self drive booking not found.', 404);
         }
 
         return [

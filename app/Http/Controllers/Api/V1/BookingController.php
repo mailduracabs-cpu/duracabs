@@ -39,12 +39,13 @@ class BookingController extends BaseApiController
         Request $request,
         BookingService $bookingService
     ) {
+        $user = $request->user();
+        if (! $user) {
+            return $this->error('Unauthenticated.', 401);
+        }
         $result = $bookingService->myBookings(
-            mobile: $request->query('mobile'),
-            userId: $request->query('user_id')
-                ? (int) $request->query('user_id')
-                : null,
-            limit: (int) $request->query('limit', 20)
+            userId: (int) $user->id,
+            limit: min(max((int) $request->query('limit', 20), 1), 100)
         );
 
         return $this->success(
@@ -54,10 +55,18 @@ class BookingController extends BaseApiController
     }
 
     public function show(
+        Request $request,
         $bookingId,
         BookingService $bookingService
     ) {
-        $result = $bookingService->detail($bookingId);
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $order = $this->ownedOrder($request, $bookingId);
+        if (! $order) {
+            return $this->error('Booking not found.', 404);
+        }
+        $result = $bookingService->detail($order->id, (int) $request->user()->id);
 
         if (! ($result['status'] ?? false)) {
             return $this->error(
@@ -76,8 +85,17 @@ class BookingController extends BaseApiController
         CancelBookingRequest $request,
         BookingService $bookingService
     ) {
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $order = $this->ownedOrder($request, $request->input('booking_id'));
+        if (! $order) {
+            return $this->error('Booking not found.', 404);
+        }
+        $ownedData = array_merge($request->validated(), ['booking_id' => $order->id]);
+
         $result = $bookingService->cancel(
-            $request->validated()
+            $ownedData
         );
 
         if (! ($result['status'] ?? false)) {
@@ -134,6 +152,15 @@ class BookingController extends BaseApiController
             'pickup_time' => 'required',
         ]);
 
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $order = $this->ownedOrder($request, $request->input('booking_id'));
+        if (! $order) {
+            return $this->error('Booking not found.', 404);
+        }
+        $validated['booking_id'] = $order->id;
+
         $result = $bookingService->reschedule(
             $validated
         );
@@ -159,6 +186,15 @@ class BookingController extends BaseApiController
             'booking_id' => 'required',
         ]);
 
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $order = $this->ownedOrder($request, $request->input('booking_id'));
+        if (! $order) {
+            return $this->error('Booking not found.', 404);
+        }
+        $validated['booking_id'] = $order->id;
+
         $result = $bookingService->confirm(
             $validated['booking_id']
         );
@@ -183,6 +219,15 @@ class BookingController extends BaseApiController
         $validated = $request->validate([
             'booking_id' => 'required',
         ]);
+
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $order = $this->ownedOrder($request, $request->input('booking_id'));
+        if (! $order) {
+            return $this->error('Booking not found.', 404);
+        }
+        $validated['booking_id'] = $order->id;
 
         $result = $bookingService->driverDetails(
             $validated['booking_id']
@@ -345,4 +390,19 @@ class BookingController extends BaseApiController
         );
     }
 
+
+    private function ownedOrder(Request $request, $bookingId): ?Order
+    {
+        $user = $request->user();
+        if (! $user) return null;
+        $identifier = (string) $bookingId;
+        return Order::query()
+            ->where('user_id', $user->id)
+            ->where(function ($query) use ($identifier): void {
+                $query->where('booking_no', $identifier);
+                if (ctype_digit($identifier)) {
+                    $query->orWhere('id', (int) $identifier);
+                }
+            })->first();
+    }
 }

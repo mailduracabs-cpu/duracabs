@@ -296,7 +296,10 @@ class SelfDriveController extends BaseApiController
 
     public function pendingBooking(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
+        if (! ($user instanceof User)) {
+            return $this->error('Unauthenticated.', 401);
+        }
 
         return $this->serviceResponse(
             $this->bookingService->pendingBooking(
@@ -316,7 +319,10 @@ class SelfDriveController extends BaseApiController
             return $this->error($validator->errors()->first(), 422);
         }
 
-        $user = auth()->user();
+        $user = $request->user();
+        if (! ($user instanceof User)) {
+            return $this->error('Unauthenticated.', 401);
+        }
 
         return $this->serviceResponse(
             $this->bookingService->details(
@@ -326,9 +332,12 @@ class SelfDriveController extends BaseApiController
         );
     }
 
-    public function bookingDetails($bookingId)
+    public function bookingDetails(Request $request, $bookingId)
     {
-        $user = auth()->user();
+        $user = $request->user();
+        if (! ($user instanceof User)) {
+            return $this->error('Unauthenticated.', 401);
+        }
 
         return $this->serviceResponse(
             $this->bookingService->details(

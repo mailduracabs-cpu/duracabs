@@ -165,9 +165,9 @@ Route::prefix('bike-rental')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('/booking', [SelfDriveController::class, 'bikeBooking']);
-        Route::get('/pending-booking', [SelfDriveController::class, 'bikePendingBooking']);
+        Route::middleware('auth:sanctum')->get('/pending-booking', [SelfDriveController::class, 'bikePendingBooking']);
 
-        Route::get('/booking/{bookingId}', [SelfDriveController::class, 'bookingDetails'])
+        Route::middleware('auth:sanctum')->get('/booking/{bookingId}', [SelfDriveController::class, 'bookingDetails'])
             ->where('bookingId', '[A-Za-z0-9\-]+');
 
         Route::post('/booking/{bookingId}/cancel', [SelfDriveController::class, 'bikeCancelBooking'])
@@ -541,12 +541,12 @@ Route::prefix('bike-rental')->group(function (): void {
             'booking',
         ]);
 
-        Route::get('/pending-booking', [
+        Route::middleware('auth:sanctum')->get('/pending-booking', [
             SelfDriveController::class,
             'pendingBooking',
         ]);
 
-        Route::post('/booking-status', [
+        Route::middleware('auth:sanctum')->post('/booking-status', [
             SelfDriveController::class,
             'bookingStatus',
         ]);
@@ -699,7 +699,7 @@ Route::prefix('bike-rental')->group(function (): void {
         |----------------------------------------------------------------------
         */
 
-        Route::get('/booking/{bookingId}', [
+        Route::middleware('auth:sanctum')->get('/booking/{bookingId}', [
             SelfDriveController::class,
             'bookingDetails',
         ])->where('bookingId', '[A-Za-z0-9\-]+');
@@ -730,32 +730,32 @@ Route::prefix('bike-rental')->group(function (): void {
         'store',
     ]);
 
-    Route::get('/my-bookings', [
+    Route::middleware('auth:sanctum')->get('/my-bookings', [
         BookingController::class,
         'index',
     ]);
 
-    Route::get('/booking/{booking_id}', [
+    Route::middleware('auth:sanctum')->get('/booking/{booking_id}', [
         BookingController::class,
         'show',
     ]);
 
-    Route::post('/booking-cancel', [
+    Route::middleware('auth:sanctum')->post('/booking-cancel', [
         BookingController::class,
         'cancel',
     ]);
 
-    Route::post('/booking/reschedule', [
+    Route::middleware('auth:sanctum')->post('/booking/reschedule', [
         BookingController::class,
         'reschedule',
     ]);
 
-    Route::post('/booking/confirm', [
+    Route::middleware('auth:sanctum')->post('/booking/confirm', [
         BookingController::class,
         'confirm',
     ]);
 
-    Route::post('/booking/driver-details', [
+    Route::middleware('auth:sanctum')->post('/booking/driver-details', [
         BookingController::class,
         'driverDetails',
     ]);
