@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Throwable;
@@ -19,6 +20,88 @@ class OtpService
     private const OTP_EXPIRY_MINUTES = 5;
     private const OTP_RESEND_SECONDS = 30;
     private const OTP_MAX_ATTEMPTS = 5;
+
+    /** Fixed-code access is bound to one provisioned, customer-only account. */
+    private function reviewLoginUser(): ?User
+    {
+        if (config('play_review.enabled') !== true
+            || (int) config('play_review.user_id', 0) < 1
+            || !is_string(config('play_review.code_hash'))
+            || config('play_review.code_hash') === '') {
+            return null;
+        }
+
+        $user = User::query()->find((int) config('play_review.user_id'));
+        if (!$user || !$user->is_active
+            || (string) $user->mobile !== '0000000001'
+            || (string) $user->email !== 'play-review@duracabs.local') {
+            return null;
+        }
+
+        $roles = $user->roles()->get();
+        if ($roles->count() !== 1
+            || $roles->first()->name !== User::ROLE_CUSTOMER
+            || $roles->first()->guard_name !== 'web'
+            || $user->permissions()->exists()) {
+            return null;
+        }
+
+        return $user;
+    }
+
+    private function sendReviewLoginOtp(): array
+    {
+        if (!$this->reviewLoginUser()) {
+            return ['status' => false, 'message' => 'Review login is unavailable.'];
+        }
+
+        // No OTP generation, database OTP, or SMS/WhatsApp/email delivery.
+        return [
+            'status' => true,
+            'message' => 'Enter the review code provided in the app access instructions.',
+            'channel' => 'review',
+            'delivered_on' => [],
+            'resend_after' => 30,
+        ];
+    }
+
+    private function verifyReviewLoginOtp(string $otp): array
+    {
+        $user = $this->reviewLoginUser();
+        if (!$user) {
+            return ['status' => false, 'message' => 'Review login is unavailable.'];
+        }
+
+        $accountKey = 'play_review_verify_account_' . $user->getKey();
+        $ipKey = 'play_review_verify_ip_' . hash('sha256', (string) request()->ip());
+        if (RateLimiter::tooManyAttempts($accountKey, 20)
+            || RateLimiter::tooManyAttempts($ipKey, 5)) {
+            return ['status' => false, 'message' => 'Too many attempts. Please try again in 15 minutes.'];
+        }
+
+        // Count every attempt before checking, including malformed submissions
+        // reaching this service. Send/resend never resets these counters.
+        RateLimiter::hit($accountKey, 900);
+        RateLimiter::hit($ipKey, 900);
+        $otp = trim($otp);
+        if (!preg_match('/^\d{4}$/', $otp)
+            || !Hash::check($otp, (string) config('play_review.code_hash'))) {
+            return ['status' => false, 'message' => 'Invalid review code.'];
+        }
+
+        RateLimiter::clear($accountKey);
+        RateLimiter::clear($ipKey);
+
+        // Customer role is checked above; no web/admin session is opened.
+        $token = $user->createToken('dura_app_review_token')->plainTextToken;
+
+        return [
+            'status' => true,
+            'message' => 'Login successful.',
+            'token' => $token,
+            'user' => $user->fresh(),
+        ];
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -41,6 +124,11 @@ class OtpService
     public function sendLoginOtp(string $mobile): array
     {
         $mobile = $this->cleanMobile($mobile);
+
+        // Reserved synthetic identifier: never send a real login OTP.
+        if ($mobile === '0000000001') {
+            return $this->sendReviewLoginOtp();
+        }
 
         if (strlen($mobile) !== 10) {
             return [
@@ -148,6 +236,11 @@ class OtpService
     public function verifyLoginOtp(string $mobile, string $otp): array
     {
         $mobile = $this->cleanMobile($mobile);
+
+        // Reserved synthetic identifier: never send a real login OTP.
+        if ($mobile === '0000000001') {
+            return $this->verifyReviewLoginOtp($otp);
+        }
 
         if (strlen($mobile) !== 10) {
             return [
