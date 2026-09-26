@@ -32,6 +32,7 @@ use App\Livewire\RazorePay;
 use App\Livewire\RidesPage;
 use App\Livewire\SuccessPage;
 use App\Livewire\TermsAndConditions;
+use App\Livewire\PrivacyPolicy;
 use App\Livewire\PartnerDashboard;
 
 use App\Livewire\VendorRegistration;
@@ -65,6 +66,7 @@ Route::get('/edit-query', EditQueryPage::class)->name('edit-query');
 Route::get('/about-us', AboutUs::class)->name('about');
 Route::get('/contact-us', ContactUs::class)->name('contact-us');
 Route::get('/terms-and-conditions', TermsAndConditions::class)->name('terms-and-conditions');
+Route::get('/privacy-policy', PrivacyPolicy::class)->name('privacy-policy');
 Route::view('/cookie-policy', 'cookie-policy')->name('cookie-policy');
 
 Route::get('/route/{slug}', ProductDetailedPage::class)
