@@ -324,11 +324,10 @@ class SelfDriveController extends BaseApiController
             return $this->error('Unauthenticated.', 401);
         }
 
+        $result = $this->bookingService->details($request->booking_id, $user);
+
         return $this->serviceResponse(
-            $this->bookingService->details(
-                $request->booking_id,
-                $user instanceof User ? $user : null
-            )
+            $this->withBookingDocuments($result, $request->booking_id, $user)
         );
     }
 
@@ -339,11 +338,10 @@ class SelfDriveController extends BaseApiController
             return $this->error('Unauthenticated.', 401);
         }
 
+        $result = $this->bookingService->details($bookingId, $user);
+
         return $this->serviceResponse(
-            $this->bookingService->details(
-                $bookingId,
-                $user instanceof User ? $user : null
-            )
+            $this->withBookingDocuments($result, $bookingId, $user)
         );
     }
 
@@ -713,13 +711,14 @@ class SelfDriveController extends BaseApiController
     }
 
     /**
-     * Securely stream an unlocked Self Drive vehicle document to the booking customer.
+     * Stream a document only to the authenticated owner of this booking.
+     * Vehicle files retain the pickup OTP/registration unlock requirement.
      */
     public function vehicleDocument(Request $request, $bookingId, string $type)
     {
-        $customer = $this->customerFromRequest($request);
+        $customer = $request->user();
 
-        if (! $customer) {
+        if (! ($customer instanceof User)) {
             return $this->error('Please login again', 401);
         }
 
@@ -733,75 +732,182 @@ class SelfDriveController extends BaseApiController
             return $this->error('You are not allowed to view this booking document', 403);
         }
 
-        if (empty($booking->pickup_otp_verified_at) && empty($booking->registration_unlocked_at)) {
+        $type = strtolower(trim($type));
+        $vehicleTypes = ['rc', 'insurance', 'puc', 'pollution'];
+        $identityTypes = ['aadhaar_front', 'aadhaar_back', 'driving_licence_front', 'driving_licence_back'];
+
+        if (! in_array($type, [...$vehicleTypes, ...$identityTypes], true)) {
+            return $this->error('Document type not supported', 404);
+        }
+
+        $isVehicle = in_array($type, $vehicleTypes, true);
+        if ($isVehicle && ! $this->vehicleDocumentsUnlocked($booking)) {
             return $this->error('Vehicle documents are locked until pickup OTP verification', 403);
         }
 
-        $vehicle = Vehicle::find($booking->vehicle_id);
-
-        if (! $vehicle) {
+        $vehicle = $isVehicle ? Vehicle::find($booking->vehicle_id) : null;
+        if ($isVehicle && ! $vehicle) {
             return $this->error('Vehicle not found', 404);
         }
 
-        $type = strtolower(trim($type));
-
-        $path = match ($type) {
-            'rc' => $vehicle->rc_image,
-            'insurance' => $vehicle->insurance_image,
-            'puc', 'pollution' => $vehicle->polution_image,
-            default => null,
-        };
-
+        $path = $this->documentPath($type, $customer, $vehicle);
         if (blank($path)) {
-            return $this->error('Vehicle document not available', 404);
+            return $this->error('Document not available', 404);
         }
 
-        $path = trim((string) $path);
+        return $this->streamBookingDocument($path, $booking->id, $type);
+    }
 
-        // Legacy records can contain a full URL. Redirect only to our own/public URL.
-        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
-            return redirect()->away($path);
+    private function vehicleDocumentsUnlocked(object $booking): bool
+    {
+        return ! empty($booking->pickup_otp_verified_at)
+            || ! empty($booking->registration_unlocked_at);
+    }
+
+    private function documentPath(string $type, ?User $customer, ?Vehicle $vehicle): ?string
+    {
+        $columns = match ($type) {
+            'rc' => ['rc_image', 'registration_certificate_image'],
+            'insurance' => ['insurance_image', 'insurance_document'],
+            'puc', 'pollution' => ['polution_image', 'pollution_image', 'puc_image'],
+            'aadhaar_front' => ['aadhar_front', 'aadhaar_front', 'aadhaar_front_image'],
+            'aadhaar_back' => ['aadhar_back', 'aadhaar_back', 'aadhaar_back_image'],
+            'driving_licence_front' => ['driving_licence_front', 'driving_license_front'],
+            'driving_licence_back' => ['driving_licence_back', 'driving_license_back'],
+            default => [],
+        };
+        $model = in_array($type, ['rc', 'insurance', 'puc', 'pollution'], true) ? $vehicle : $customer;
+        if (! $model) {
+            return null;
+        }
+        foreach ($columns as $column) {
+            $value = $model->getAttribute($column);
+            if (is_array($value)) {
+                $value = $value['path'] ?? $value['file'] ?? $value['url'] ?? reset($value);
+            }
+            if (is_string($value) && filled(trim($value))) {
+                return trim($value);
+            }
+        }
+        return null;
+    }
+
+    private function bookingDocumentUrl(object $booking, string $type): string
+    {
+        return url('api/v1/self-drive/booking/' . rawurlencode((string) $booking->id) . '/document/' . $type);
+    }
+
+    private function withBookingDocuments(array $result, $bookingId, User $customer): array
+    {
+        if (! ($result['status'] ?? false)) {
+            return $result;
+        }
+        $booking = $this->bookingRow($bookingId);
+        if (! $booking) {
+            return ['status' => false, 'message' => 'Self drive booking not found', 'code' => 404];
+        }
+        if ((int) $booking->customer_id !== (int) $customer->id) {
+            return ['status' => false, 'message' => 'You are not allowed to view this booking', 'code' => 403];
+        }
+        $data = $result['data'] ?? [];
+        if ($data instanceof \Illuminate\Contracts\Support\Arrayable) {
+            $data = $data->toArray();
+        }
+        if (! is_array($data)) {
+            // Preserve an unexpected service contract instead of silently replacing it.
+            return $result;
+        }
+        $vehicle = Vehicle::find($booking->vehicle_id);
+        $unlocked = $this->vehicleDocumentsUnlocked($booking);
+        $identity = [];
+        foreach (['aadhaar_front', 'aadhaar_back', 'driving_licence_front', 'driving_licence_back'] as $type) {
+            $available = filled($this->documentPath($type, $customer, $vehicle));
+            $identity[$type] = [
+                'available' => $available,
+                'url' => $available ? $this->bookingDocumentUrl($booking, $type) : null,
+            ];
+        }
+        $vehicleDocuments = [];
+        foreach (['rc', 'insurance', 'puc'] as $type) {
+            $available = filled($this->documentPath($type, $customer, $vehicle));
+            $vehicleDocuments[$type] = [
+                'available' => $available,
+                'locked' => ! $unlocked,
+                'url' => $available && $unlocked ? $this->bookingDocumentUrl($booking, $type) : null,
+            ];
+        }
+        $data['customer_documents'] = $identity;
+        $data['vehicle_documents'] = $vehicleDocuments;
+        $data['aadhaar_number'] = $customer->aadhar_number ?? $customer->aadhaar_number;
+        $data['driving_licence_number'] = $customer->driving_licence_number;
+        $data['registration_unlocked'] = $unlocked;
+        $data['vehicle_number'] = $unlocked ? $vehicle?->vehicle_number : null;
+        // Maintain the old vehicle-document keys without exposing storage paths.
+        $data['documents'] = $unlocked ? [
+            'rc_image' => $vehicleDocuments['rc']['url'],
+            'insurance_image' => $vehicleDocuments['insurance']['url'],
+            'pollution_image' => $vehicleDocuments['puc']['url'],
+        ] : null;
+        $result['data'] = $data;
+        return $result;
+    }
+
+    private function streamBookingDocument(string $path, $bookingId, string $type)
+    {
+        $path = trim(str_replace('\\', '/', $path));
+        $isUrl = filter_var($path, FILTER_VALIDATE_URL) !== false;
+        if ($isUrl) {
+            $scheme = strtolower((string) parse_url($path, PHP_URL_SCHEME));
+            if (! in_array($scheme, ['http', 'https'], true)) {
+                return $this->error('Document URL not supported', 404);
+            }
+            // Resolve same-site legacy storage URLs through disks first. A stored
+            // external CDN/S3 URL is redirected only after booking ownership checks.
+            $sameHost = strcasecmp((string) parse_url($path, PHP_URL_HOST), (string) parse_url(url('/'), PHP_URL_HOST)) === 0;
+            if (! $sameHost) {
+                return redirect()->away($path)->header('Cache-Control', 'private, no-store');
+            }
+            $path = rawurldecode((string) parse_url($path, PHP_URL_PATH));
         }
 
         $normalized = ltrim($path, '/');
-        $normalized = preg_replace('#^storage/#', '', $normalized) ?: $normalized;
-
-        foreach (['public', 'local'] as $diskName) {
+        $normalized = preg_replace('#^(?:public/)?storage/(?:app/public/)?#', '', $normalized) ?: $normalized;
+        $candidates = array_unique([
+            $normalized,
+            preg_replace('#^(?:storage/app/)?public/#', '', $normalized) ?: $normalized,
+            preg_replace('#^storage/app/#', '', $normalized) ?: $normalized,
+        ]);
+        $diskNames = array_unique(array_filter(['public', 'local', config('filesystems.default')]));
+        foreach ($diskNames as $diskName) {
             try {
                 $disk = Storage::disk($diskName);
-
-                if ($disk->exists($normalized)) {
-                    $mime = $disk->mimeType($normalized) ?: 'application/octet-stream';
-                    $contents = $disk->get($normalized);
-
-                    return response($contents, 200, [
-                        'Content-Type' => $mime,
-                        'Content-Disposition' => 'inline; filename="' . basename($normalized) . '"',
-                        'Cache-Control' => 'private, max-age=300',
+                foreach ($candidates as $candidate) {
+                    if (str_contains($candidate, '../') || ! $disk->exists($candidate)) {
+                        continue;
+                    }
+                    return $disk->response($candidate, basename($candidate), [
+                        'Cache-Control' => 'private, no-store',
                         'X-Content-Type-Options' => 'nosniff',
-                    ]);
+                    ], 'inline');
                 }
             } catch (\Throwable $e) {
-                Log::warning('Self drive vehicle document read failed', [
-                    'booking_id' => $booking->id,
-                    'vehicle_id' => $vehicle->id,
-                    'document_type' => $type,
-                    'disk' => $diskName,
-                    'path' => $normalized,
-                    'error' => $e->getMessage(),
+                Log::warning('Self drive booking document read failed', [
+                    'booking_id' => $bookingId, 'document_type' => $type,
+                    'disk' => $diskName, 'error' => $e->getMessage(),
                 ]);
             }
         }
-
-        // Some legacy paths may already be absolute server paths.
-        if (is_file($path) && is_readable($path)) {
-            return response()->file($path, [
-                'Cache-Control' => 'private, max-age=300',
+        // Retain support for legacy absolute paths, limited to application storage.
+        $resolved = realpath($path);
+        $storageRoot = realpath(storage_path('app'));
+        if ($resolved && $storageRoot && str_starts_with($resolved, $storageRoot . DIRECTORY_SEPARATOR)
+            && is_file($resolved) && is_readable($resolved)) {
+            return response()->file($resolved, [
+                'Cache-Control' => 'private, no-store',
                 'X-Content-Type-Options' => 'nosniff',
             ]);
         }
-
-        return $this->error('Vehicle document file not found', 404);
+        return $this->error('Document file not found', 404);
     }
 
     public function pickupUpload(Request $request)
@@ -972,17 +1078,26 @@ class SelfDriveController extends BaseApiController
             'booking_id' => 'required|integer',
             'side' => 'required|in:front,back',
             'document_number' => 'nullable|string|max:50',
-            $fileField => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            $fileField => 'required|image|mimes:jpg,jpeg,png,webp|max:25600',
         ]);
 
         if ($validator->fails()) {
             return $this->error($validator->errors()->first(), 422);
         }
 
+        $authenticated = $request->user();
+        if (! ($authenticated instanceof User)) {
+            return $this->error('Please login again', 401);
+        }
+
         $booking = $this->bookingRow($request->booking_id);
 
         if (! $booking || $booking->vendor_confirmation_status !== 'confirmed') {
             return $this->error('Vendor confirmation is required first', 422);
+        }
+
+        if ((int) $booking->customer_id !== (int) $authenticated->id) {
+            return $this->error('You are not allowed to upload this booking document', 403);
         }
 
         $customer = User::find($booking->customer_id);
@@ -1103,7 +1218,7 @@ class SelfDriveController extends BaseApiController
 
     private function secureBookingData(object $booking): array
     {
-        $unlocked = ! empty($booking->pickup_otp_verified_at);
+        $unlocked = $this->vehicleDocumentsUnlocked($booking);
         $vehicle = Vehicle::query()
             ->with('transporter')
             ->find($booking->vehicle_id);
@@ -1252,7 +1367,7 @@ class SelfDriveController extends BaseApiController
             $pickup ? 'pickup_km' : 'drop_km' => 'required|numeric|min:0',
             'fuel_level' => 'nullable|string|max:50',
             'images' => 'required|array|min:1|max:10',
-            'images.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
+            'images.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:25600',
         ]);
 
         $booking = $this->bookingRow($request->booking_id);

@@ -573,12 +573,12 @@ Route::prefix('bike-rental')->group(function (): void {
         |----------------------------------------------------------------------
         */
 
-        Route::post('/aadhaar-upload', [
+        Route::middleware('auth:sanctum')->post('/aadhaar-upload', [
             SelfDriveController::class,
             'uploadAadhaar',
         ]);
 
-        Route::post('/driving-licence-upload', [
+        Route::middleware('auth:sanctum')->post('/driving-licence-upload', [
             SelfDriveController::class,
             'uploadDrivingLicence',
         ]);
@@ -637,7 +637,7 @@ Route::prefix('bike-rental')->group(function (): void {
                 'vehicleDocument',
             ])
                 ->where('bookingId', '[A-Za-z0-9\-]+')
-                ->where('type', 'rc|insurance|puc|pollution');
+                ->where('type', 'rc|insurance|puc|pollution|aadhaar_front|aadhaar_back|driving_licence_front|driving_licence_back');
         });
 
         /*
@@ -1353,4 +1353,54 @@ Route::post('/booking/{booking}/live-location/stop', [
             'sendNotification',
         ]);
     });
+});
+
+/* DuraCabs Partner app: separate from customer authentication. */
+Route::prefix('v1/partner')->group(function (): void {
+    Route::post('/send-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'sendOtp'])
+        ->middleware('throttle:5,1');
+    Route::post('/verify-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'verifyOtp'])
+        ->middleware('throttle:15,1');
+    Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
+        Route::get('/me', [\App\Http\Controllers\Api\V1\PartnerController::class, 'me']);
+        Route::get('/dashboard', [\App\Http\Controllers\Api\V1\PartnerController::class, 'dashboard']);
+        Route::get('/bookings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'bookings']);
+        Route::post('/bookings/{booking}/accept', [\App\Http\Controllers\Api\V1\PartnerController::class, 'acceptBooking'])->whereNumber('booking')->middleware('throttle:15,1');
+        Route::get('/vehicle-categories', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicleCategories']);
+        Route::post('/vehicles/{vehicle}/details', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehicle'])->whereNumber('vehicle');
+        Route::post('/drivers/{driver}/details', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'updateDriver'])->whereNumber('driver');
+        Route::post('/bookings/{booking}/driver-notification', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'retryNotification'])->whereNumber('booking')->middleware('throttle:3,1');
+        Route::get('/drivers', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'drivers']);
+        Route::post('/drivers', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'createDriver'])->middleware('throttle:15,1');
+        Route::post('/drivers/{driver}/remove', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'removeDriver'])->whereNumber('driver');
+        Route::get('/bookings/{booking}/assignment', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'assignment'])->whereNumber('booking');
+        Route::get('/bookings/{booking}/assignment-options', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'options'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/assignment', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'assign'])->whereNumber('booking')->middleware('throttle:30,1');
+        Route::post('/vehicles', [\App\Http\Controllers\Api\V1\PartnerController::class, 'createVehicle'])->middleware('throttle:15,1');
+        Route::post('/vehicles/{vehicle}/remove', [\App\Http\Controllers\Api\V1\PartnerController::class, 'removeVehicle'])->whereNumber('vehicle');
+        Route::get('/kyc', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'index']);
+        Route::post('/kyc/{type}', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'upload'])->where('type', 'aadhaar|pan')->middleware('throttle:15,1');
+        Route::get('/kyc/{type}/download', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'download'])->where('type', 'aadhaar|pan');
+        Route::get('/vehicles', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicles']);
+        Route::get('/earnings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'earnings']);
+        Route::get('/document-reminders', [\App\Http\Controllers\Api\V1\PartnerController::class, 'documentReminders']);
+        Route::post('/vehicles/{vehicle}/pricing', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehiclePricing'])->whereNumber('vehicle')->middleware('throttle:30,1');
+        Route::get('/vehicles/{vehicle}/assets', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicleAssets'])->whereNumber('vehicle');
+        Route::post('/vehicles/{vehicle}/assets', [\App\Http\Controllers\Api\V1\PartnerController::class, 'uploadVehicleAsset'])->whereNumber('vehicle')->middleware('throttle:30,1');
+        Route::post('/vehicles/{vehicle}/documents', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehicleDocuments'])->whereNumber('vehicle')->middleware('throttle:30,1');
+        Route::get('/vehicles/{vehicle}/assets/{slot}/download', [\App\Http\Controllers\Api\V1\PartnerController::class, 'downloadVehicleAsset'])->whereNumber('vehicle');
+        Route::post('/logout', [\App\Http\Controllers\Api\V1\PartnerController::class, 'logout']);
+    });
+});
+
+// Filament image/document previews require its authenticated web session.
+Route::get('/v1/partner/admin-media/{media}', [\App\Http\Controllers\Api\V1\PartnerController::class, 'adminVehicleDocument'])
+    ->whereNumber('media')->middleware(['web', 'auth:web']);
+
+// Private KYC review uses the existing admin session and CSRF protection.
+Route::middleware(['web', 'auth:web'])->prefix('v1/partner/admin-kyc')->group(function () {
+    Route::get('/', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminIndex']);
+    Route::get('/{profile}', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminShow'])->whereNumber('profile');
+    Route::get('/{profile}/{type}/download', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminDownload'])->whereNumber('profile')->where('type', 'aadhaar|pan');
+    Route::post('/{profile}/{type}/review', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminReview'])->whereNumber('profile')->where('type', 'aadhaar|pan');
 });
