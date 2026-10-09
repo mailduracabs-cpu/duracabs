@@ -523,12 +523,27 @@ Route::prefix('bike-rental')->group(function (): void {
         Route::get('/customer-profile', [
             SelfDriveController::class,
             'customerProfile',
-        ]);
+        ])->middleware('auth:sanctum');
 
         Route::post('/customer-profile-update', [
             SelfDriveController::class,
             'updateCustomerProfile',
-        ]);
+        ])->middleware('auth:sanctum');
+
+        Route::get('/customer-document/{type}', [
+            SelfDriveController::class,
+            'customerDocument',
+        ])->middleware('auth:sanctum')
+            ->where('type', 'aadhaar_front|aadhaar_back|driving_licence_front|driving_licence_back');
+
+        // Links are issued only by the authenticated booking-owner API.
+        Route::get('/booking/{bookingId}/rental-document/{type}', [
+            \App\Http\Controllers\InvoiceController::class,
+            'sharedSelfDriveDocument',
+        ])->middleware('signed')
+            ->whereNumber('bookingId')
+            ->where('type', 'invoice|agreement')
+            ->name('self-drive.customer-rental-document');
 
         /*
         |----------------------------------------------------------------------

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Models\SelfDriveBooking;
+use App\Models\AppMedia;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\SelfDriveAvailabilityService;
@@ -12,6 +13,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
@@ -204,13 +207,29 @@ class SelfDriveController extends BaseApiController
 
     public function customerProfile(Request $request)
     {
-        $customer = $this->customerFromRequest($request);
+        $customer = $request->user();
 
-        if (! $customer) {
+        if (! ($customer instanceof User)) {
             return $this->error('Customer not found. Please login again.', 401);
         }
 
-        return $this->success($customer->customerProfileData(), 'Customer profile loaded');
+        $data = $customer->customerProfileData();
+        $documents = [];
+        foreach (['aadhaar_front', 'aadhaar_back', 'driving_licence_front', 'driving_licence_back'] as $type) {
+            $available = filled($this->documentPath($type, $customer, null));
+            $documents[$type] = [
+                'available' => $available,
+                'url' => $available ? url('api/v1/self-drive/customer-document/' . $type) : null,
+            ];
+        }
+        $data['customer_documents'] = $documents;
+        $data['aadhaar_number'] = $customer->aadhar_number ?? $customer->aadhaar_number;
+        $data['driving_licence_number'] = $customer->driving_licence_number;
+        $data['kyc_status'] = $customer->kyc_status;
+        $data['kyc_approved'] = $customer->isKycApproved();
+        $data['kyc_complete'] = $customer->hasCompleteKyc();
+
+        return $this->success($data, 'Customer profile loaded');
     }
 
     public function updateCustomerProfile(Request $request)
@@ -755,7 +774,25 @@ class SelfDriveController extends BaseApiController
             return $this->error('Document not available', 404);
         }
 
-        return $this->streamBookingDocument($path, $booking->id, $type);
+        return $this->streamBookingDocument($path, $booking->id, $type, $this->documentMedia($type, $customer, $vehicle)['disk'] ?? null);
+    }
+
+    /** Profile KYC files do not require an active booking. */
+    public function customerDocument(Request $request, string $type)
+    {
+        $customer = $request->user();
+        if (! ($customer instanceof User)) {
+            return $this->error('Please login again', 401);
+        }
+        if (! in_array($type, ['aadhaar_front', 'aadhaar_back', 'driving_licence_front', 'driving_licence_back'], true)) {
+            return $this->error('Document type not supported', 404);
+        }
+        // Identity is taken from the token, never a submitted customer ID/mobile.
+        $path = $this->documentPath($type, $customer, null);
+        if (blank($path)) {
+            return $this->error('Document not uploaded', 404);
+        }
+        return $this->streamBookingDocument($path, null, $type, $this->documentMedia($type, $customer, null)['disk'] ?? null);
     }
 
     private function vehicleDocumentsUnlocked(object $booking): bool
@@ -766,6 +803,10 @@ class SelfDriveController extends BaseApiController
 
     private function documentPath(string $type, ?User $customer, ?Vehicle $vehicle): ?string
     {
+        $media = $this->documentMedia($type, $customer, $vehicle);
+        if ($media !== null) {
+            return $media['path'];
+        }
         $columns = match ($type) {
             'rc' => ['rc_image', 'registration_certificate_image'],
             'insurance' => ['insurance_image', 'insurance_document'],
@@ -782,6 +823,12 @@ class SelfDriveController extends BaseApiController
         }
         foreach ($columns as $column) {
             $value = $model->getAttribute($column);
+            if (is_string($value) && in_array(substr(ltrim($value), 0, 1), ['[', '{'], true)) {
+                $decoded = json_decode($value, true);
+                if (is_array($decoded)) {
+                    $value = $decoded;
+                }
+            }
             if (is_array($value)) {
                 $value = $value['path'] ?? $value['file'] ?? $value['url'] ?? reset($value);
             }
@@ -790,6 +837,26 @@ class SelfDriveController extends BaseApiController
             }
         }
         return null;
+    }
+
+    /** Read media storage keys, not public URLs, so private documents stay private. */
+    private function documentMedia(string $type, ?User $customer, ?Vehicle $vehicle): ?array
+    {
+        $column = match ($type) {
+            'rc' => 'rc_media_id',
+            'insurance' => 'insurance_media_id',
+            'puc', 'pollution' => 'pollution_media_id',
+            default => null,
+        };
+        if ($column === null || $vehicle === null || ! $vehicle->getAttribute($column)) {
+            return null;
+        }
+        $media = AppMedia::query()->find($vehicle->getAttribute($column));
+        $path = $media?->getAttribute('original_path');
+        if (! is_string($path) || trim($path) === '') {
+            return null;
+        }
+        return ['path' => trim($path), 'disk' => $media->getAttribute('disk') ?: config('filesystems.default')];
     }
 
     private function bookingDocumentUrl(object $booking, string $type): string
@@ -817,6 +884,64 @@ class SelfDriveController extends BaseApiController
             // Preserve an unexpected service contract instead of silently replacing it.
             return $result;
         }
+        // Admin Rental Total includes GST; total_amount is the original/base rate.
+        // Reading the booking must never recalculate or mutate payment records.
+        $rent = round((float) ($booking->final_amount ?? $booking->total_amount ?? 0), 2);
+        $deposit = round((float) ($booking->security_deposit ?? 0), 2);
+        $data['final_amount'] = $rent;
+        $data['estimated_amount'] = $rent;
+        $data['estimated_rent'] = $rent;
+        $data['security_deposit'] = $deposit;
+        $data['full_booking_amount'] = round($rent + $deposit, 2);
+        $data['grand_total'] = $data['full_booking_amount'];
+        $data['paid_amount'] = (float) ($booking->paid_amount ?? 0);
+        $data['remaining_amount'] = (float) ($booking->remaining_amount ?? 0);
+        $data['updated_at'] = $booking->updated_at?->toIso8601String();
+        foreach (['invoice', 'agreement'] as $type) {
+            $available = Route::has('self-drive.customer-rental-document');
+            $data[$type . '_available'] = $available;
+            $data[$type . '_url'] = $available
+                ? URL::temporarySignedRoute('self-drive.customer-rental-document', now()->addMinutes(10), [
+                    'bookingId' => $booking->id,
+                    'type' => $type,
+                ])
+                : null;
+        }
+        // Keep booking-specific contact details when supplied by the service.
+        // Fall back to the verified booking owner's profile for older records.
+        $contact = $data['customer'] ?? [];
+        if ($contact instanceof \Illuminate\Contracts\Support\Arrayable) {
+            $contact = $contact->toArray();
+        }
+        $contact = is_array($contact) ? $contact : [];
+        $firstContactValue = static function (...$values): ?string {
+            foreach ($values as $value) {
+                if (! is_scalar($value)) {
+                    continue;
+                }
+                $text = trim((string) $value);
+                if ($text !== '' && ! in_array(strtolower($text), ['--', 'null', 'undefined'], true)) {
+                    return $text;
+                }
+            }
+            return null;
+        };
+        $contact['name'] = $firstContactValue(
+            $contact['name'] ?? null, $contact['customer_name'] ?? null,
+            $data['customer_name'] ?? null, $booking->customer_name, $customer->name
+        );
+        $contact['mobile'] = $firstContactValue(
+            $contact['mobile'] ?? null, $contact['customer_mobile'] ?? null, $contact['phone'] ?? null,
+            $data['customer_mobile'] ?? null, $booking->customer_mobile, $customer->mobile, $customer->phone
+        );
+        $contact['email'] = $firstContactValue(
+            $contact['email'] ?? null, $contact['customer_email'] ?? null,
+            $data['customer_email'] ?? null, $booking->customer_email, $customer->email
+        );
+        $data['customer'] = $contact;
+        $data['customer_name'] = $contact['name'];
+        $data['customer_mobile'] = $contact['mobile'];
+        $data['customer_email'] = $contact['email'];
         $vehicle = Vehicle::find($booking->vehicle_id);
         $unlocked = $this->vehicleDocumentsUnlocked($booking);
         $identity = [];
@@ -852,7 +977,7 @@ class SelfDriveController extends BaseApiController
         return $result;
     }
 
-    private function streamBookingDocument(string $path, $bookingId, string $type)
+    private function streamBookingDocument(string $path, $bookingId, string $type, ?string $preferredDisk = null)
     {
         $path = trim(str_replace('\\', '/', $path));
         $isUrl = filter_var($path, FILTER_VALIDATE_URL) !== false;
@@ -876,8 +1001,11 @@ class SelfDriveController extends BaseApiController
             $normalized,
             preg_replace('#^(?:storage/app/)?public/#', '', $normalized) ?: $normalized,
             preg_replace('#^storage/app/#', '', $normalized) ?: $normalized,
+            preg_replace('#^(?:storage/app/)?private/#', '', $normalized) ?: $normalized,
         ]);
-        $diskNames = array_unique(array_filter(['public', 'local', config('filesystems.default')]));
+        $diskNames = $preferredDisk !== null
+            ? [$preferredDisk]
+            : array_unique(array_filter(['public', 'local', config('filesystems.default')]));
         foreach ($diskNames as $diskName) {
             try {
                 $disk = Storage::disk($diskName);
@@ -1243,7 +1371,7 @@ class SelfDriveController extends BaseApiController
 
         $hourlyPrice = (float) ($booking->hourly_price ?? 0);
         $bookedHours = (int) ($booking->booked_hours ?? 0);
-        $rent = (float) ($booking->total_amount ?? 0);
+        $rent = (float) ($booking->final_amount ?? $booking->total_amount ?? 0);
         $deposit = (float) ($booking->security_deposit ?? 0);
         $fullAmount = round($rent + $deposit, 2);
         $paidAmount = (float) ($booking->paid_amount ?? 0);

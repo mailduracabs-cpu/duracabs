@@ -80,6 +80,30 @@ class InvoiceController extends Controller
         );
     }
 
+    /** Dedicated customer app link; validates its signature before any lookup. */
+    public function sharedSelfDriveDocument(Request $request, string $bookingId, string $type)
+    {
+        abort_unless($request->hasValidSignature(), Response::HTTP_FORBIDDEN, 'This document link is invalid or expired.');
+        abort_unless(in_array($type, ['invoice', 'agreement'], true), Response::HTTP_NOT_FOUND);
+        abort_unless(Schema::hasTable('self_drive_bookings'), Response::HTTP_NOT_FOUND);
+        // The signed ID always refers to a self-drive row, never a taxi order.
+        $record = DB::table('self_drive_bookings')->where('id', $bookingId)->first();
+        abort_if(! $record, Response::HTTP_NOT_FOUND, 'Self Drive booking not found.');
+        if ($type === 'invoice') {
+            return response()->view('invoices.booking', [
+                'invoice' => $this->selfDriveInvoice($record),
+                'isSharedView' => true,
+            ])->header('Cache-Control', 'private, no-store');
+        }
+        $reference = filled($record->booking_no ?? null) ? (string) $record->booking_no : (string) $record->id;
+        $agreement = $this->resolveSelfDriveAgreement($reference);
+        abort_if(! $agreement, Response::HTTP_NOT_FOUND, 'Self Drive booking not found.');
+        return response()->view('agreements.self-drive', [
+            'agreement' => $agreement,
+            'isSharedView' => true,
+        ])->header('Cache-Control', 'private, no-store');
+    }
+
     private function downloadPdf(array $invoice)
     {
         $fileName = sprintf(
