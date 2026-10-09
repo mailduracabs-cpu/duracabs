@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Services\HomeService;
+use App\Services\AppAppearanceService;
 
 class HomeController extends BaseApiController
 {
@@ -58,12 +59,12 @@ class HomeController extends BaseApiController
         ], 'Contact details loaded successfully');
     }
 
-    public function settings(HomeService $homeService)
+    public function settings(HomeService $homeService, AppAppearanceService $appearance)
     {
-        return $this->success(
-            $homeService->appConfig(),
-            'Settings loaded successfully'
-        );
+        $config = $homeService->appConfig();
+        $config['appearance'] = $appearance->publicConfig();
+        return $this->success($config, 'Settings loaded successfully')
+            ->header('Cache-Control', 'no-store, private');
     }
 
     /*
