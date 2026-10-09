@@ -573,6 +573,16 @@ class AppMedia extends Model
             return $path;
         }
 
+        // Partner identity documents stay on the private disk. Filament previews
+        // use the admin's authenticated web session instead of a public file URL.
+        if (
+            $this->disk === 'local'
+            && str_starts_with($path, 'partner-vehicles/')
+            && str_contains($path, '/documents/')
+        ) {
+            return '/api/v1/partner/admin-media/' . $this->getKey();
+        }
+
         try {
             return Storage::disk(
                 $this->disk ?: 'public'

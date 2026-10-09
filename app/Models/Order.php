@@ -12,6 +12,8 @@ class Order extends Model
 
     protected $casts = [
         'extraOptions' => 'array',
+        'partner_offer_amount' => 'decimal:2',
+        'partner_offer_parking_included' => 'boolean',
 
         // Customer live location
         'customer_live_lat' => 'float',
@@ -25,6 +27,10 @@ class Order extends Model
         'driver_id',
         'vehicle_id',
         'transporter_id',
+        'partner_offer_amount',
+        'partner_offer_fare_type',
+        'partner_offer_parking_included',
+        'partner_offer_notes',
         'user_id',
         'grand_total',
         'payment_method',
@@ -191,6 +197,10 @@ public function transporter()
     protected static function boot()
     {
         parent::boot();
+
+        static::saving(function (self $order): void {
+            \App\Services\PartnerBookingOfferService::prepareSaving($order);
+        });
 
         static::created(function (self $order): void {
             // Booking number is generated centrally at model level so Admin,

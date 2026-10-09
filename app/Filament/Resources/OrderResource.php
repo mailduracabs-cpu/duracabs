@@ -450,10 +450,13 @@ class OrderResource extends Resource
                 ->columns(3),
 
             Forms\Components\Section::make('Driver / Vendor Assignment')
-                ->description('Select an existing vendor, driver and taxi, or create a new one from this booking.')
+                ->description('Assign a verified Vendor with their amount and terms. The Vendor accepts in the Partner app, then selects a saved driver and taxi.')
                 ->schema([
                     Forms\Components\Select::make('transporter_id')
                         ->label('Vendor / Transporter')
+                        ->disabled(fn (): bool => !static::canManagePartnerOffer())
+                        ->dehydrated(fn (): bool => static::canManagePartnerOffer())
+                        ->helperText('Use the same Transporter user linked to the active, verified Vendor profile in Fleet Management.')
                         ->relationship(
                             'transporter',
                             'name',
@@ -519,6 +522,38 @@ class OrderResource extends Resource
 
                             return (int) $user->id;
                         }),
+
+                    Forms\Components\TextInput::make('partner_offer_amount')
+                        ->label('Vendor agreed amount')
+                        ->prefix('₹')->numeric()->minValue(0.01)->maxValue(99999999.99)->step(0.01)
+                        ->rules(['regex:/^\d{1,8}(?:\.\d{1,2})?$/'])
+                        ->required(fn (Get $get): bool => filled($get('transporter_id')) && in_array($get('status'), \App\Services\PartnerBookingOfferService::PRE_TRIP, true))
+                        ->disabled(fn (): bool => !static::canManagePartnerOffer())
+                        ->dehydrated(fn (): bool => static::canManagePartnerOffer())
+                        ->helperText('Amount agreed with the Vendor. Customer fare and payment records remain separate.'),
+                    Forms\Components\Select::make('partner_offer_fare_type')
+                        ->label('Vendor fare terms')
+                        ->options(['all_inclusive' => 'All Inclusive', 'all_exclusive' => 'All Exclusive'])
+                        ->native(false)->live()
+                        ->required(fn (Get $get): bool => filled($get('transporter_id')) && in_array($get('status'), \App\Services\PartnerBookingOfferService::PRE_TRIP, true))
+                        ->disabled(fn (): bool => !static::canManagePartnerOffer())
+                        ->dehydrated(fn (): bool => static::canManagePartnerOffer())
+                        ->helperText('Inclusive: toll, state tax and driver allowance included. Exclusive: these and parking extra at actual cost.'),
+                    Forms\Components\Toggle::make('partner_offer_parking_included')
+                        ->label('Parking included in Vendor amount')->default(false)
+                        ->disabled(fn (Get $get): bool => !static::canManagePartnerOffer() || $get('partner_offer_fare_type') !== 'all_inclusive')
+                        ->dehydrated(fn (): bool => static::canManagePartnerOffer())
+                        ->helperText('OFF means parking extra at actual cost. All Exclusive always excludes parking.'),
+                    Forms\Components\Textarea::make('partner_offer_notes')
+                        ->label('Vendor terms / instructions')->maxLength(2000)->rows(2)
+                        ->disabled(fn (): bool => !static::canManagePartnerOffer())
+                        ->dehydrated(fn (): bool => static::canManagePartnerOffer()),
+                    Forms\Components\Placeholder::make('partner_offer_acceptance_display')
+                        ->label('Vendor acceptance')
+                        ->content(fn (?Order $record): string => !$record ? 'Not assigned yet' :
+                            ucfirst((string) ($record->partner_offer_status ?: 'Offer not set')) .
+                            ($record->partner_offer_accepted_at ? ' • Accepted at ' . $record->partner_offer_accepted_at : '')),
+                    Forms\Components\Hidden::make('_partner_form_revision')->dehydrated(fn (?Order $record): bool => (bool) $record?->exists),
 
                     Forms\Components\Select::make('driver_id')
                         ->label('Driver')
@@ -939,6 +974,14 @@ class OrderResource extends Resource
                     })
                     ->weight('bold'),
 
+                Tables\Columns\TextColumn::make('partner_offer_status')
+                    ->label('Vendor acceptance')->badge()->placeholder('Offer not set')
+                    ->color(fn (?string $state): string => $state === 'accepted' ? 'success' : 'warning')
+                    ->description(fn (Order $record): string => (string) ($record->partner_offer_accepted_at ?? '')),
+                Tables\Columns\TextColumn::make('partner_offer_amount')
+                    ->label('Vendor amount')->money('INR')->placeholder('Not set')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 Tables\Columns\TextColumn::make('user.name')
                     ->label('Customer')
                     ->searchable()
@@ -1214,6 +1257,12 @@ class OrderResource extends Resource
     public static function getNavigationBadgeColor(): string|array|null
     {
         return static::getModel()::count() > 10 ? 'danger' : 'success';
+    }
+
+    public static function canManagePartnerOffer(): bool
+    {
+        $user = auth()->user();
+        return $user && $user->hasRole('Admin');
     }
 
     public static function getPages(): array

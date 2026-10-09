@@ -142,6 +142,8 @@ class Vehicle extends Model
         // Documents
         'rc_image',
         'insurance_image',
+        'insurance_expiry_date',
+        'puc_expiry_date',
         'polution_image',
 
         // Media IDs
@@ -180,6 +182,8 @@ class Vehicle extends Model
     ];
 
     protected $casts = [
+        'insurance_expiry_date' => 'date:Y-m-d',
+        'puc_expiry_date' => 'date:Y-m-d',
         'user_id' => 'integer',
         'transporter_profile_id' => 'integer',
         'product_id' => 'integer',
@@ -1121,6 +1125,10 @@ class Vehicle extends Model
         });
 
         static::updating(function (Vehicle $vehicle): void {
+            if ($vehicle->getAttribute('partner_removed_at') !== null) {
+                $vehicle->is_active = false;
+                $vehicle->is_live = false;
+            }
             if (
                 $vehicle->isDirty('verification_status')
                 && $vehicle->verification_status !== self::STATUS_REJECTED

@@ -29,6 +29,7 @@ class EditOrder extends EditRecord
      */
     protected function mutateFormDataBeforeFill(array $data): array
     {
+        $data['_partner_form_revision'] = \App\Services\PartnerBookingOfferService::snapshot($this->record);
         $extraOptions = $this->extraOptions();
 
         /*
@@ -195,8 +196,12 @@ class EditOrder extends EditRecord
         return $data;
     }
 
+    private ?string $partnerFormRevision = null;
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $this->partnerFormRevision = $data['_partner_form_revision'] ?? null;
+        unset($data['_partner_form_revision']);
         $currentExtraOptions = $this->extraOptions();
 
         $routeStops = array_values(array_filter(
@@ -393,8 +398,24 @@ class EditOrder extends EditRecord
         return $data;
     }
 
+    protected function handleRecordUpdate(\Illuminate\Database\Eloquent\Model $record, array $data): \Illuminate\Database\Eloquent\Model
+    {
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($record, $data) {
+            $fresh = $record->newQuery()->whereKey($record->getKey())->lockForUpdate()->firstOrFail();
+            $snapshot = \App\Services\PartnerBookingOfferService::snapshot($fresh);
+            if (!$this->partnerFormRevision || !hash_equals($snapshot, $this->partnerFormRevision)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'transporter_id' => 'This booking changed while the form was open. Reload before saving (including Vendor acceptance or payment changes).',
+                ]);
+            }
+            $fresh->update($data);
+            return $fresh;
+        });
+    }
+
     protected function afterSave(): void
     {
+        $this->data['_partner_form_revision'] = \App\Services\PartnerBookingOfferService::snapshot($this->record);
         $this->sendStatusEmail();
         $this->sendWhatsAppUpdates();
 
