@@ -148,6 +148,7 @@ class SelfDriveBooking extends Model
     ];
 
     protected $casts = [
+        'security_refund_ledger' => 'array',
         'start_datetime' => 'datetime',
         'end_datetime' => 'datetime',
         'vendor_confirmed_at' => 'datetime',

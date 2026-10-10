@@ -298,6 +298,7 @@ class PartnerController extends Controller
                 'payment_status' => $row->payment_status ?? null,
                 'paid_amount' => $role === 'host' ? ($row->paid_amount ?? null) : null,
                 'security_deposit' => $role === 'host' ? ($row->security_deposit ?? null) : null,
+                'security_refund' => $role === 'host' ? \App\Services\SelfDriveSecurityRefundService::summary($row) : null,
                 'final_amount' => $role === 'host' ? ($row->final_amount ?? null) : null,
             ], $role === 'vendor' ? PartnerBookingOfferService::view($row) : []);
         });

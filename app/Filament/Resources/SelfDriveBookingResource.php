@@ -918,6 +918,7 @@ class SelfDriveBookingResource extends Resource
                     ->searchable()->preload(),
             ])
             ->actions([
+                static::securityRefundAction(),
                 Tables\Actions\EditAction::make()
                     ->visible(fn () => ! static::isTransporterPanel()),
 
@@ -1493,6 +1494,52 @@ class SelfDriveBookingResource extends Resource
                         ->visible(fn () => ! static::isTransporterPanel()),
                 ]),
             ]);
+    }
+
+    public static function securityRefundForm(): array
+    {
+        return [
+            Forms\Components\Placeholder::make('security_summary')->label('Security refund summary / history')
+                ->content(function (SelfDriveBooking $record): string {
+                    $summary = \App\Services\SelfDriveSecurityRefundService::summary($record);
+                    $text = 'Security: ₹'.$summary['deposit'].' | Refunded: ₹'.$summary['refunded']
+                        .' | Pending: '.($summary['pending'] === null ? 'Legacy refund requires review' : '₹'.$summary['pending']);
+                    foreach ($summary['history'] as $entry) {
+                        $text .= ' | ₹'.$entry['amount'].' / '.ucfirst($entry['method']).' / '.$entry['refunded_at']
+                            .' / '.($entry['reference'] ?: 'Cash').' / '.$entry['note'];
+                    }
+                    return $text;
+                }),
+            Forms\Components\Placeholder::make('refund_help')->label('Before recording')
+                ->content('Record only money already returned to the customer. This action does not send money. Return and final bill must be complete, and customer balance must be fully paid. Return charges are already in the rental bill; do not deduct them again from security.'),
+            Forms\Components\TextInput::make('amount')->label('Amount actually refunded')->prefix('₹')
+                ->numeric()->required()->minValue(0.01)
+                ->default(fn (SelfDriveBooking $record) => \App\Services\SelfDriveSecurityRefundService::summary($record)['pending']),
+            Forms\Components\Select::make('method')->label('Refund mode')->options(['cash' => 'Cash', 'online' => 'Online (UPI / Bank / Gateway)'])
+                ->required()->live(),
+            Forms\Components\TextInput::make('reference')->label('Transaction ID / reference')->maxLength(200)
+                ->required(fn (Get $get) => $get('method') === 'online'),
+            Forms\Components\DateTimePicker::make('refunded_at')->label('Actual refund date / time')
+                ->required()->maxDate(now())->default(now()),
+            Forms\Components\Textarea::make('note')->label('Refund note / receipt details')->required()->minLength(3)->maxLength(2000),
+            Forms\Components\Hidden::make('request_key')->default(fn () => (string) Str::uuid()),
+            Forms\Components\Toggle::make('confirmed')->label('I confirm this amount has actually been returned to the customer')
+                ->accepted()->required(),
+        ];
+    }
+
+    public static function securityRefundAction(): Tables\Actions\Action
+    {
+        return Tables\Actions\Action::make('security_refund')->label('Security Refund')->icon('heroicon-o-arrow-uturn-left')
+            ->visible(fn (SelfDriveBooking $record) => ! static::isTransporterPanel()
+                && auth()->user()?->canUseAdminLogin() && $record->booking_type === 'car'
+                && (float) $record->security_deposit > 0)
+            ->form(static::securityRefundForm())
+            ->action(function (SelfDriveBooking $record, array $data): void {
+                abort_unless(! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
+                app(\App\Services\SelfDriveSecurityRefundService::class)->record($record->id, $data, (int) auth()->id());
+                Notification::make()->title('Actual security refund recorded')->success()->send();
+            });
     }
 
     public static function returnInput(Get $get): array

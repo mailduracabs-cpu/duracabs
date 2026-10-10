@@ -32,6 +32,7 @@ class SelfDriveReturnBillController extends Controller
             'final_amount' => $bill['rental'], 'paid_amount' => $bill['paid'],
             'security_deposit' => $bill['security_deposit'], 'full_booking_amount' => $bill['payable'],
             'refund_amount' => (float) $row->refund_amount, 'balance_due' => $bill['balance_due'],
+            'security_refund' => \App\Services\SelfDriveSecurityRefundService::summary($row),
         ]]);
     }
 }

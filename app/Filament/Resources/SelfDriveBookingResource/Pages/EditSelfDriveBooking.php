@@ -50,6 +50,17 @@ class EditSelfDriveBooking extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('security_refund')->label('Security Refund')->icon('heroicon-o-arrow-uturn-left')
+                ->visible(fn () => ! SelfDriveBookingResource::isTransporterPanel()
+                    && auth()->user()?->canUseAdminLogin() && $this->record->booking_type === 'car'
+                    && (float) $this->record->security_deposit > 0)
+                ->form(SelfDriveBookingResource::securityRefundForm())
+                ->action(function (array $data): void {
+                    abort_unless(! SelfDriveBookingResource::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
+                    app(\App\Services\SelfDriveSecurityRefundService::class)->record($this->record->id, $data, (int) auth()->id());
+                    Notification::make()->title('Actual security refund recorded')->success()->send();
+                    $this->redirect(SelfDriveBookingResource::getUrl('edit', ['record' => $this->record]));
+                }),
             Actions\Action::make('admin_return_bill')->label('Admin Return & Bill')->color('warning')
                 ->icon('heroicon-o-document-check')
                 ->visible(fn () => ! SelfDriveBookingResource::isTransporterPanel()
