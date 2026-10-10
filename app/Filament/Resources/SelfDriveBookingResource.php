@@ -1521,8 +1521,14 @@ class SelfDriveBookingResource extends Resource
                     }
                     return new \Illuminate\Support\HtmlString($links ? implode(' | ', $links) : 'No return photos uploaded.');
                 }),
-            Forms\Components\DateTimePicker::make('started_at')->label('Actual pickup time (only if missing)')
-                ->default(fn (SelfDriveBooking $record) => $record->trip_start_datetime)->live(onBlur: true),
+            Forms\Components\DateTimePicker::make('started_at')->label('Actual pickup date / time')
+                ->default(fn (SelfDriveBooking $record) => $record->trip_start_datetime
+                    ?? $record->return_draft['details']['started_at'] ?? $record->start_datetime)
+                ->helperText(fn (SelfDriveBooking $record) => $record->trip_start_datetime
+                    ? 'Recorded actual pickup time will be used.'
+                    : 'Booking pickup time is prefilled. Confirm or correct it to the actual pickup time before submitting.')
+                ->required(fn (SelfDriveBooking $record) => ! $record->trip_start_datetime)
+                ->maxDate(now())->live(onBlur: true),
             Forms\Components\TextInput::make('start_km')->label('Start KM (only if missing)')->numeric()->minValue(0)
                 ->default(fn (SelfDriveBooking $record) => $record->start_km)->live(onBlur: true),
             Forms\Components\DateTimePicker::make('returned_at')->label('Actual return date / time')->required()->maxDate(now())
@@ -1537,6 +1543,9 @@ class SelfDriveBookingResource extends Resource
                 ->default(fn (SelfDriveBooking $record) => $record->{$key} ?? 0)->live(onBlur: true),
                 ['damage_amount','fuel_charge','cleaning_charge','other_charge']),
             Forms\Components\Textarea::make('note')->label('Inspection / extra charge note')->maxLength(2000)->live(onBlur: true)
+                ->required(fn (Get $get) => collect(['damage_amount', 'fuel_charge', 'cleaning_charge', 'other_charge'])
+                    ->contains(fn ($key) => is_numeric($get($key)) && (float) $get($key) > 0))
+                ->helperText('Explain any damage, fuel, cleaning or other charge greater than zero.')
                 ->default(fn (SelfDriveBooking $record) => $record->return_draft['details']['note'] ?? $record->damage_note),
             Forms\Components\Textarea::make('reason')->label('Why OTP / photos are being skipped')->required()->minLength(10)
                 ->maxLength(2000)->live(onBlur: true),
@@ -1557,8 +1566,17 @@ class SelfDriveBookingResource extends Resource
             Forms\Components\Toggle::make('reviewed')->label('I confirmed the actual return and reviewed this bill')
                 ->accepted()->required()->live()
                 ->afterStateUpdated(function ($state, SelfDriveBooking $record, Get $get, Set $set): void {
-                    $set('confirmation', $state ? app(\App\Services\PartnerReturnCompletionService::class)
-                        ->preview($record, static::returnInput($get), true)['confirmation'] : null);
+                    $set('confirmation', null);
+                    if (! $state) return;
+                    try {
+                        $set('confirmation', app(\App\Services\PartnerReturnCompletionService::class)
+                            ->preview($record, static::returnInput($get), true)['confirmation']);
+                    } catch (ValidationException $e) {
+                        $set('reviewed', false);
+                        Notification::make()->title('Complete the return details first')
+                            ->body(collect($e->errors())->flatten()->first() ?? 'Check the final bill preview.')
+                            ->warning()->send();
+                    }
                 }),
         ];
     }
