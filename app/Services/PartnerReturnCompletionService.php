@@ -32,7 +32,7 @@ class PartnerReturnCompletionService
 
     public function data(array $input): array
     {
-        return Validator::make($input, [
+        $data = Validator::make($input, [
             'returned_at' => ['required', 'date', 'before_or_equal:now'],
             'end_km' => ['required', 'numeric', 'min:0', 'max:9999999'],
             'fuel' => ['required', 'in:empty,quarter,half,three_quarters,full'],
@@ -45,6 +45,26 @@ class PartnerReturnCompletionService
             'started_at' => ['nullable', 'date', 'before_or_equal:now'],
             'start_km' => ['nullable', 'numeric', 'min:0', 'max:9999999'],
         ])->validate();
+        // Form state and dehydrated action data can use different equivalent formats.
+        // Fingerprint the same dates, money and optional text in both requests.
+        foreach (['started_at', 'returned_at'] as $key) {
+            if (filled($data[$key] ?? null)) {
+                $data[$key] = Carbon::parse($data[$key])->timezone(config('app.timezone'))->format('Y-m-d H:i:s');
+            } else {
+                $data[$key] = null;
+            }
+        }
+        foreach (['damage_amount', 'fuel_charge', 'cleaning_charge', 'other_charge'] as $key) {
+            if (array_key_exists($key, $data)) $data[$key] = PartnerPayoutPaymentService::money(PartnerPayoutPaymentService::cents($data[$key]));
+        }
+        foreach (['start_km', 'end_km'] as $key) {
+            $data[$key] = isset($data[$key]) ? (string) (float) $data[$key] : null;
+        }
+        foreach (['note', 'reason'] as $key) {
+            $data[$key] = filled($data[$key] ?? null) ? trim($data[$key]) : null;
+        }
+        ksort($data);
+        return $data;
     }
 
     private function apply(SelfDriveBooking $booking, array $data, bool $admin): void
@@ -108,7 +128,11 @@ class PartnerReturnCompletionService
     private function fingerprint(SelfDriveBooking $booking, array $data, array $bill): string
     {
         unset($bill['confirmation']);
-        return hash_hmac('sha256', json_encode([$booking->getKey(), $booking->getAttributes(), $data, $bill]), (string) config('app.key'));
+        $attributes = $booking->getAttributes();
+        ksort($attributes);
+        ksort($data);
+        ksort($bill);
+        return hash_hmac('sha256', json_encode([$booking->getKey(), $attributes, $data, $bill]), (string) config('app.key'));
     }
 
     public function bill(SelfDriveBooking $booking): array

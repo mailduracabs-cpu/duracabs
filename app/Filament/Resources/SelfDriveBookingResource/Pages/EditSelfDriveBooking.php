@@ -71,7 +71,20 @@ class EditSelfDriveBooking extends EditRecord
                 ->form(SelfDriveBookingResource::returnOverrideForm())
                 ->action(function (array $data): void {
                     abort_unless(! SelfDriveBookingResource::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
-                    app(\App\Services\PartnerReturnCompletionService::class)->finish($this->record->id, $data, (int) auth()->id(), true);
+                    try {
+                        app(\App\Services\PartnerReturnCompletionService::class)->finish($this->record->id, $data, (int) auth()->id(), true);
+                    } catch (\Illuminate\Validation\ValidationException $e) {
+                        Notification::make()->title('Return could not be saved')
+                            ->body(collect($e->errors())->flatten()->implode(' '))->danger()->persistent()->send();
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'mountedActionsData.0.reviewed' => collect($e->errors())->flatten()->first(),
+                        ]);
+                    } catch (\Throwable $e) {
+                        report($e);
+                        $message = 'Server error while saving return. Nothing was committed. Check the Laravel log for this attempt.';
+                        Notification::make()->title('Return could not be saved')->body($message)->danger()->persistent()->send();
+                        throw \Illuminate\Validation\ValidationException::withMessages(['mountedActionsData.0.reviewed' => $message]);
+                    }
                     $this->redirect(SelfDriveBookingResource::getUrl('edit', ['record' => $this->record]));
                 }),
             Actions\DeleteAction::make()

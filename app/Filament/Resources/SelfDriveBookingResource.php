@@ -1600,7 +1600,13 @@ class SelfDriveBookingResource extends Resource
                 ->content(function (SelfDriveBooking $record, Get $get): string {
                     try {
                         $bill = app(\App\Services\PartnerReturnCompletionService::class)->preview($record, static::returnInput($get), true);
-                        return 'Rental including return charges: ₹'.number_format($bill['rental'], 2)
+                        return 'Base rental: ₹'.number_format($bill['base_rental'], 2)
+                            .' | Extra time: ₹'.number_format($bill['extra_hour_amount'], 2)
+                            .' | Extra KM: ₹'.number_format($bill['extra_km_amount'], 2)
+                            .' | Damage / fuel / cleaning / late / other: ₹'.number_format(
+                                $bill['damage_amount'] + $bill['fuel_charge'] + $bill['cleaning_charge']
+                                + $bill['late_return_charge'] + $bill['other_charge'], 2)
+                            .' | Rental including return charges: ₹'.number_format($bill['rental'], 2)
                             .' | Security: ₹'.number_format($bill['security_deposit'], 2)
                             .' | Payable: ₹'.number_format($bill['payable'], 2)
                             .' | Paid: ₹'.number_format($bill['paid'], 2)
@@ -1639,7 +1645,20 @@ class SelfDriveBookingResource extends Resource
             ->form(static::returnOverrideForm())
             ->action(function (SelfDriveBooking $record, array $data): void {
                 abort_unless(! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
-                $done = app(\App\Services\PartnerReturnCompletionService::class)->finish($record->id, $data, (int) auth()->id(), true);
+                try {
+                    $done = app(\App\Services\PartnerReturnCompletionService::class)->finish($record->id, $data, (int) auth()->id(), true);
+                } catch (ValidationException $e) {
+                    Notification::make()->title('Return could not be saved')
+                        ->body(collect($e->errors())->flatten()->implode(' '))->danger()->persistent()->send();
+                    throw ValidationException::withMessages([
+                        'mountedTableActionsData.0.reviewed' => collect($e->errors())->flatten()->first(),
+                    ]);
+                } catch (\Throwable $e) {
+                    report($e);
+                    $message = 'Server error while saving return. Nothing was committed. Check the Laravel log for this attempt.';
+                    Notification::make()->title('Return could not be saved')->body($message)->danger()->persistent()->send();
+                    throw ValidationException::withMessages(['mountedTableActionsData.0.reviewed' => $message]);
+                }
                 Notification::make()->title($done->status === 'completed' ? 'Return approved, bill generated and trip completed'
                     : 'Return approved and bill generated; customer payment is pending')->success()->send();
             });
