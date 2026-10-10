@@ -54,6 +54,7 @@ class SelfDriveVendorPayoutResource extends Resource
 
                         Forms\Components\Select::make('transporter_profile_id')
                             ->label('Vendor')
+                            ->disabled(fn (string $operation): bool => $operation !== 'create')
                             ->relationship(
                                 name: 'transporter',
                                 titleAttribute: 'id'
@@ -68,10 +69,12 @@ class SelfDriveVendorPayoutResource extends Resource
 
                         Forms\Components\DatePicker::make('period_from')
                             ->label('Period From')
+                            ->disabled(fn (string $operation): bool => $operation !== 'create')
                             ->required(),
 
                         Forms\Components\DatePicker::make('period_to')
                             ->label('Period To')
+                            ->disabled(fn (string $operation): bool => $operation !== 'create')
                             ->required()
                             ->afterOrEqual('period_from'),
 
@@ -555,7 +558,9 @@ class SelfDriveVendorPayoutResource extends Resource
                             && (float) $record->remaining_amount > 0
                     )
                     ->form([
-
+                        Forms\Components\Hidden::make('request_key')->default(fn () => (string) \Illuminate\Support\Str::uuid()),
+                        Forms\Components\DateTimePicker::make('payment_date')->label('Actual Payment Date / Time')
+                            ->default(now())->required()->maxDate(now())->seconds(false),
                         Forms\Components\TextInput::make('amount')
                             ->label('Payment Amount')
                             ->prefix('₹')
@@ -611,22 +616,11 @@ class SelfDriveVendorPayoutResource extends Resource
                                 amount: $amount,
                                 method: $data['method'],
                                 reference:
-                                    $data['reference'] ?? null
+                                    $data['reference'] ?? null,
+                                paymentDate: $data['payment_date'],
+                                paymentNote: $data['notes'] ?? null,
+                                requestKey: $data['request_key']
                             );
-
-                            if (! empty($data['notes'])) {
-                                $record->notes = trim(
-                                    (
-                                        $record->notes
-                                        ? $record->notes . PHP_EOL
-                                        : ''
-                                    )
-                                    . '[Payment] '
-                                    . $data['notes']
-                                );
-
-                                $record->save();
-                            }
 
                             \Filament\Notifications\Notification::make()
                                 ->title(
@@ -675,10 +669,14 @@ class SelfDriveVendorPayoutResource extends Resource
                         function (
                             SelfDriveVendorPayout $record
                         ): void {
-                            $record->status =
-                                SelfDriveVendorPayout::STATUS_CANCELLED;
-
-                            $record->save();
+                            \Illuminate\Support\Facades\DB::transaction(function () use ($record): void {
+                                $locked = SelfDriveVendorPayout::query()->lockForUpdate()->findOrFail($record->id);
+                                if ((float)$locked->paid_amount > 0) {
+                                    throw ValidationException::withMessages(['payout' => 'A paid or partially paid payout cannot be cancelled.']);
+                                }
+                                $locked->status = SelfDriveVendorPayout::STATUS_CANCELLED;
+                                $locked->save();
+                            });
 
                             \Filament\Notifications\Notification::make()
                                 ->title(
@@ -691,14 +689,19 @@ class SelfDriveVendorPayoutResource extends Resource
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    //
+                    Tables\Actions\BulkAction::make('pay_selected')->label('Pay selected payouts')
+                        ->form(TaxiVendorPayoutResource::paymentForm())
+                        ->action(function ($records, array $data): void {
+                            app(\App\Services\PartnerPayoutPaymentService::class)->paySelected('host',$records->modelKeys(),$data);
+                            \Filament\Notifications\Notification::make()->title('Payment allocated to oldest selected payouts')->success()->send();
+                        })->deselectRecordsAfterCompletion(),
                 ]),
             ]);
     }
 
     public static function getRelations(): array
     {
-        return [];
+        return [SelfDriveVendorPayoutResource\RelationManagers\PaymentsRelationManager::class];
     }
 
     public static function getPages(): array

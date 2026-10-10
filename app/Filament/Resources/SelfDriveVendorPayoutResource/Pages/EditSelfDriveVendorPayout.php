@@ -11,6 +11,11 @@ class EditSelfDriveVendorPayout extends EditRecord
     protected static string $resource =
         SelfDriveVendorPayoutResource::class;
 
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        return ['notes' => $data['notes'] ?? null];
+    }
+
     protected function getHeaderActions(): array
     {
         return [

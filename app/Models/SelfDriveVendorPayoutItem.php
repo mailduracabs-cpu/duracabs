@@ -27,6 +27,7 @@ class SelfDriveVendorPayoutItem extends Model
 
         'customer_booking_amount',
         'payout_amount',
+        'received_amount',
     ];
 
     protected $casts = [
@@ -42,6 +43,7 @@ class SelfDriveVendorPayoutItem extends Model
 
         'customer_booking_amount' => 'decimal:2',
         'payout_amount' => 'decimal:2',
+        'received_amount' => 'decimal:2',
     ];
 
     public function payout(): BelongsTo

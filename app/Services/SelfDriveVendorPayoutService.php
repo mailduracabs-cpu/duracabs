@@ -52,6 +52,16 @@ class SelfDriveVendorPayoutService
              * जिस booking का payout पहले बन चुका है,
              * उसे दोबारा payout में शामिल न करें.
              */
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings','deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->whereNotIn('status', ['cancelled', 'rejected', 'failed'])
+            ->whereNotIn('booking_status', ['cancelled', 'rejected', 'failed'])
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->where('paid_amount', '>', 0)
+            ->whereNotNull('return_otp_verified_at')
+            ->whereNotNull('final_bill_generated_at')
+            ->whereNotNull('trip_end_datetime')
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings', 'booking_type'),
+                fn ($query) => $query->where('booking_type', 'car'))
             ->whereDoesntHave('vendorPayoutItem')
 
             /*
@@ -153,6 +163,8 @@ class SelfDriveVendorPayoutService
             $to,
             $notes
         ) {
+            \App\Models\FleetManagement\TransporterProfile::query()
+                ->whereKey($transporterProfileId)->lockForUpdate()->firstOrFail();
             /*
              * Lock eligible bookings during payout generation
              * so same booking concurrent requests में duplicate
@@ -175,7 +187,17 @@ class SelfDriveVendorPayoutService
                             SelfDriveBooking::STATUS_COMPLETED
                         );
                 })
-                ->whereDoesntHave('vendorPayoutItem')
+                ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings','deleted_at'), fn ($query) => $query->whereNull('deleted_at'))
+            ->whereNotIn('status', ['cancelled', 'rejected', 'failed'])
+            ->whereNotIn('booking_status', ['cancelled', 'rejected', 'failed'])
+            ->whereIn('payment_status', ['paid', 'partial'])
+            ->where('paid_amount', '>', 0)
+            ->whereNotNull('return_otp_verified_at')
+            ->whereNotNull('final_bill_generated_at')
+            ->whereNotNull('trip_end_datetime')
+            ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings', 'booking_type'),
+                fn ($query) => $query->where('booking_type', 'car'))
+            ->whereDoesntHave('vendorPayoutItem')
                 ->whereBetween(
                     'start_datetime',
                     [$from, $to]
@@ -230,6 +252,7 @@ class SelfDriveVendorPayoutService
                 }
 
                 SelfDriveVendorPayoutItem::create([
+                    'received_amount' => '0.00',
                     'self_drive_vendor_payout_id' =>
                         $payout->id,
 

@@ -27,3 +27,9 @@ Schedule::command('competitor-prices:update --apply')
     ->onOneServer()
     ->when(fn (): bool => (bool) config('competitor-pricing.auto_apply', false))
     ->appendOutputTo(storage_path('logs/competitor-prices.log'));
+
+// Server cron must run Laravel schedule:run every minute.
+Schedule::command('partner:sync-payouts')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(30)
+    ->appendOutputTo(storage_path('logs/partner-payout-sync.log'));

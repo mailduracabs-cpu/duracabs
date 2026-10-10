@@ -260,6 +260,8 @@ class PartnerController extends Controller
                 $displayStatus = $status;
             } elseif (in_array(strtolower($workflow), $terminal, true)) {
                 $displayStatus = $workflow;
+            } elseif ($role === 'host' && strtolower($workflow) === 'return_pending') {
+                $displayStatus = 'return_pending';
             } else {
                 $displayStatus = $status !== '' ? $status : ($workflow ?: 'unknown');
             }
@@ -886,7 +888,7 @@ class PartnerController extends Controller
     public function earnings(Request $request)
     {
         [$profile, $role] = $this->context($request);
-        $request->validate(['month' => ['required', 'date_format:Y-m'], 'batch_page' => ['sometimes', 'integer', 'min:1']]);
+        $request->validate(['month' => ['required', 'date_format:Y-m'], 'batch_page' => ['sometimes', 'integer', 'min:1'], 'payment_page' => ['sometimes', 'integer', 'min:1']]);
         // MySQL's normal repeatable-read transaction keeps totals and pages coherent
         // while an admin records a payout during this report request.
         return DB::transaction(fn () => $this->buildEarnings($request, $profile, $role));
@@ -898,17 +900,27 @@ class PartnerController extends Controller
         $from = $month->startOfMonth()->format('Y-m-d H:i:s');
         $to = $month->addMonth()->startOfMonth()->format('Y-m-d H:i:s');
         $host = $role === 'host';
-        $payoutReady = $host && Schema::hasTable('self_drive_vendor_payouts')
-            && Schema::hasTable('self_drive_vendor_payout_items');
+        $payoutReady = $host
+            ? Schema::hasTable('self_drive_vendor_payouts') && Schema::hasTable('self_drive_vendor_payout_items')
+            : Schema::hasTable('taxi_vendor_payouts');
+        $payoutTable = $host ? 'self_drive_vendor_payouts' : 'taxi_vendor_payouts';
         $table = $host ? 'self_drive_bookings' : 'orders';
         $owner = $host ? 'transporter_profile_id' : 'transporter_id';
         $date = $host ? 'start_datetime' : 'date';
         $query = DB::table($table . ' as b')->where('b.' . $owner, $host ? $profile->id : $profile->user_id)
-            ->whereIn('b.payment_status', ['paid', 'partial', 'refunded'])
+            ->where(function ($q) use ($host): void {
+                if ($host) $q->whereIn('b.payment_status', ['paid', 'partial']);
+                else $q->where('b.partner_offer_status', 'accepted');
+            })
             ->where('b.' . $date, '>=', $host ? $from : substr($from, 0, 10))
             ->where('b.' . $date, '<', $host ? $to : substr($to, 0, 10));
         if ($host) {
-            $query->where('b.booking_type', 'car')->where('b.paid_amount', '>', 0);
+            $query->where('b.booking_type', 'car')->where('b.paid_amount', '>', 0)
+                ->whereNotIn('b.status', ['cancelled','rejected','failed'])
+                ->whereNotIn('b.booking_status', ['cancelled','rejected','failed'])
+                ->where(function ($q): void { $q->where('b.status','completed')->orWhere('b.booking_status','completed'); });
+        } else {
+            $query->whereIn('b.status', ['closed','completed'])->whereNotIn('b.ride_type',['self_drive','bike','bike_rental']);
         }
         if (Schema::hasColumn($table, 'deleted_at')) {
             $query->whereNull('b.deleted_at');
@@ -916,12 +928,24 @@ class PartnerController extends Controller
         $query->leftJoin('vehicles as v', 'v.id', '=', 'b.vehicle_id');
         $columns = ['b.*', 'v.vehicle_number as report_vehicle_number', 'v.car_company_name as report_brand', 'v.model_name as report_model'];
         if ($payoutReady) {
-            $query->leftJoin('self_drive_vendor_payout_items as i', 'i.self_drive_booking_id', '=', 'b.id')
-                ->leftJoin('self_drive_vendor_payouts as p', function ($join) use ($profile): void {
-                    $join->on('p.id', '=', 'i.self_drive_vendor_payout_id')->where('p.transporter_profile_id', $profile->id);
+            if ($host) {
+                $query->leftJoin('self_drive_vendor_payout_items as i', 'i.self_drive_booking_id', '=', 'b.id')
+                    ->leftJoin($payoutTable.' as p', function ($join) use ($profile): void {
+                        $join->on('p.id','=','i.self_drive_vendor_payout_id')->where('p.transporter_profile_id',$profile->id);
+                    });
+                $columns[] = 'i.payout_amount as report_payout_amount';
+                $columns[] = 'i.commission_percentage as report_commission';
+                $columns[] = Schema::hasColumn('self_drive_vendor_payout_items','received_amount')
+                    ? 'i.received_amount as report_item_received' : DB::raw('NULL as report_item_received');
+            } else {
+                $query->leftJoin($payoutTable.' as p', function ($join) use ($profile): void {
+                    $join->on('p.order_id','=','b.id')->where('p.transporter_profile_id',$profile->id);
                 });
+                $columns[] = 'p.payout_amount as report_payout_amount';
+                $columns[] = DB::raw('NULL as report_commission');
+                $columns[] = 'p.paid_amount as report_item_received';
+            }
             $columns = array_merge($columns, [
-                'i.payout_amount as report_payout_amount', 'i.commission_percentage as report_commission',
                 'p.id as report_payout_id', 'p.payout_no as report_payout_no', 'p.status as report_payout_status',
                 'p.paid_amount as report_batch_paid', 'p.remaining_amount as report_batch_remaining',
                 'p.payout_amount as report_batch_total',
@@ -943,8 +967,10 @@ class PartnerController extends Controller
                 && $this->cents($row->report_batch_remaining) === 0
                 && $this->cents($row->report_batch_paid) >= $this->cents($row->report_batch_total);
             // Partial batch receipts do not specify which booking received money.
-            $received = $fullyPaid ? $row->report_payout_amount
-                : ($validPayout && $this->cents($row->report_batch_paid) === 0 ? '0.00' : null);
+            $received = $validPayout && ($row->report_item_received ?? null) !== null
+                ? $row->report_item_received
+                : ($fullyPaid ? $row->report_payout_amount
+                    : ($validPayout && $this->cents($row->report_batch_paid) === 0 ? '0.00' : null));
             $displayStatus = trim((string) ($row->status ?? ''));
             $workflowStatus = trim((string) ($row->booking_status ?? ''));
             $terminalStatuses = ['cancelled', 'canceled', 'rejected', 'completed', 'closed', 'failed'];
@@ -1013,13 +1039,25 @@ class PartnerController extends Controller
         }
         unset($car);
         $page = (clone $query)->orderByDesc('b.id')->paginate(20);
-        $batchQuery = $payoutReady ? DB::table('self_drive_vendor_payouts')
+        $batchQuery = $payoutReady ? DB::table($payoutTable)
             ->where('transporter_profile_id', $profile->id)->whereIn('status', ['pending', 'partial', 'paid'])
             ->where('period_from', '>=', substr($from, 0, 10))->where('period_from', '<', substr($to, 0, 10)) : null;
         $batchPage = $batchQuery?->orderByDesc('id')->paginate(20, ['*'], 'batch_page');
+        $paymentQuery = Schema::hasTable('partner_payout_payments') ? DB::table('partner_payout_payments')
+            ->where('transporter_profile_id',$profile->id)->where('account',$role)
+            ->where('payment_date','>=',$from)->where('payment_date','<',$to)
+            ->selectRaw('MIN(id) as id, SUM(amount) as amount, payment_date, method, reference, notes')
+            ->groupBy('request_key','payment_date','method','reference','notes') : null;
+        $paymentPage = $paymentQuery?->orderByDesc('payment_date')->orderByDesc('id')->paginate(20,['*'],'payment_page');
         return response()->json(['status' => true, 'data' => [
+            'payments' => $paymentPage ? collect($paymentPage->items())->map(fn ($payment): array => [
+                'id'=>$payment->id,'payment_date'=>$payment->payment_date,'amount'=>$payment->amount,
+                'payment_mode'=>$payment->method,'payment_reference'=>$payment->reference,'note'=>$payment->notes,
+            ])->values() : [],
+            'payment_page'=>$paymentPage?->currentPage() ?? 1, 'payment_last_page'=>$paymentPage?->lastPage() ?? 1,
+            'payment_basis'=>'Actual payments dated in this month. Legacy cumulative payments have no individual transaction history.',
             'month' => $request->input('month'), 'role' => $role, 'payout_available' => $payoutReady,
-            'basis' => 'Bookings starting in this month. Received amounts belong to those bookings; this is not a bank cash-flow statement.',
+            'basis' => 'Completed bookings starting in this month. Received totals are allocations against these bookings, not monthly bank cash flow.',
             'summary' => $summary, 'cars' => array_values($cars),
             'items' => collect($page->items())->map($map)->values(), 'page' => $page->currentPage(),
             'last_page' => $page->lastPage(),
@@ -1028,11 +1066,13 @@ class PartnerController extends Controller
                 'payout_amount' => $p->payout_amount, 'paid_amount' => $p->paid_amount,
                 'remaining_amount' => $p->remaining_amount, 'status' => $p->status,
                 'payment_reference' => $p->payment_reference, 'paid_at' => $p->paid_at,
+                'payment_mode' => $p->payment_method ?? null,
+                'note' => $p->notes ?? null,
             ])->values() : [],
             'batch_page' => $batchPage?->currentPage() ?? 1, 'batch_last_page' => $batchPage?->lastPage() ?? 1,
             'batch_basis' => 'Payout batches whose period starts in this month. Paid amounts are cumulative, not necessarily paid during this month.',
-            'note' => $host ? 'Partner amounts come from saved payout items. Customer payments may include security deposits. Vehicle expenses are not deducted.'
-                : 'Taxi customer collections are shown. The supplied taxi schema has no partner settlement ledger; partner income cannot be confirmed.',
+            'note' => $host ? 'Saved payout amounts follow the existing daily-rate and commission calculation. Legacy partial allocations remain unknown. Deposits are not income.'
+                : 'With Driver earnings use the accepted admin partner offer saved at completion, not the customer fare. Deposits are not income.',
         ]]);
     }
 

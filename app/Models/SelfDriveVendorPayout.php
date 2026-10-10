@@ -183,34 +183,18 @@ class SelfDriveVendorPayout extends Model
     public function receivePayment(
         float $amount,
         ?string $method = null,
-        ?string $reference = null
+        ?string $reference = null,
+        ?string $paymentDate = null,
+        ?string $paymentNote = null,
+        ?string $requestKey = null
     ): void {
-        $amount = round(max(0, $amount), 2);
-
-        if ($amount <= 0) {
-            return;
-        }
-
-        $currentRemaining = max(
-            0,
-            (float) $this->remaining_amount
+        app(\App\Services\PartnerPayoutPaymentService::class)->pay(
+            'host', (int)$this->getKey(), $amount, $method ?? 'other',
+            $reference, $paymentDate, $paymentNote, $requestKey
         );
-
-        $amount = min($amount, $currentRemaining);
-
-        $this->paid_amount = round(
-            (float) $this->paid_amount + $amount,
-            2
-        );
-
-        if ($method !== null) {
-            $this->payment_method = $method;
-        }
-
-        if ($reference !== null) {
-            $this->payment_reference = $reference;
-        }
-
-        $this->save();
+        $this->refresh();
+    }
+    public function payments(): \Illuminate\Database\Eloquent\Relations\HasMany {
+        return $this->hasMany(PartnerPayoutPayment::class, 'payout_id')->where('account', 'host');
     }
 }
