@@ -699,9 +699,9 @@ Route::prefix('bike-rental')->group(function (): void {
         */
 
         Route::get('/final-bill/{bookingId}', [
-            SelfDriveController::class,
-            'finalBill',
-        ])->where('bookingId', '[A-Za-z0-9\-]+');
+            \App\Http\Controllers\Api\V1\SelfDriveReturnBillController::class,
+            'show',
+        ])->where('bookingId', '[A-Za-z0-9\-]+')->middleware('auth:sanctum');
 
         Route::get('/refund-status/{bookingId}', [
             SelfDriveController::class,
@@ -1377,6 +1377,15 @@ Route::prefix('v1/partner')->group(function (): void {
     Route::post('/verify-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'verifyOtp'])
         ->middleware('throttle:15,1');
     Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
+        Route::get('/bookings/{booking}/return', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'show'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/return/draft', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'draft'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/return/photo', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photo'])->whereNumber('booking');
+        Route::get('/bookings/{booking}/return/photo/{slot}', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photoView'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/return/otp', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'otp'])->whereNumber('booking')->middleware('throttle:3,1');
+        Route::post('/bookings/{booking}/return/verify', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'verify'])->whereNumber('booking')->middleware('throttle:3,1');
+        Route::post('/bookings/{booking}/return/preview', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'preview'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/return/complete', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'complete'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/return/admin-request', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'adminRequest'])->whereNumber('booking');
         Route::get('/me', [\App\Http\Controllers\Api\V1\PartnerController::class, 'me']);
         Route::get('/dashboard', [\App\Http\Controllers\Api\V1\PartnerController::class, 'dashboard']);
         Route::get('/bookings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'bookings']);
@@ -1419,3 +1428,8 @@ Route::middleware(['web', 'auth:web'])->prefix('v1/partner/admin-kyc')->group(fu
     Route::get('/{profile}/{type}/download', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminDownload'])->whereNumber('profile')->where('type', 'aadhaar|pan');
     Route::post('/{profile}/{type}/review', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'adminReview'])->whereNumber('profile')->where('type', 'aadhaar|pan');
 });
+
+// Private return inspections are available only to an active admin session.
+Route::get('/v1/partner/admin-return/{booking}/photo/{slot}', [
+    \App\Http\Controllers\Api\V1\PartnerReturnController::class, 'adminPhoto',
+])->whereNumber('booking')->where('slot', 'front|back|left|right')->middleware(['web', 'auth:web']);

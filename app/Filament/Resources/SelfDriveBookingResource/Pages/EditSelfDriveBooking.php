@@ -50,6 +50,19 @@ class EditSelfDriveBooking extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Actions\Action::make('admin_return_bill')->label('Admin Return & Bill')->color('warning')
+                ->icon('heroicon-o-document-check')
+                ->visible(fn () => ! SelfDriveBookingResource::isTransporterPanel()
+                    && auth()->user()?->canUseAdminLogin()
+                    && ! in_array($this->record->status, ['cancelled', 'rejected', 'failed'], true)
+                    && (! $this->record->final_bill_generated_at
+                        || (! $this->record->return_otp_verified_at && ! $this->record->return_admin_confirmed_at)))
+                ->form(SelfDriveBookingResource::returnOverrideForm())
+                ->action(function (array $data): void {
+                    abort_unless(! SelfDriveBookingResource::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
+                    app(\App\Services\PartnerReturnCompletionService::class)->finish($this->record->id, $data, (int) auth()->id(), true);
+                    $this->redirect(SelfDriveBookingResource::getUrl('edit', ['record' => $this->record]));
+                }),
             Actions\DeleteAction::make()
                 ->requiresConfirmation()
                 ->modalHeading('Delete Self Drive Booking')

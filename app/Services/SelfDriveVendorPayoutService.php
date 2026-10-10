@@ -57,7 +57,12 @@ class SelfDriveVendorPayoutService
             ->whereNotIn('booking_status', ['cancelled', 'rejected', 'failed'])
             ->whereIn('payment_status', ['paid', 'partial'])
             ->where('paid_amount', '>', 0)
-            ->whereNotNull('return_otp_verified_at')
+            ->where(function ($proof) {
+                $proof->whereNotNull('return_otp_verified_at')->orWhere(function ($admin) {
+                    $admin->whereNotNull('return_admin_confirmed_at')->whereNotNull('return_admin_confirmed_by')
+                        ->whereNotNull('return_admin_reason')->where('return_admin_reason', '<>', '');
+                });
+            })
             ->whereNotNull('final_bill_generated_at')
             ->whereNotNull('trip_end_datetime')
             ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings', 'booking_type'),
@@ -192,7 +197,12 @@ class SelfDriveVendorPayoutService
             ->whereNotIn('booking_status', ['cancelled', 'rejected', 'failed'])
             ->whereIn('payment_status', ['paid', 'partial'])
             ->where('paid_amount', '>', 0)
-            ->whereNotNull('return_otp_verified_at')
+            ->where(function ($proof) {
+                $proof->whereNotNull('return_otp_verified_at')->orWhere(function ($admin) {
+                    $admin->whereNotNull('return_admin_confirmed_at')->whereNotNull('return_admin_confirmed_by')
+                        ->whereNotNull('return_admin_reason')->where('return_admin_reason', '<>', '');
+                });
+            })
             ->whereNotNull('final_bill_generated_at')
             ->whereNotNull('trip_end_datetime')
             ->when(\Illuminate\Support\Facades\Schema::hasColumn('self_drive_bookings', 'booking_type'),

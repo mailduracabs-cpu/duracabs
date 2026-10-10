@@ -32,6 +32,8 @@ class SelfDriveBooking extends Model
     public const SETTLEMENT_COMPLETED = 'completed';
 
     protected $fillable = [
+        'return_draft', 'return_completion_audit', 'return_admin_confirmed_at',
+        'return_admin_confirmed_by', 'return_admin_reason',
         'booking_no',
         'customer_id',
         'vehicle_id',
@@ -173,6 +175,8 @@ class SelfDriveBooking extends Model
 
         'pickup_images' => 'array',
         'drop_images' => 'array',
+        'return_draft' => 'array', 'return_completion_audit' => 'array',
+        'return_admin_confirmed_at' => 'datetime',
 
         'booked_hours' => 'integer',
         'minimum_booking_hours' => 'integer',
@@ -419,6 +423,18 @@ public function hasVendorPayout(): bool
         });
 
         static::updating(function (self $booking): void {
+            if (($booking->isDirty('status') && $booking->status === 'completed')
+                || ($booking->isDirty('booking_status') && $booking->booking_status === 'completed')) {
+                $verified = $booking->return_otp_verified_at || ($booking->return_admin_confirmed_at
+                    && $booking->return_admin_confirmed_by && filled($booking->return_admin_reason));
+                if (! $verified || ! $booking->trip_end_datetime || ! $booking->final_bill_generated_at
+                    || $booking->payment_status !== 'paid' || (float) $booking->remaining_amount > 0.009) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'status' => 'Confirm actual return and generate the final bill first. Use Return & Bill or Admin Return Override.',
+                    ]);
+                }
+            }
+
             // Keep cancellation authoritative when a previous trip status remains.
             if ($booking->status === self::STATUS_CANCELLED) {
                 $booking->booking_status = self::STATUS_CANCELLED;
@@ -893,6 +909,10 @@ public function hasVendorPayout(): bool
          * - final_amount is treated as the effective rental total when present.
          * - total_amount remains the automatic/database rental amount.
          */
+        // An audited return bill stores rental + return charges in final_amount.
+        if (isset($this->return_completion_audit['base_rental'])) {
+            return round(max(0, (float) $this->final_amount), 2);
+        }
         $manual = (float) ($this->manual_price ?? 0);
 
         if ($manual > 0) {
@@ -1051,7 +1071,7 @@ public function hasVendorPayout(): bool
     {
         return app(FinalBillingService::class)->calculate([
             'service_type' => 'self_drive',
-            'base_fare' => $this->effectiveRentalAmount(),
+            'base_fare' => $this->return_completion_audit['base_rental'] ?? $this->effectiveRentalAmount(),
             'special_request_total' =>
                 $this->numericAttribute([
                     'special_request_total',
