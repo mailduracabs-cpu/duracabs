@@ -1001,7 +1001,7 @@ class PartnerController extends Controller
             ];
         };
         $summary = ['booking_count' => 0, 'booking_total' => 0, 'customer_paid' => 0,
-            'partner_amount' => 0, 'partner_received' => 0, 'unallocated_bookings' => 0, 'unknown_receipt_bookings' => 0, 'unknown_customer_payments' => 0];
+            'partner_amount' => 0, 'partner_received' => 0, 'unallocated_bookings' => 0, 'unknown_receipt_bookings' => 0, 'unknown_customer_payments' => 0, 'partner_pending' => 0, 'unknown_balance_bookings' => 0];
         $cars = [];
         // Totals cover the entire filtered month, not only the current page.
         (clone $query)->orderBy('b.id')->chunk(200, function ($rows) use (&$summary, &$cars, $map): void {
@@ -1010,7 +1010,7 @@ class PartnerController extends Controller
                 $key = (string) ($item['vehicle_id'] ?? 'unassigned');
                 $cars[$key] ??= ['vehicle_number' => $item['vehicle_number'], 'vehicle_name' => $item['vehicle_name'],
                     'booking_count' => 0, 'booking_total' => 0, 'partner_amount' => 0, 'partner_received' => 0,
-                    'unallocated_bookings' => 0, 'unknown_receipt_bookings' => 0];
+                    'unallocated_bookings' => 0, 'unknown_receipt_bookings' => 0, 'partner_pending' => 0, 'unknown_balance_bookings' => 0];
                 $summary['booking_count']++;
                 $cars[$key]['booking_count']++;
                 foreach (['booking_total', 'customer_paid', 'partner_amount', 'partner_received'] as $field) {
@@ -1018,6 +1018,19 @@ class PartnerController extends Controller
                     if ($field !== 'customer_paid') {
                         $cars[$key][$field] += $this->cents($item[$field]);
                     }
+                }
+                // Sum only saved, matched earnings/payment allocations in whole paise.
+                // Incomplete bookings remain visible separately, never fabricated as zero.
+                $earned = $item['partner_amount'];
+                $received = $item['partner_received'];
+                if ($earned !== null && $received !== null
+                    && $this->cents($received) <= $this->cents($earned)) {
+                    $pending = $this->cents($earned) - $this->cents($received);
+                    $summary['partner_pending'] += $pending;
+                    $cars[$key]['partner_pending'] += $pending;
+                } else {
+                    $summary['unknown_balance_bookings']++;
+                    $cars[$key]['unknown_balance_bookings']++;
                 }
                 if ($item['customer_paid'] === null) {
                     $summary['unknown_customer_payments']++;
@@ -1030,11 +1043,11 @@ class PartnerController extends Controller
                 }
             }
         });
-        foreach (['booking_total', 'customer_paid', 'partner_amount', 'partner_received'] as $field) {
+        foreach (['booking_total', 'customer_paid', 'partner_amount', 'partner_received', 'partner_pending'] as $field) {
             $summary[$field] = $this->moneyString($summary[$field]);
         }
         foreach ($cars as &$car) {
-            foreach (['booking_total', 'partner_amount', 'partner_received'] as $field) {
+            foreach (['booking_total', 'partner_amount', 'partner_received', 'partner_pending'] as $field) {
                 $car[$field] = $this->moneyString($car[$field]);
             }
         }
