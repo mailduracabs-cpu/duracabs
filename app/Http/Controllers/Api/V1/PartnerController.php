@@ -18,6 +18,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Services\OtpService;
+use App\Services\PartnerReviewLoginService;
 use App\Services\PartnerBookingOfferService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -48,7 +49,8 @@ class PartnerController extends Controller
             $raw = $m[1];
         }
         $request->merge(['mobile' => $raw]);
-        $request->validate(['mobile' => ['required', 'string', 'regex:/^[6-9]\d{9}$/']]);
+        // Only this reserved identifier is allowed outside normal Indian mobiles.
+        $request->validate(['mobile' => ['required', 'string', 'regex:/^(?:[6-9]\d{9}|0000000002)$/']]);
         return $raw;
     }
 
@@ -79,7 +81,9 @@ class PartnerController extends Controller
         $lock = Cache::lock('partner:otp-lock:' . hash('sha256', $mobile), 120);
         abort_unless($lock->get(), 429, 'An OTP request is already processing. Try again shortly.');
         try {
-            $result = $otp->sendPurposeOtp($mobile, self::PURPOSE, ['user_id' => $user->getKey()]);
+            $result = $mobile === PartnerReviewLoginService::MOBILE
+                ? app(PartnerReviewLoginService::class)->send($user)
+                : $otp->sendPurposeOtp($mobile, self::PURPOSE, ['user_id' => $user->getKey()]);
             if (!($result['status'] ?? false)) {
                 return response()->json(['status' => false, 'message' => $result['message'] ?? 'OTP delivery failed.'], 422);
             }
@@ -102,8 +106,11 @@ class PartnerController extends Controller
         $lock = Cache::lock('partner:otp-lock:' . hash('sha256', $mobile), 120);
         abort_unless($lock->get(), 429, 'An OTP request is already processing. Try again shortly.');
         try {
-            $result = $otp->verifyPurposeOtp($mobile, self::PURPOSE,
-                (string) $request->input('otp'), (string) $request->input('verification_id'));
+            $result = $mobile === PartnerReviewLoginService::MOBILE
+                ? app(PartnerReviewLoginService::class)->verify($user,
+                    (string) $request->input('otp'), (string) $request->input('verification_id'))
+                : $otp->verifyPurposeOtp($mobile, self::PURPOSE,
+                    (string) $request->input('otp'), (string) $request->input('verification_id'));
             if (!($result['status'] ?? false)) {
                 return response()->json(['status' => false, 'message' => $result['message'] ?? 'Invalid OTP.'], 422);
             }

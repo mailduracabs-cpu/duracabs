@@ -124,6 +124,9 @@ class OtpService
     public function sendLoginOtp(string $mobile): array
     {
         $mobile = $this->cleanMobile($mobile);
+        if ($mobile === '0000000002') {
+            return ['status' => false, 'message' => 'Use the Partner App for partner review login.'];
+        }
 
         // Reserved synthetic identifier: never send a real login OTP.
         if ($mobile === '0000000001') {
@@ -561,6 +564,9 @@ class OtpService
     ): array {
         $mobile = $this->cleanMobile($mobile);
         $purpose = $this->cleanPurpose($purpose);
+        if ($mobile === '0000000002') {
+            return ['status' => false, 'message' => 'Partner review login is available only through the Partner App login endpoint.'];
+        }
 
         if (strlen($mobile) !== 10) {
             return [
