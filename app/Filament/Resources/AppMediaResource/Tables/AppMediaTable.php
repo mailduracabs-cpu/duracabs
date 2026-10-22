@@ -20,10 +20,12 @@ class AppMediaTable
 
                 Tables\Columns\ImageColumn::make('original_url')
                     ->label('')
-                    ->disk('public')
+                    ->getStateUsing(fn ($record) => \App\Support\MediaFormats::browserImage($record->mime_type)
+                        ? route('admin.media-files.show', ['media' => $record->getKey()]) : null)
                     ->square()
                     ->size(70)
-                    ->defaultImageUrl(asset('images/no-image.png')),
+                    ->defaultImageUrl('data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="70" height="70"><rect width="70" height="70" rx="8" fill="#eef2ff"/><path d="M24 15h16l10 10v30H24z" fill="white" stroke="#475569" stroke-width="2"/><path d="M40 15v12h10M29 36h15M29 43h15" fill="none" stroke="#475569" stroke-width="2"/></svg>'))
+                    ->url(fn ($record) => route('admin.media-files.show', ['media' => $record->getKey()])),
 
                 Tables\Columns\TextColumn::make('name')
                     ->searchable()

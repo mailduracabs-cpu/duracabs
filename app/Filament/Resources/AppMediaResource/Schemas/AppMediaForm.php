@@ -31,30 +31,23 @@ class AppMediaForm
                         )
                             ->label('Media File')
                             ->helperText(
-                                'Images: JPG, PNG, WebP or GIF. '
-                                . 'Documents: PDF is also supported.'
+                                'Images including HEIC, HEIF, AVIF, BMP and TIFF. '
+                                . 'Documents: PDF, Office, OpenDocument, RTF, TXT and CSV.'
                             )
                             ->disk('local')
                             ->directory(
                                 'temporary/app-media'
                             )
                             ->visibility('private')
-                            ->preserveFilenames()
+                            // Keep randomized storage filenames.
                             ->storeFileNamesIn(
                                 'uploaded_file_name'
                             )
                             ->acceptedFileTypes(
                                 self::acceptedFileTypes()
                             )
-                            ->maxSize(15360)
-                            ->imageEditor(
-                                fn (
-                                    Get $get
-                                ): bool =>
-                                    self::isImageType(
-                                        $get('media_type')
-                                    )
-                            )
+                            ->maxSize((int) config('dura-media.max_document_size_kb', 51200))
+                            ->imageEditor(false)
                             ->imagePreviewHeight('280')
                             ->downloadable()
                             ->openable()
@@ -210,6 +203,7 @@ class AppMediaForm
                             ->options([
                                 'public' =>
                                     'Public Storage',
+                                'local' => 'Private Storage',
                             ])
                             ->default('public')
                             ->required()
@@ -259,7 +253,7 @@ class AppMediaForm
                                         ->value
                             )
                             ->helperText(
-                                'Private is recommended '
+                                'Document uploads are always private. Private is recommended '
                                 . 'for vehicle and identity documents.'
                             )
                             ->inline(false),
@@ -411,13 +405,7 @@ class AppMediaForm
      */
     private static function acceptedFileTypes(): array
     {
-        return [
-            'image/jpeg',
-            'image/png',
-            'image/webp',
-            'image/gif',
-            'application/pdf',
-        ];
+        return [...\App\Support\MediaFormats::mimeTypes(true), 'application/octet-stream', 'application/zip', 'application/x-zip-compressed'];
     }
 
     private static function isImageType(

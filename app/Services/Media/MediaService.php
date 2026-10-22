@@ -33,6 +33,14 @@ final class MediaService
         ?string $module = null,
         array $options = [],
     ): AppMedia {
+        \App\Support\MediaFormats::inspect($file, $type->isDocument());
+        if ($type->isDocument()) {
+            $options['is_public'] = false;
+            $options['disk'] = config('dura-media.private_disk', 'local');
+        }
+        $options['is_public'] ??= !$type->isDocument();
+        $options['disk'] ??= $options['is_public'] ? 'public' : 'local';
+        $options['uploaded_by'] ??= \Illuminate\Support\Facades\Auth::id();
         $hash = $this->hashService->generate($file);
 
         /*
@@ -46,6 +54,9 @@ final class MediaService
          */
         $existing = AppMedia::query()
             ->where('file_hash', $hash)
+            ->where('disk', $options['disk'])
+            ->where('is_public', $options['is_public'])
+            ->where('uploaded_by', $options['uploaded_by'])
             ->where('media_type', $type->value)
             ->where(function ($query) use ($module): void {
                 if (filled($module)) {
@@ -57,7 +68,7 @@ final class MediaService
             ->whereNull('deleted_at')
             ->first();
 
-        if ($existing !== null) {
+        if (($options['deduplicate'] ?? true) && $existing !== null) {
             /*
              * Confirm that the single stored file still exists.
              * A database record whose file is missing must not be reused.

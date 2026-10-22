@@ -179,6 +179,8 @@ final class ProcessMediaUpload
             );
 
             return $media;
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            throw $exception;
         } catch (Throwable $exception) {
             Log::error(
                 'Dura Media upload failed.',
@@ -468,46 +470,7 @@ final class ProcessMediaUpload
         MediaType $mediaType,
         array $options,
     ): void {
-        $mimeType = strtolower(
-            trim(
-                (string) (
-                    $file->getMimeType()
-                    ?: $file->getClientMimeType()
-                )
-            )
-        );
-
-        $imageMimeTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/webp',
-            'image/gif',
-        ];
-
-        $allowedMimeTypes =
-            $mediaType->isDocument()
-                ? [
-                    ...$imageMimeTypes,
-                    'application/pdf',
-                ]
-                : $imageMimeTypes;
-
-        if (
-            $mimeType === ''
-            || !in_array(
-                $mimeType,
-                $allowedMimeTypes,
-                true
-            )
-        ) {
-            throw new InvalidArgumentException(
-                "Unsupported media MIME type: "
-                . ($mimeType !== ''
-                    ? $mimeType
-                    : 'unknown')
-            );
-        }
+        \App\Support\MediaFormats::inspect($file, $mediaType->isDocument());
 
         $defaultMaximumKilobytes =
             $mediaType->isDocument()
@@ -567,6 +530,11 @@ final class ProcessMediaUpload
 
         if ($uploaderType === '') {
             $uploaderType = 'guest';
+        }
+
+        if ($mediaType->isDocument()) {
+            $options['is_public'] = false;
+            $options['disk'] = config('dura-media.private_disk', 'local');
         }
 
         $isPublic = array_key_exists(

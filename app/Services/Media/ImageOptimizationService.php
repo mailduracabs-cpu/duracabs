@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\WebpEncoder;
-use Intervention\Image\Image;
+use Intervention\Image\Interfaces\ImageInterface;
 use Intervention\Image\Laravel\Facades\Image as ImageFacade;
 use RuntimeException;
 use Throwable;
@@ -80,13 +80,9 @@ final class ImageOptimizationService
                 ?: 'bin'
         );
 
-        $uploadedMimeType = strtolower(
-            (string) (
-                $file->getMimeType()
-                ?: $file->getClientMimeType()
-                ?: 'application/octet-stream'
-            )
-        );
+        $format = \App\Support\MediaFormats::inspect($file, $mediaType->isDocument());
+        $uploadedMimeType = $format['mime'];
+        $uploadedExtension = $format['extension'];
 
         $uploadedSize = max(
             0,
@@ -121,8 +117,8 @@ final class ImageOptimizationService
         }
 
         try {
-            if ($this->isPdf($uploadedMimeType)) {
-                return $this->storePdf(
+            if (!$format['image']) {
+                return $this->storeDocument(
                     file: $file,
                     mediaType: $mediaType,
                     module: $module,
@@ -159,6 +155,7 @@ final class ImageOptimizationService
         } catch (Throwable $exception) {
             $this->deleteWrittenFiles($disk);
 
+            if ($exception instanceof \Illuminate\Validation\ValidationException) { throw $exception; }
             throw new RuntimeException(
                 'Media processing failed: '
                 . $exception->getMessage(),
@@ -247,7 +244,7 @@ final class ImageOptimizationService
         );
 
         try {
-            $image = ImageFacade::decode(
+            $image = $this->decodeImage(
                 $sourcePath
             );
 
@@ -293,7 +290,7 @@ final class ImageOptimizationService
 
             $isPublic = (bool) (
                 $options['is_public']
-                ?? true
+                ?? !$mediaType->isDocument()
             );
 
             $stored = Storage::disk($disk)->put(
@@ -336,6 +333,20 @@ final class ImageOptimizationService
      *
      * @param array<string, mixed> $options
      */
+    private function decodeImage(string $path): ImageInterface
+    {
+        try {
+            if (extension_loaded('imagick')) {
+                return \Intervention\Image\ImageManager::usingDriver(
+                    \Intervention\Image\Drivers\Imagick\Driver::class
+                )->decode($path);
+            }
+            return ImageFacade::decode($path);
+        } catch (Throwable $e) {
+            \App\Support\MediaFormats::fail('Image could not be decoded. Check that the file is valid and the server has Imagick with HEIC/AVIF/TIFF support.');
+        }
+    }
+
     private function storeSingleWebp(
         UploadedFile $file,
         MediaType $mediaType,
@@ -357,7 +368,7 @@ final class ImageOptimizationService
             options: $options,
         );
 
-        $image = ImageFacade::decode(
+        $image = $this->decodeImage(
             $file->getRealPath()
         );
 
@@ -421,7 +432,7 @@ final class ImageOptimizationService
             contents: $webpBytes,
             isPublic: (bool) (
                 $options['is_public']
-                ?? true
+                ?? !$mediaType->isDocument()
             ),
         );
 
@@ -507,7 +518,7 @@ final class ImageOptimizationService
 
                     'is_public' => (bool) (
                         $options['is_public']
-                        ?? true
+                        ?? !$mediaType->isDocument()
                     ),
 
                     'reference_count' => max(
@@ -577,11 +588,11 @@ final class ImageOptimizationService
     }
 
     /**
-     * Store a PDF document without conversion.
+     * Store an allowed non-image document without conversion.
      *
      * @param array<string, mixed> $options
      */
-    private function storePdf(
+    private function storeDocument(
         UploadedFile $file,
         MediaType $mediaType,
         ?string $module,
@@ -597,14 +608,8 @@ final class ImageOptimizationService
         string $uploadedMimeType,
         int $uploadedSize,
     ): AppMedia {
-        if (!$mediaType->isDocument()) {
-            throw new RuntimeException(
-                'PDF files can only be uploaded as document media.'
-            );
-        }
-
         $pdfPath = sprintf(
-            '%s/%s.pdf',
+            '%s/%s.' . $uploadedExtension,
             $directory,
             $uuid,
         );
@@ -654,8 +659,8 @@ final class ImageOptimizationService
                     'thumbnail_path' => null,
 
                     'original_name' => $originalName,
-                    'original_extension' => 'pdf',
-                    'mime_type' => 'application/pdf',
+                    'original_extension' => $uploadedExtension,
+                    'mime_type' => $uploadedMimeType,
 
                     'original_size' => $uploadedSize,
                     'optimized_size' => $uploadedSize,
@@ -705,7 +710,7 @@ final class ImageOptimizationService
                         [
                             'storage_mode' => 'single_file',
                             'document' => true,
-                            'pdf' => true,
+                            'pdf' => $uploadedMimeType === 'application/pdf',
 
                             'uploaded_extension' =>
                                 $uploadedExtension,
@@ -744,7 +749,7 @@ final class ImageOptimizationService
      * Other media preserves the uploaded aspect ratio.
      */
     private function resizeImage(
-        Image $image,
+        ImageInterface $image,
         MediaType $mediaType,
     ): void {
         $size = $mediaType->maxSize();
@@ -926,53 +931,7 @@ final class ImageOptimizationService
             );
         }
 
-        $mimeType = strtolower(
-            (string) (
-                $file->getMimeType()
-                ?: $file->getClientMimeType()
-            )
-        );
-
-        $imageMimeTypes = [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/webp',
-            'image/gif',
-        ];
-
-        if ($mediaType->isDocument()) {
-            $documentMimeTypes = [
-                ...$imageMimeTypes,
-                'application/pdf',
-            ];
-
-            if (
-                !in_array(
-                    $mimeType,
-                    $documentMimeTypes,
-                    true
-                )
-            ) {
-                throw new RuntimeException(
-                    'Documents must be JPG, PNG, WebP, GIF or PDF.'
-                );
-            }
-
-            return;
-        }
-
-        if (
-            !in_array(
-                $mimeType,
-                $imageMimeTypes,
-                true
-            )
-        ) {
-            throw new RuntimeException(
-                'Media must be a valid JPG, PNG, WebP or GIF image.'
-            );
-        }
+        \App\Support\MediaFormats::inspect($file, $mediaType->isDocument());
     }
 
     /**

@@ -241,24 +241,21 @@ class AppMedia extends Model
      */
     public function storedPath(): ?string
     {
-        $paths = [
-            $this->original_path,
-            $this->medium_path,
-            $this->large_path,
-            $this->thumbnail_path,
-        ];
-
+        $paths = $this->allStoredPaths();
         foreach ($paths as $path) {
-            $path = trim(
-                (string) $path
-            );
-
-            if ($path !== '') {
-                return $path;
+            if (Str::startsWith($path, ['http://', 'https://'])) { continue; }
+            $path = str_replace('\\', '/', $path);
+            if (($this->disk ?: 'public') === 'public') {
+                foreach (['storage/app/public/', 'public/storage/', '/storage/', 'storage/', 'public/'] as $prefix) {
+                    if (str_starts_with($path, $prefix)) { $path = substr($path, strlen($prefix)); break; }
+                }
             }
+            try {
+                if (Storage::disk($this->disk ?: 'public')->exists($path)) { return $path; }
+            } catch (Throwable) { /* Keep checking legacy variants. */ }
         }
-
-        return null;
+        // Preserve the expected path so a missing file can be diagnosed.
+        return $paths[0] ?? null;
     }
 
     /**
@@ -573,14 +570,8 @@ class AppMedia extends Model
             return $path;
         }
 
-        // Partner identity documents stay on the private disk. Filament previews
-        // use the admin's authenticated web session instead of a public file URL.
-        if (
-            $this->disk === 'local'
-            && str_starts_with($path, 'partner-vehicles/')
-            && str_contains($path, '/documents/')
-        ) {
-            return '/api/v1/partner/admin-media/' . $this->getKey();
+        if (!$this->is_public || $this->disk === 'local') {
+            return route('admin.media-files.show', ['media' => $this->getKey()]);
         }
 
         try {

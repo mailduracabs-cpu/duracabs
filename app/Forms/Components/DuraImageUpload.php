@@ -61,9 +61,15 @@ final class DuraImageUpload
             ->disk('local')
             ->directory($temporaryDirectory)
             ->visibility('private')
-            ->acceptedFileTypes($acceptedTypes)
+            ->acceptedFileTypes([...$acceptedTypes, 'application/octet-stream', ...($resolvedType->isDocument() ? ['application/zip', 'application/x-zip-compressed'] : [])])
+            ->rules([fn () => function ($attribute, $value, $fail) use ($resolvedType): void {
+                if ($value instanceof \Illuminate\Http\UploadedFile) {
+                    try { \App\Support\MediaFormats::inspect($value, $resolvedType->isDocument(), $attribute); }
+                    catch (\Illuminate\Validation\ValidationException $e) { $fail(collect($e->errors())->flatten()->first()); }
+                }
+            }])
             ->maxSize($maximumSize)
-            ->preserveFilenames()
+            // Random stored names prevent collisions; keep the display name separately.
             ->storeFileNamesIn(
                 $name . '_original_name'
             )
@@ -85,8 +91,7 @@ final class DuraImageUpload
 
         if (!$resolvedType->isDocument()) {
             $field
-                ->image()
-                ->imageEditor()
+                ->imageEditor(false)
                 ->imagePreviewHeight('220')
                 ->panelAspectRatio(
                     self::panelAspectRatio(
@@ -287,13 +292,13 @@ final class DuraImageUpload
 
         if ($type->isDocument()) {
             return sprintf(
-                'JPG, PNG, WebP, GIF or PDF • Maximum %s MB • Documents are stored privately.',
+                'Images, PDF, Word, Excel, PowerPoint, OpenDocument, RTF, TXT or CSV • Maximum %s MB • Documents are stored privately.',
                 $maximumMegabytes
             );
         }
 
         return sprintf(
-            'JPG, PNG, WebP or GIF • Maximum %s MB • Image will be compressed and converted automatically.',
+            'JPG, PNG, WebP, GIF, HEIC, HEIF, AVIF, BMP or TIFF • Maximum %s MB • Image will be compressed and converted automatically.',
             $maximumMegabytes
         );
     }
@@ -303,13 +308,7 @@ final class DuraImageUpload
      */
     private static function defaultImageMimeTypes(): array
     {
-        return [
-            'image/jpeg',
-            'image/jpg',
-            'image/png',
-            'image/webp',
-            'image/gif',
-        ];
+        return \App\Support\MediaFormats::mimeTypes();
     }
 
     /**

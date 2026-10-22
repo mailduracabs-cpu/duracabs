@@ -380,7 +380,11 @@ class PartnerController extends Controller
                 ]);
                 // Local app submissions must not trigger the model's WhatsApp hooks.
                 // All required car defaults and ownership are supplied above.
-                $record->saveQuietly();
+                if ($role === 'host') {
+                $record->partner_payout_mode = 'percentage';
+                $record->commission_percentage = 30;
+            }
+            $record->saveQuietly();
                 return $record;
             });
         } finally { $lock->release(); }
@@ -473,14 +477,15 @@ class PartnerController extends Controller
         }
         $page = $query->orderByDesc('id')->paginate(20);
         $items = collect($page->items())->map(fn (Vehicle $v): array => [
+            ...$v->partnerPricingPolicy(),
             'id' => $v->id, 'name' => trim($v->car_company_name . ' ' . $v->model_name),
             'vehicle_number' => $v->vehicle_number, 'car_classification' => $v->car_classification, 'service_type' => $v->service_type,
             'image_url' => $this->photoUrl($v, 'front'), 'fuel_type' => $v->fuel_type,
             'transmission' => $v->transmission, 'seats' => $v->seats,
             'verification_status' => $v->verification_status,
             'is_active' => (bool) $v->is_active, 'is_live' => (bool) $v->is_live,
-            'daily_price' => $role === 'host' ? $v->daily_price : null,
-            'hourly_price' => $role === 'host' ? $v->hourly_price : null,
+            'daily_price' => $role === 'host' && $v->partnerPricingPolicy()['can_edit_rental_prices'] ? $v->daily_price : null,
+            'hourly_price' => $role === 'host' && $v->partnerPricingPolicy()['can_edit_rental_prices'] ? $v->hourly_price : null,
             'security_deposit' => $role === 'host' ? $v->security_deposit : null,
         ]);
         return response()->json(['status' => true, 'data' => [
@@ -604,8 +609,11 @@ class PartnerController extends Controller
             'owner_name' => $vehicle->owner_name, 'manufacture_year' => $vehicle->manufacture_year,
             'service_type' => $vehicle->service_type, 'fuel_type' => $vehicle->fuel_type,
             'transmission' => $vehicle->transmission, 'seats' => $vehicle->seats,
-            'daily_price' => $vehicle->daily_price, 'hourly_price' => $vehicle->hourly_price,
-            'weekly_price' => $vehicle->weekly_price, 'monthly_price' => $vehicle->monthly_price,
+            ...$vehicle->partnerPricingPolicy(),
+            'daily_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->daily_price : null,
+            'hourly_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->hourly_price : null,
+            'weekly_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->weekly_price : null,
+            'monthly_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->monthly_price : null,
             'expiry_fields_ready' => Schema::hasColumn('vehicles', 'insurance_expiry_date') && Schema::hasColumn('vehicles', 'puc_expiry_date'),
             'security_deposit' => $vehicle->security_deposit,
             'verification_status' => $vehicle->verification_status,
@@ -655,6 +663,7 @@ class PartnerController extends Controller
         abort_if(count($input) === 0, 422, 'No document details were supplied.');
         DB::transaction(function () use ($profile, $role, $vehicle, $input): void {
             $record = $this->ownedVehicle($profile, $role, $vehicle, true);
+            abort_unless($record->partnerPricingPolicy()['can_edit_rental_prices'], 422, 'Fixed-mode prices are managed by admin.');
             foreach ($input as $field => $value) {
                 abort_unless(Schema::hasColumn('vehicles', $field), 422, 'This document field is not configured.');
                 $record->setAttribute($field, filled($value) ? trim($value) : null);
@@ -680,70 +689,31 @@ class PartnerController extends Controller
         $this->ownedVehicle($profile, $role, $vehicle);
         abort_unless(Schema::hasColumn('vehicles', $legacy) && Schema::hasColumn('vehicles', $mediaId),
             422, 'This upload field is not configured. Ask admin to check vehicle gallery migrations.');
-        $request->validate(['file' => $document
-            ? ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240']
-            : ['required', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:10240']]);
+        $request->validate(['file' => ['required', 'file', 'max:' . (int) config(
+            $document ? 'dura-media.max_document_size_kb' : 'dura-media.max_image_size_kb',
+            $document ? 51200 : 25600)]]);
         $file = $request->file('file');
-        $mime = $file->getMimeType();
-        // MIME content and server-generated extension are authoritative.
-        $extension = match ($mime) {
-            'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
-            'application/pdf' => 'pdf', default => abort(422, 'Unsupported file content.'),
-        };
-        $type = $this->mediaType($document, $mime);
-        $uuid = (string) Str::uuid();
+        $format = \App\Support\MediaFormats::inspect($file, $document);
+        $type = $document ? MediaType::Document : MediaType::Vehicle;
         $disk = $document ? 'local' : 'public';
         $directory = 'partner-vehicles/' . $vehicle . '/' . ($document ? 'documents' : 'photos');
+        $module = $document ? match ($slot) {
+            'rc' => 'vehicle-rc', 'insurance' => 'vehicle-insurance',
+            'pollution', 'puc' => 'vehicle-puc', default => 'vehicle-documents',
+        } : 'vehicles';
+        $media = null;
         $path = null;
-        $image = null;
         try {
-            if (!$document) {
-                $dimensions = @getimagesize($file->getRealPath());
-                abort_unless($dimensions && $dimensions[0] * $dimensions[1] <= 24000000,
-                    422, 'Photo is too large. Use an image below 24 megapixels.');
-                // Uploads still work on XAMPP without GD/WebP. Preserve a validated
-                // JPG/PNG/WebP as one file; optimize when the encoder is available.
-                $canOptimize = function_exists('imagecreatefromstring') && function_exists('imagewebp');
-                $image = $canOptimize ? @imagecreatefromstring(file_get_contents($file->getRealPath())) : null;
-                if ($image) {
-                    ob_start();
-                    try {
-                        $encoded = imagewebp($image, null, 85);
-                        $bytes = ob_get_contents();
-                    } finally {
-                        ob_end_clean();
-                    }
-                    abort_unless($encoded && $bytes !== '', 422, 'The image could not be processed.');
-                    $path = $directory . '/' . $uuid . '.webp';
-                    abort_unless(Storage::disk($disk)->put($path, $bytes), 500, 'Photo could not be stored.');
-                    $storedMime = 'image/webp';
-                    $storedSize = strlen($bytes);
-                } else {
-                    $path = $file->storeAs($directory, $uuid . '.' . $extension, $disk);
-                    abort_unless($path, 500, 'Photo could not be stored.');
-                    $storedMime = $mime;
-                    $storedSize = $file->getSize();
-                }
-            } else {
-                $path = $file->storeAs($directory, $uuid . '.' . $extension, $disk);
-                abort_unless($path, 500, 'Document could not be stored.');
-                $storedMime = $mime;
-                $storedSize = $file->getSize();
-            }
-            DB::transaction(function () use ($profile, $role, $vehicle, $slot, $label, $legacy, $mediaId,
-                $document, $disk, $directory, $path, $type, $file, $uuid, $storedMime, $storedSize): void {
-                // Recheck owner and service under a row lock after uploading bytes.
+            $media = app(\App\Actions\Media\ProcessMediaUpload::class)->upload(
+                file: $file, mediaType: $type, module: $module,
+                options: ['disk' => $disk, 'directory' => $directory, 'is_public' => !$document,
+                    'deduplicate' => false, 'slug' => (string) Str::uuid(), 'name' => $label, 'uploaded_by' => $profile->user_id,
+                    'metadata' => ['partner_slot' => $slot, 'upload_source' => 'partner-api']]
+            );
+            $path = $media->storedPath();
+            DB::transaction(function () use ($profile, $role, $vehicle, $legacy, $mediaId, $media, $path): void {
                 $record = $this->ownedVehicle($profile, $role, $vehicle, true);
-                $media = AppMedia::create([
-                    'uuid' => $uuid, 'name' => $record->vehicle_number . ' - ' . $label,
-                    'slug' => $uuid, 'media_type' => $type, 'module' => 'vehicles',
-                    'disk' => $disk, 'directory' => $directory, 'original_path' => $path,
-                    'original_name' => basename($file->getClientOriginalName()),
-                    'original_extension' => $file->extension(), 'mime_type' => $storedMime,
-                    'original_size' => $file->getSize(), 'optimized_size' => $storedSize,
-                    'uploaded_by' => $profile->user_id, 'is_public' => !$document,
-                    'reference_count' => 1, 'metadata' => ['storage_mode' => 'single_file', 'partner_slot' => $slot],
-                ]);
+                $media->update(['name' => $record->vehicle_number . ' - ' . $media->name, 'reference_count' => 1]);
                 $oldId = $record->getAttribute($mediaId);
                 $record->setAttribute($mediaId, $media->id);
                 $record->setAttribute($legacy, $path);
@@ -765,14 +735,12 @@ class PartnerController extends Controller
                 ], ['preferred_variant' => 'original']);
             });
         } catch (\Throwable $e) {
-            if ($path) {
-                Storage::disk($disk)->delete($path);
+            // deduplicate=false makes this a newly created, unshared upload.
+            if ($media && $media->exists && !$media->usages()->exists()) {
+                if ($path) { Storage::disk($disk)->delete($path); }
+                $media->forceDelete();
             }
             throw $e;
-        } finally {
-            if ($image) {
-                imagedestroy($image);
-            }
         }
         return response()->json(['status' => true, 'message' =>
             $label . ($role === 'vendor' ? ' uploaded. Taxi approval unchanged.' : ' uploaded. Vehicle sent for admin review.'), 'data' => ['slot' => $slot]]);
@@ -787,7 +755,7 @@ class PartnerController extends Controller
         // Never fetch arbitrary remote URLs or allow paths outside the storage disk.
         abort_unless($this->safeLocalPath($path), 404, 'This file has no usable local storage path. Restore its local copy or upload a new file.');
         abort_unless(Storage::disk($disk)->exists($path), 404, 'The saved file is missing from local storage. Restore the original file or replace it with a new upload.');
-        return Storage::disk($disk)->download($path, basename($name ?: $path), [
+        return Storage::disk($disk)->download($path, pathinfo(basename($name ?: $path), PATHINFO_FILENAME) . '.' . pathinfo($path, PATHINFO_EXTENSION), [
             'Content-Type' => $mime ?: 'application/octet-stream',
             'Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff',
         ]);
@@ -943,6 +911,7 @@ class PartnerController extends Controller
                     });
                 $columns[] = 'i.payout_amount as report_payout_amount';
                 $columns[] = 'i.commission_percentage as report_commission';
+                $columns[] = 'i.payout_terms as report_payout_terms';
                 $columns[] = Schema::hasColumn('self_drive_vendor_payout_items','received_amount')
                     ? 'i.received_amount as report_item_received' : DB::raw('NULL as report_item_received');
             } else {
@@ -997,6 +966,7 @@ class PartnerController extends Controller
                 'customer_refund' => $host ? ($row->refund_amount ?? null) : ($extra['refund_amount'] ?? null),
                 'partner_amount' => $validPayout ? $row->report_payout_amount : null,
                 'partner_received' => $received,
+                'payout_terms' => $host && $validPayout ? json_decode((string) ($row->report_payout_terms ?? '{}'), true) : null,
                 'commission_percentage' => $validPayout ? $row->report_commission : null,
                 'payout_no' => $validPayout ? $row->report_payout_no : null,
                 'batch_paid_amount' => $validPayout ? $row->report_batch_paid : null,
@@ -1092,7 +1062,7 @@ class PartnerController extends Controller
             ])->values() : [],
             'batch_page' => $batchPage?->currentPage() ?? 1, 'batch_last_page' => $batchPage?->lastPage() ?? 1,
             'batch_basis' => 'Payout batches whose period starts in this month. Paid amounts are cumulative, not necessarily paid during this month.',
-            'note' => $host ? 'Saved payout amounts follow the existing daily-rate and commission calculation. Legacy partial allocations remain unknown. Deposits are not income.'
+            'note' => $host ? 'New bookings use saved Fixed/Percentage terms. Existing saved payouts are unchanged; legacy bookings retain the old calculation. Deposits and return charges are excluded from rental earnings.'
                 : 'With Driver earnings use the accepted admin partner offer saved at completion, not the customer fare. Deposits are not income.',
         ]]);
     }

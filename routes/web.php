@@ -184,46 +184,16 @@ Route::middleware('auth:customer')->group(function () {
 |
 */
 
-Route::middleware('auth:admin')->prefix('admin/vehicle-documents')->group(function () {
-    Route::get('/{media}', function (AppMedia $media) {
-        abort_unless(
-            in_array($media->module, ['vehicle-rc', 'vehicle-insurance', 'vehicle-puc'], true),
-            404
-        );
-
-        $disk = (string) ($media->disk ?: 'local');
-        $path = (string) $media->storedPath();
-
-        abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
-
-        $absolutePath = Storage::disk($disk)->path($path);
-        $mimeType = $media->mime_type ?: Storage::disk($disk)->mimeType($path) ?: 'application/octet-stream';
-        $fileName = $media->original_name ?: $media->name ?: basename($path);
-
-        return response()->file($absolutePath, [
-            'Content-Type' => $mimeType,
-            'Content-Disposition' => 'inline; filename="' . addslashes($fileName) . '"',
-            'X-Content-Type-Options' => 'nosniff',
-            'Cache-Control' => 'private, max-age=300',
-        ]);
-    })->whereNumber('media')->name('admin.vehicle-documents.view');
-
-    Route::get('/{media}/download', function (AppMedia $media) {
-        abort_unless(
-            in_array($media->module, ['vehicle-rc', 'vehicle-insurance', 'vehicle-puc'], true),
-            404
-        );
-
-        $disk = (string) ($media->disk ?: 'local');
-        $path = (string) $media->storedPath();
-
-        abort_if($path === '' || ! Storage::disk($disk)->exists($path), 404);
-
-        $fileName = $media->original_name ?: $media->name ?: basename($path);
-
-        return Storage::disk($disk)->download($path, $fileName);
-    })->whereNumber('media')->name('admin.vehicle-documents.download');
-});
+// The controller checks the existing admin/web admin guards for every request.
+Route::get('/admin/media-files/{media}', [\App\Http\Controllers\Admin\MediaFileController::class, 'show'])
+    ->whereNumber('media')->name('admin.media-files.show');
+// Preserve existing links. Stream instead of redirecting or making files public.
+Route::get('/admin/vehicle-documents/{media}', [\App\Http\Controllers\Admin\MediaFileController::class, 'show'])
+    ->whereNumber('media')->name('admin.vehicle-documents.view');
+Route::get('/admin/vehicle-documents/{media}/download', function (\Illuminate\Http\Request $request, AppMedia $media) {
+    $request->merge(['download' => 1]);
+    return app(\App\Http\Controllers\Admin\MediaFileController::class)->show($request, $media);
+})->whereNumber('media')->name('admin.vehicle-documents.download');
 
 /*
 |--------------------------------------------------------------------------

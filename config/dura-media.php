@@ -44,22 +44,9 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'image_mime_types' => [
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'image/webp',
-        'image/gif',
-    ],
+    'image_mime_types' => \App\Support\MediaFormats::mimeTypes(),
 
-    'document_mime_types' => [
-        'image/jpeg',
-        'image/jpg',
-        'image/png',
-        'image/webp',
-        'image/gif',
-        'application/pdf',
-    ],
+    'document_mime_types' => \App\Support\MediaFormats::mimeTypes(true),
 
     /*
     |--------------------------------------------------------------------------

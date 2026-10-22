@@ -624,7 +624,24 @@ class VehicleResource extends Resource
                     'xl' => 4,
                 ])
                 ->schema([
+                    Select::make('partner_payout_mode')
+                        ->label('Vendor payout mode')
+                        ->options(['percentage' => 'Percentage of rental', 'fixed' => 'Fixed per 24 hours'])
+                        ->default('percentage')->required()->live()
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE)
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->helperText('Admin only. Changes apply to new bookings.'),
+                    TextInput::make('partner_fixed_rate_per_24h')
+                        ->label('Vendor amount per 24 hours')->prefix('₹')->numeric()
+                        ->minValue(0.01)->maxValue(500000)->rules(['decimal:0,2'])
+                        ->required(fn (Forms\Get $get): bool => $get('partner_payout_mode') === 'fixed')
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed')
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->helperText('Prorated by exact duration: ₹900 × 30 / 24 = ₹1,125. Security excluded.'),
                     TextInput::make('hourly_price')
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('Hourly Price')
                         ->numeric()
                         ->minValue(0)
@@ -652,6 +669,7 @@ class VehicleResource extends Resource
                         ),
 
                     TextInput::make('daily_price')
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('24-Hour Price')
                         ->numeric()
                         ->minValue(0)
@@ -678,7 +696,11 @@ class VehicleResource extends Resource
                         ->helperText('Customer price for a complete 24-hour rental.'),
 
                     TextInput::make('commission_percentage')
-                        ->label('Commission')
+                        ->label('DuraCabs commission')
+                        ->rules(['decimal:0,2'])
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') !== Vehicle::SERVICE_SELF_DRIVE || ($get('partner_payout_mode') ?? 'percentage') === 'percentage')
                         ->numeric()
                         ->minValue(0)
                         ->maxValue(100)
@@ -688,6 +710,7 @@ class VehicleResource extends Resource
                         ->live(debounce: 300),
 
                     Placeholder::make('vendor_hourly_preview')
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') !== Vehicle::SERVICE_SELF_DRIVE || ($get('partner_payout_mode') ?? 'percentage') === 'percentage')
                         ->label('Vendor')
                         ->content(
                             function (Forms\Get $get): string {
@@ -705,6 +728,7 @@ class VehicleResource extends Resource
                         ),
 
                     Placeholder::make('admin_hourly_preview')
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') !== Vehicle::SERVICE_SELF_DRIVE || ($get('partner_payout_mode') ?? 'percentage') === 'percentage')
                         ->label('Admin')
                         ->content(
                             function (Forms\Get $get): string {
@@ -722,6 +746,7 @@ class VehicleResource extends Resource
                         ),
 
                     Placeholder::make('compact_price_summary')
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') !== Vehicle::SERVICE_SELF_DRIVE || ($get('partner_payout_mode') ?? 'percentage') === 'percentage')
                         ->label('')
                         ->columnSpanFull()
                         ->content(
@@ -763,18 +788,21 @@ class VehicleResource extends Resource
                         ),
 
                     TextInput::make('weekly_price')
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('7-Day Price')
                         ->numeric()
                         ->minValue(0)
                         ->prefix('₹'),
 
                     TextInput::make('monthly_price')
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('30-Day Price')
                         ->numeric()
                         ->minValue(0)
                         ->prefix('₹'),
 
                     TextInput::make('security_deposit')
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('Security Deposit')
                         ->numeric()
                         ->minValue(0)
@@ -1733,8 +1761,8 @@ class VehicleResource extends Resource
         if ($media instanceof AppMedia) {
             // Vehicle documents are private. Always render them through the
             // authenticated admin routes instead of exposing the stored path.
-            $viewUrl = route('admin.vehicle-documents.view', ['media' => $media->getKey()]);
-            $downloadUrl = route('admin.vehicle-documents.download', ['media' => $media->getKey()]);
+            $viewUrl = route('admin.media-files.show', ['media' => $media->getKey()]);
+            $downloadUrl = route('admin.media-files.show', ['media' => $media->getKey(), 'download' => 1]);
             $previewUrl = $viewUrl;
             $fileName = $media->original_name ?: $media->name;
         } elseif (filled($legacyPath)) {
@@ -1763,7 +1791,7 @@ class VehicleResource extends Resource
         $safeFileName = e((string) ($fileName ?: $title));
 
         $isImage = $media instanceof AppMedia
-            ? $media->isImage()
+            ? \App\Support\MediaFormats::browserImage($media->mime_type)
             : (bool) preg_match('/\.(jpe?g|png|gif|webp)(\?.*)?$/i', (string) $previewUrl);
 
         $preview = $isImage
@@ -1805,8 +1833,11 @@ class VehicleResource extends Resource
         // Prefer the model accessor, then AppMedia, then the legacy DB path.
         // This keeps both car and bike records working regardless of whether
         // they were uploaded before or after the AppMedia migration.
-        if (blank($url) && $media instanceof AppMedia) {
-            $url = $media->original_url ?: $media->url;
+        if ($media instanceof AppMedia) {
+            $url = route('admin.media-files.show', ['media' => $media->getKey()]);
+            if (!\App\Support\MediaFormats::browserImage($media->mime_type)) {
+                return self::vehicleDocumentPreview($media, $legacyPath, $alt, $emptyText);
+            }
         }
 
         if (blank($url) && filled($legacyPath)) {
