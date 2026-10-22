@@ -133,7 +133,7 @@ class AuthController extends BaseApiController
         ActivityTrackingService $activityTrackingService
     ) {
         $validator = Validator::make($request->all(), [
-            'id_token' => 'nullable|string',
+            'id_token' => 'required|string|max:16384',
             'google_id' => 'nullable|string',
             'email' => 'nullable|email',
             'name' => 'nullable|string|max:255',
@@ -250,65 +250,9 @@ class AuthController extends BaseApiController
     /**
      * Login or register customer using email.
      */
-    public function emailLogin(
-        Request $request,
-        ActivityTrackingService $activityTrackingService
-    ) {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email',
-            'name' => 'nullable|string|max:255',
-            'device_token' => 'nullable|string',
-            'device_id' => 'nullable|string|max:191',
-            'session_id' => 'nullable|string|max:120',
-            'platform' => 'nullable|string|max:30',
-            'device_name' => 'nullable|string|max:255',
-            'operating_system' => 'nullable|string|max:255',
-            'app_version' => 'nullable|string|max:50',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error(
-                $validator->errors()->first(),
-                422,
-                $validator->errors()
-            );
-        }
-
-        $user = User::firstOrCreate(
-            [
-                'email' => strtolower(
-                    trim((string) $request->email)
-                ),
-            ],
-            $this->onlyUserColumns([
-                'name' => $request->name ?? 'Email User',
-                'email' => strtolower(
-                    trim((string) $request->email)
-                ),
-                'password' => Hash::make(Str::random(32)),
-                'is_active' => true,
-            ])
-        );
-
-        $isNewUser = $user->wasRecentlyCreated;
-
-        $user->update($this->onlyUserColumns([
-            'device_token' => $request->device_token,
-            'login_type' => 'email',
-        ]));
-
-        $this->trackRegistrationAndLogin(
-            activityTrackingService: $activityTrackingService,
-            request: $request,
-            user: $user,
-            loginType: 'email',
-            isNewUser: $isNewUser
-        );
-
-        return $this->loginResponse(
-            $user,
-            'Email login successful'
-        );
+    public function emailLogin(Request $request)
+    {
+        return $this->error('Email login is no longer available. Please update the app and use mobile OTP or Google.', 410);
     }
 
     /*
@@ -392,69 +336,9 @@ class AuthController extends BaseApiController
     /**
      * Login or register customer using Facebook.
      */
-    public function facebookLogin(
-        Request $request,
-        ActivityTrackingService $activityTrackingService
-    ) {
-        $validator = Validator::make($request->all(), [
-            'facebook_id' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'name' => 'nullable|string|max:255',
-            'photo' => 'nullable|string',
-            'device_token' => 'nullable|string',
-            'device_id' => 'nullable|string|max:191',
-            'session_id' => 'nullable|string|max:120',
-            'platform' => 'nullable|string|max:30',
-            'device_name' => 'nullable|string|max:255',
-            'operating_system' => 'nullable|string|max:255',
-            'app_version' => 'nullable|string|max:50',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error(
-                $validator->errors()->first(),
-                422,
-                $validator->errors()
-            );
-        }
-
-        $email = $request->email
-            ? strtolower(trim((string) $request->email))
-            : 'facebook_' .
-                $request->facebook_id .
-                '@duracabs.local';
-
-        $existingUser = User::query()
-            ->where('email', $email)
-            ->first();
-
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            $this->onlyUserColumns([
-                'name' => $request->name ?? 'Facebook User',
-                'email' => $email,
-                'facebook_id' => $request->facebook_id,
-                'photo' => $request->photo,
-                'device_token' => $request->device_token,
-                'login_type' => 'facebook',
-                'password' => $existingUser?->password
-                    ?? Hash::make(Str::random(32)),
-                'is_active' => true,
-            ])
-        );
-
-        $this->trackRegistrationAndLogin(
-            activityTrackingService: $activityTrackingService,
-            request: $request,
-            user: $user,
-            loginType: 'facebook',
-            isNewUser: $existingUser === null
-        );
-
-        return $this->loginResponse(
-            $user,
-            'Facebook login successful'
-        );
+    public function facebookLogin(Request $request)
+    {
+        return $this->error('Facebook login is no longer available. Please update the app and use mobile OTP or Google.', 410);
     }
 
     /*
@@ -466,67 +350,9 @@ class AuthController extends BaseApiController
     /**
      * Login or register customer using Apple.
      */
-    public function appleLogin(
-        Request $request,
-        ActivityTrackingService $activityTrackingService
-    ) {
-        $validator = Validator::make($request->all(), [
-            'apple_id' => 'required|string|max:255',
-            'email' => 'nullable|email',
-            'name' => 'nullable|string|max:255',
-            'device_token' => 'nullable|string',
-            'device_id' => 'nullable|string|max:191',
-            'session_id' => 'nullable|string|max:120',
-            'platform' => 'nullable|string|max:30',
-            'device_name' => 'nullable|string|max:255',
-            'operating_system' => 'nullable|string|max:255',
-            'app_version' => 'nullable|string|max:50',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error(
-                $validator->errors()->first(),
-                422,
-                $validator->errors()
-            );
-        }
-
-        $email = $request->email
-            ? strtolower(trim((string) $request->email))
-            : 'apple_' .
-                $request->apple_id .
-                '@duracabs.local';
-
-        $existingUser = User::query()
-            ->where('email', $email)
-            ->first();
-
-        $user = User::updateOrCreate(
-            ['email' => $email],
-            $this->onlyUserColumns([
-                'name' => $request->name ?? 'Apple User',
-                'email' => $email,
-                'apple_id' => $request->apple_id,
-                'device_token' => $request->device_token,
-                'login_type' => 'apple',
-                'password' => $existingUser?->password
-                    ?? Hash::make(Str::random(32)),
-                'is_active' => true,
-            ])
-        );
-
-        $this->trackRegistrationAndLogin(
-            activityTrackingService: $activityTrackingService,
-            request: $request,
-            user: $user,
-            loginType: 'apple',
-            isNewUser: $existingUser === null
-        );
-
-        return $this->loginResponse(
-            $user,
-            'Apple login successful'
-        );
+    public function appleLogin(Request $request)
+    {
+        return $this->error('Apple login is no longer available. Please update the app and use mobile OTP or Google.', 410);
     }
 
     /*
