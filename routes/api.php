@@ -554,7 +554,7 @@ Route::prefix('bike-rental')->group(function (): void {
         Route::post('/booking', [
             SelfDriveController::class,
             'booking',
-        ]);
+        ])->middleware('auth:sanctum');
 
         Route::middleware('auth:sanctum')->get('/pending-booking', [
             SelfDriveController::class,
@@ -1179,17 +1179,17 @@ Route::post('/booking/{booking}/live-location/stop', [
     Route::post('/payment/razorpay-order', [
         PaymentController::class,
         'razorpayOrder',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::post('/payment/verify', [
         PaymentController::class,
         'verify',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::post('/payment/status', [
         PaymentController::class,
         'status',
-    ]);
+    ])->middleware('auth:sanctum');
 
     Route::post('/payment/refund', [
         PaymentController::class,

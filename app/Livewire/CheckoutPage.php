@@ -402,7 +402,7 @@ class CheckoutPage extends Component
         }
 
         return min(
-            $this->money($this->reservationTokenAmount),
+            500.00,
             $this->money($this->grandTotal)
         );
     }
@@ -495,7 +495,9 @@ class CheckoutPage extends Component
             /*
              * WhatsApp failure must never block booking creation or payment.
              */
-            $this->sendBookingWhatsAppNotifications($order);
+            if ($this->payment_method !== 'RazorPay') {
+                $this->sendBookingWhatsAppNotifications($order);
+            }
 
             if ($this->payment_method === 'RazorPay') {
                 return redirect(
@@ -619,12 +621,7 @@ class CheckoutPage extends Component
                 ];
             }
 
-            $order->save();
-
-            $order->save();
-
-Address::query()->create([
-    'order_id' => $order->id,
+            $addressData = [
     'user_id' => auth()->id(),
     'full_name' => $this->full_name,
     'email' => $this->email,
@@ -637,17 +634,37 @@ Address::query()->create([
     'number_travellers' => $this->isSelfDriveBooking() ? null : ($this->number_travellers ?: null),
     'number_luggage' => $this->isSelfDriveBooking() ? null : ($this->number_luggage ?: null),
     'comments' => $this->isSelfDriveBooking() ? null : ($this->comments ?: null),
-]);
-
+];
+            $items = [];
             $productId = $draft['product_id'] ?? $product['id'] ?? null;
-
             if ($productId) {
-                $order->items()->create([
-                    'product_id' => (int) $productId,
-                    'quantity' => $quantity,
-                    'unit_ammount' => $unitAmount,
-                    'total_ammount' => $baseFare,
-                ]);
+                $items[] = [
+                    'product_id' => (int) $productId, 'quantity' => $quantity,
+                    'unit_ammount' => $unitAmount, 'total_ammount' => $baseFare,
+                ];
+            }
+            if ($this->payment_method === 'RazorPay') {
+                $availability = [];
+                if ($this->isSelfDriveBooking()) {
+                    [$start, $end] = $this->selfDriveDateTimes();
+                    $availability = ['start_datetime' => $start->toDateTimeString(), 'end_datetime' => $end->toDateTimeString()];
+                }
+                $checkout = app(\App\Services\BookingPaymentCheckoutService::class)->stage(
+                    (int) auth()->id(), 'order', [
+                        'attributes' => $order->getAttributes(), 'address' => $addressData,
+                        'items' => $items, 'availability' => $availability,
+                    ], $grandTotal,
+                    $this->isSelfDriveBooking() && $this->payment_option === 'token' ? 'advance' : 'full',
+                    $this->isSelfDriveBooking() && $this->payment_option === 'token'
+                        ? min(500.00, $grandTotal) : $grandTotal
+                );
+                $order->id = -(int) $checkout->id;
+                return $order;
+            }
+            $order->save();
+            Address::query()->create(array_merge($addressData, ['order_id' => $order->id]));
+            foreach ($items as $item) {
+                $order->items()->create($item);
             }
 
             return $order->fresh(['address', 'items']);

@@ -9,7 +9,7 @@
                         </p>
 
                         <h1 class="mt-2 truncate text-2xl font-extrabold">
-                            Booking #{{ $order->booking_number }}
+                            {{ ($checkoutPending ?? false) ? 'Complete Payment' : 'Booking #' . $order->booking_number }}
                         </h1>
 
                         <p class="mt-2 text-sm leading-6 text-slate-200">
@@ -31,7 +31,7 @@
                     processing: false,
 
                     openRazorpay() {
-                        if (this.processing) {
+                        if (this.processing || @js($paymentUnavailable ?? false)) {
                             return;
                         }
 
@@ -44,6 +44,7 @@
 
                         const options = {
                             key: @js(config('services.razorpay.key', env('RAZORPAY_API_KEY'))),
+                            ...(@js($gatewayOrderId ?? null) ? {order_id: @js($gatewayOrderId ?? null)} : {}),
                             amount: {{ (int) round(((float) $paymentAmount) * 100) }},
                             currency: 'INR',
                             name: @js(config('app.name', 'Dura Cabs')),
@@ -106,6 +107,12 @@
                     }
                 }"
             >
+                @if ($checkoutError ?? null)
+                    <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
+                        {{ $checkoutError }}
+                        <a href="{{ route('checkout') }}" class="mt-2 block underline">Return to checkout</a>
+                    </div>
+                @endif
                 @if (session('error'))
                     <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">
                         {{ session('error') }}
@@ -207,7 +214,7 @@
                 <button
                     type="button"
                     x-on:click="openRazorpay()"
-                    x-bind:disabled="processing"
+                    x-bind:disabled="processing || @js($paymentUnavailable ?? false)"
                     class="group flex min-h-16 w-full items-center justify-between rounded-2xl bg-gradient-to-r from-blue-700 to-sky-500 px-5 py-4 text-left text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-65"
                 >
                     <span>

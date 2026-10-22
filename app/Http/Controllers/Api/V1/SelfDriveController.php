@@ -283,7 +283,7 @@ class SelfDriveController extends BaseApiController
             'start_datetime' => 'nullable|date',
             'end_datetime' => 'nullable|date|after:start_datetime',
             'payment_type' => 'required|in:advance,full',
-            'paid_amount' => 'required|numeric|min:0',
+            'paid_amount' => 'nullable|numeric|min:0',
             'payment_method' => 'nullable|string|max:50',
             'payment_reference' => 'nullable|string|max:255',
             'free_km' => 'nullable|numeric|min:0',
@@ -303,7 +303,10 @@ class SelfDriveController extends BaseApiController
             return $this->error($validator->errors()->first(), 422);
         }
 
-        $user = auth()->user();
+        $user = $request->user();
+        if (! ($user instanceof User)) {
+            return $this->error('Unauthenticated.', 401);
+        }
 
         return $this->serviceResponse(
             $this->bookingService->create(

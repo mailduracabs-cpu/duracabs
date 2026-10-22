@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Services\RazorpayService;
+use App\Services\BookingPaymentCheckoutService;
+use App\Services\BookingPaymentRules;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,6 +27,19 @@ class PaymentController extends BaseApiController
      */
     public function razorpayOrder(Request $request): JsonResponse
     {
+        if ((int) $request->input('booking_id') < 0) {
+            if (! $request->user()) {
+                return $this->error('Unauthenticated.', 401);
+            }
+            try {
+                $service = app(BookingPaymentCheckoutService::class);
+                $checkout = $service->owned((int) $request->booking_id, (int) $request->user()->id);
+                return $this->success($service->gatewayOrder($checkout), 'Payment checkout ready');
+            } catch (Throwable $e) {
+                return $this->error($e->getMessage(), 422);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'amount' => ['nullable', 'numeric', 'min:1'],
             'booking_id' => ['nullable'],
@@ -178,6 +193,26 @@ class PaymentController extends BaseApiController
             );
         }
 
+        $checkoutService = app(BookingPaymentCheckoutService::class);
+        $checkout = $checkoutService->byOrder((string) $request->razorpay_order_id);
+        if ((int) $request->input('booking_id') < 0 || $checkout) {
+            if (! $request->user()) {
+                return $this->error('Unauthenticated.', 401);
+            }
+            try {
+                $reference = (int) $request->input('booking_id');
+                $owned = $checkoutService->owned(
+                    $reference < 0 ? $reference : -(int) $checkout->id,
+                    (int) $request->user()->id
+                );
+                return $this->success($checkoutService->verify(
+                    $owned, $request->razorpay_order_id, $request->razorpay_payment_id, $request->razorpay_signature
+                ), 'Payment verified and booking created');
+            } catch (Throwable $e) {
+                return $this->error($e->getMessage(), 422);
+            }
+        }
+
         $result = RazorpayService::verifyPayment(
             $request->razorpay_order_id,
             $request->razorpay_payment_id,
@@ -209,18 +244,34 @@ class PaymentController extends BaseApiController
 
         $storedOrderId = $this->storedPaymentValue($booking, 'razorpay_order_id');
 
-        if ($storedOrderId && ! hash_equals((string) $storedOrderId, (string) $request->razorpay_order_id)) {
+        if (! $storedOrderId || ! hash_equals((string) $storedOrderId, (string) $request->razorpay_order_id)) {
             return $this->error('Razorpay order does not belong to this booking', 422);
         }
 
         try {
-            $paymentData = DB::transaction(function () use ($booking, $request): array {
+            $fetched = RazorpayService::fetchPayment($request->razorpay_payment_id);
+            $gateway = RazorpayService::fetchOrder($storedOrderId);
+            if (! ($fetched['status'] ?? false) || ! ($gateway['status'] ?? false)) {
+                throw new \RuntimeException('Unable to confirm captured payment with Razorpay');
+            }
+            $verifiedAmount = BookingPaymentRules::received(
+                $fetched['data'] ?? [], $storedOrderId, $request->razorpay_payment_id,
+                ((float) ($gateway['data']['amount'] ?? 0)) / 100
+            );
+            $paymentData = DB::transaction(function () use ($booking, $request, $verifiedAmount): array {
                 $locked = $this->lockBooking($booking);
 
                 if (! $locked) {
                     throw new \RuntimeException('Booking not found while processing payment');
                 }
 
+                if ($this->storedPaymentValue($locked, 'razorpay_order_id') !== $request->razorpay_order_id) {
+                    throw new \RuntimeException('Payment order changed. Please retry verification.');
+                }
+                $processed = (array) ($this->paymentMeta($locked)['processed_payment_ids'] ?? []);
+                if (in_array($request->razorpay_payment_id, $processed, true)) {
+                    return $this->paymentResponseData($locked, true);
+                }
                 $existingPaymentId = $this->storedPaymentValue($locked, 'razorpay_payment_id');
 
                 if ($existingPaymentId === $request->razorpay_payment_id) {
@@ -234,12 +285,7 @@ class PaymentController extends BaseApiController
                     throw new \RuntimeException('Booking already has a successful payment');
                 }
 
-                $meta = $this->paymentMeta($locked);
-                $orderAmount = round((float) ($meta['razorpay_order_amount'] ?? 0), 2);
-
-                if ($orderAmount <= 0) {
-                    $orderAmount = $this->bookingRemainingAmount($locked);
-                }
+                $orderAmount = $verifiedAmount;
 
                 $payable = $this->bookingPayableAmount($locked);
                 $oldPaid = $this->bookingPaidAmount($locked);
@@ -260,10 +306,12 @@ class PaymentController extends BaseApiController
                     'razorpay_signature' => $request->razorpay_signature,
                     'payment_reference' => $request->razorpay_payment_id,
                     'paid_amount' => $newPaid,
+                    'advance_amount' => ($locked->payment_type ?? null) === 'advance' ? $newPaid : ($locked->advance_amount ?? 0),
                     'remaining_amount' => $remaining,
                     'balance_due' => $remaining,
                     'payment_completed_at' => $paymentStatus === 'paid' ? now() : null,
                 ], [
+                    'processed_payment_ids' => array_values(array_unique(array_merge($processed, [$request->razorpay_payment_id]))),
                     'last_payment_amount' => $orderAmount,
                     'last_payment_verified_at' => now()->toISOString(),
                     'last_payment_source' => 'checkout_verify',
@@ -423,6 +471,26 @@ class PaymentController extends BaseApiController
      */
     public function status(Request $request): JsonResponse
     {
+        if ((int) $request->input('booking_id') < 0) {
+            if (! $request->user()) {
+                return $this->error('Unauthenticated.', 401);
+            }
+            try {
+                $checkout = app(BookingPaymentCheckoutService::class)->owned((int) $request->booking_id, (int) $request->user()->id);
+                if (! $checkout->booking_id) {
+                    return $this->success([
+                        'booking_id' => null, 'checkout_id' => $checkout->id, 'booking_created' => false,
+                        'payment_status' => $checkout->state === 'paid_review_required' ? 'paid_review_required' : 'pending',
+                        'paid_amount' => $checkout->state === 'paid_review_required' ? (float) $checkout->amount : 0,
+                        'advance_amount' => 0,
+                    ], 'Payment checkout status');
+                }
+                $request->merge(['booking_id' => $checkout->booking_id, 'booking_source' => $checkout->source]);
+            } catch (Throwable $e) {
+                return $this->error($e->getMessage(), 422);
+            }
+        }
+
         $validator = Validator::make($request->all(), [
             'booking_id' => ['nullable'],
             'booking_no' => ['nullable', 'string', 'max:100'],
@@ -636,6 +704,29 @@ class PaymentController extends BaseApiController
             ?? $orderEntity['notes']
             ?? [];
 
+        $checkoutService = app(BookingPaymentCheckoutService::class);
+        $checkout = $checkoutService->byOrder((string) $razorpayOrderId);
+        if ($checkout && in_array($event, ['payment.captured', 'order.paid', 'payment.failed'], true)) {
+            if ($event === 'payment.failed') {
+                // Failed attempts are not bookings, and cannot overwrite a completed payment.
+                return response()->json(['status' => true, 'message' => 'Failed payment attempt acknowledged; no booking created']);
+            }
+            if (! $razorpayPaymentId) {
+                return response()->json(['status' => false, 'message' => 'Missing payment entity; retry webhook'], 503);
+            }
+            try {
+                $paid = $checkoutService->completeCaptured($checkout, (string) $razorpayPaymentId);
+                return response()->json(['status' => true, 'data' => $paid]);
+            } catch (Throwable $e) {
+                Log::error('Checkout webhook needs retry/review.', ['checkout_id' => $checkout->id, 'error' => $e->getMessage()]);
+                return response()->json(['status' => false, 'message' => 'Payment recorded for verification retry/review'], 503);
+            }
+        }
+        if ($checkout && $checkout->booking_id) {
+            $notes['booking_id'] = $checkout->booking_id;
+            $notes['booking_source'] = $checkout->source;
+        }
+
         $booking = $this->findBooking(
             $notes['booking_id'] ?? null,
             $notes['booking_no'] ?? null,
@@ -657,6 +748,27 @@ class PaymentController extends BaseApiController
             ]);
         }
 
+        $verifiedCapturedAmount = null;
+        if (in_array($event, ['payment.captured', 'order.paid'], true)) {
+            $storedOrder = (string) $this->storedPaymentValue($booking, 'razorpay_order_id');
+            if (! $storedOrder || $storedOrder !== $razorpayOrderId || ! $razorpayPaymentId) {
+                return response()->json(['status' => false, 'message' => 'Payment order mismatch'], 422);
+            }
+            try {
+                $fetched = RazorpayService::fetchPayment($razorpayPaymentId);
+                $gateway = RazorpayService::fetchOrder($storedOrder);
+                if (! ($fetched['status'] ?? false) || ! ($gateway['status'] ?? false)) {
+                    throw new \RuntimeException('Payment details unavailable');
+                }
+                $verifiedCapturedAmount = BookingPaymentRules::received(
+                    $fetched['data'] ?? [], $storedOrder, $razorpayPaymentId,
+                    ((float) ($gateway['data']['amount'] ?? 0)) / 100
+                );
+            } catch (Throwable $e) {
+                return response()->json(['status' => false, 'message' => 'Capture verification needs retry'], 503);
+            }
+        }
+
         try {
             DB::transaction(function () use (
                 $booking,
@@ -664,7 +776,8 @@ class PaymentController extends BaseApiController
                 $paymentEntity,
                 $refundEntity,
                 $razorpayOrderId,
-                $razorpayPaymentId
+                $razorpayPaymentId,
+                $verifiedCapturedAmount
             ): void {
                 $locked = $this->lockBooking($booking);
 
@@ -675,21 +788,17 @@ class PaymentController extends BaseApiController
                 if (in_array($event, ['payment.captured', 'order.paid'], true)) {
                     $existingPaymentId = $this->storedPaymentValue($locked, 'razorpay_payment_id');
 
-                    if ($existingPaymentId === $razorpayPaymentId && ($locked->payment_status ?? null) === 'paid') {
+                    $processed = (array) ($this->paymentMeta($locked)['processed_payment_ids'] ?? []);
+                    if ($existingPaymentId === $razorpayPaymentId || in_array($razorpayPaymentId, $processed, true)) {
                         return;
                     }
 
-                    $capturedAmount = isset($paymentEntity['amount'])
-                        ? round(((float) $paymentEntity['amount']) / 100, 2)
-                        : 0.0;
-
-                    if ($capturedAmount <= 0) {
-                        $meta = $this->paymentMeta($locked);
-                        $capturedAmount = round((float) ($meta['razorpay_order_amount'] ?? 0), 2);
+                    if ($this->storedPaymentValue($locked, 'razorpay_order_id') !== $razorpayOrderId) {
+                        throw new \RuntimeException('Payment order mismatch');
                     }
-
+                    $capturedAmount = (float) $verifiedCapturedAmount;
                     if ($capturedAmount <= 0) {
-                        $capturedAmount = $this->bookingRemainingAmount($locked);
+                        throw new \RuntimeException('No captured payment amount');
                     }
 
                     $payable = $this->bookingPayableAmount($locked);
@@ -705,10 +814,12 @@ class PaymentController extends BaseApiController
                         'razorpay_payment_id' => $razorpayPaymentId,
                         'payment_reference' => $razorpayPaymentId,
                         'paid_amount' => $newPaid,
+                        'advance_amount' => ($locked->payment_type ?? null) === 'advance' ? $newPaid : ($locked->advance_amount ?? 0),
                         'remaining_amount' => $remaining,
                         'balance_due' => $remaining,
                         'payment_completed_at' => $status === 'paid' ? now() : null,
                     ], [
+                        'processed_payment_ids' => array_values(array_unique(array_merge($processed, [$razorpayPaymentId]))),
                         'last_payment_amount' => $capturedAmount,
                         'last_payment_source' => 'webhook',
                         'last_payment_webhook_event' => $event,
@@ -719,7 +830,7 @@ class PaymentController extends BaseApiController
                 }
 
                 if ($event === 'payment.failed') {
-                    if (($locked->payment_status ?? null) === 'paid') {
+                    if ($this->bookingPaidAmount($locked) > 0) {
                         return;
                     }
 
@@ -1180,7 +1291,7 @@ class PaymentController extends BaseApiController
         $user = $request->user();
 
         if (! $user) {
-            return true;
+            return false;
         }
 
         if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['super_admin', 'admin'])) {
@@ -1189,7 +1300,7 @@ class PaymentController extends BaseApiController
 
         $bookingUserId = $this->bookingUserId($booking);
 
-        return ! $bookingUserId || (int) $bookingUserId === (int) $user->id;
+        return $bookingUserId !== null && (int) $bookingUserId === (int) $user->id;
     }
 
     private function canManageRefund(Request $request, object $booking): bool

@@ -20,6 +20,9 @@ class RazorpayPaymentController extends Controller
 {
     public function index(Request $request): View|RedirectResponse
     {
+        if ($request->integer('id') < 0) {
+            return redirect()->route('razorpay', ['id' => $request->integer('id')]);
+        }
         if (! Auth::check()) {
             return redirect()->route('login');
         }
@@ -56,6 +59,31 @@ class RazorpayPaymentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        if ((int) $request->input('booking_id') < 0) {
+            $customerId = (int) (Auth::guard('customer')->id() ?: Auth::id());
+            abort_unless($customerId > 0, 401);
+            $data = $request->validate([
+                'booking_id' => ['required', 'integer'],
+                'razorpay_payment_id' => ['required', 'string', 'max:100'],
+                'razorpay_order_id' => ['required', 'string', 'max:100'],
+                'razorpay_signature' => ['required', 'string', 'max:255'],
+            ]);
+            try {
+                $service = app(\App\Services\BookingPaymentCheckoutService::class);
+                $checkout = $service->owned((int) $data['booking_id'], $customerId);
+                abort_unless($checkout->source === 'order', 422);
+                $paid = $service->verify($checkout, $data['razorpay_order_id'], $data['razorpay_payment_id'], $data['razorpay_signature']);
+                if (! $paid['duplicate']) {
+                    $this->sendPaymentSuccessWhatsApp(Order::query()->findOrFail($paid['booking_id']), $data['razorpay_payment_id']);
+                }
+                $request->session()->forget('booking_draft');
+                return redirect()->route('success', ['id' => $paid['booking_id']]);
+            } catch (Throwable $e) {
+                Log::warning('Website checkout verification failed.', ['customer_id' => $customerId, 'error' => $e->getMessage()]);
+                return redirect()->route('razorpay', ['id' => $data['booking_id']])->with('error', $e->getMessage());
+            }
+        }
+
         if (! Auth::check()) {
             return redirect()->route('login');
         }
@@ -231,7 +259,11 @@ class RazorpayPaymentController extends Controller
         }
 
         $bookingId = $this->bookingReference($order);
-        $amount = $this->formattedAmount($order->grand_total);
+        $meta = $order->extraOptions;
+        if (is_string($meta)) {
+            $meta = json_decode($meta, true) ?: [];
+        }
+        $amount = $this->formattedAmount(data_get($meta, 'last_payment_amount', $order->paid_amount ?? $order->grand_total));
 
         try {
             $receiptSent = WhatsAppService::paymentReceipt(
