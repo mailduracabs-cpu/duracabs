@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\SelfDriveAvailabilityService;
 use App\Services\SelfDriveBookingService;
+use App\Services\CustomerBookingSummary;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -900,6 +901,16 @@ class SelfDriveController extends BaseApiController
         $data['paid_amount'] = (float) ($booking->paid_amount ?? 0);
         $data['remaining_amount'] = (float) ($booking->remaining_amount ?? 0);
         $data['updated_at'] = $booking->updated_at?->toIso8601String();
+        // Persisted lifecycle state is authoritative over a stale service response.
+        $data['status'] = $booking->status;
+        $data['booking_status'] = $booking->booking_status;
+        $data['document_rejection_reason'] = $booking->document_rejection_reason;
+        $summary = CustomerBookingSummary::fromAttributes($booking->getAttributes());
+        $data['settlement'] = $summary['settlement'];
+        if (empty($data['timeline']) && empty($data['booking_timeline']) && empty($data['activity_timeline'])) {
+            $data['timeline'] = $summary['timeline'];
+        }
+
         foreach (['invoice', 'agreement'] as $type) {
             $available = Route::has('self-drive.customer-rental-document');
             $data[$type . '_available'] = $available;
@@ -1133,11 +1144,21 @@ class SelfDriveController extends BaseApiController
         ], 'Final bill generated');
     }
 
-    public function refundStatus($bookingId)
+    public function refundStatus(Request $request, $bookingId)
     {
+        // This legacy route is public in older route files; resolve the token
+        // guard explicitly rather than trusting an unauthenticated booking ID.
+        $customer = $request->user('sanctum');
+        if (! ($customer instanceof User)) {
+            return $this->error('Unauthenticated.', 401);
+        }
         $booking = $this->bookingRow($bookingId);
 
         if (! $booking) {
+            return $this->error('Booking not found', 404);
+        }
+
+        if ((int) $booking->customer_id !== (int) $customer->id) {
             return $this->error('Booking not found', 404);
         }
 

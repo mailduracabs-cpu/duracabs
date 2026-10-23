@@ -32,7 +32,7 @@ class AuthController extends BaseApiController
         OtpService $otpService,
         ActivityTrackingService $activityTrackingService
     ) {
-        $mobile = $this->normalizeMobile($request->mobile);
+        $mobile = (string) $request->validated('mobile');
 
         $result = $otpService->sendLoginOtp($mobile);
 
@@ -61,8 +61,18 @@ class AuthController extends BaseApiController
         );
 
         return $this->success(
-            null,
-            $result['message'] ?? 'OTP sent successfully'
+            [
+                // These channels accepted a send request; delivery receipts are separate.
+                'accepted_channels' => array_values(array_intersect(
+                    (array) ($result['delivered_on'] ?? []), ['sms', 'whatsapp', 'email']
+                )),
+                'channel' => ($result['channel'] ?? null) === 'review' ? 'review' : null,
+                'expires_in' => (int) ($result['expires_in'] ?? 300),
+                'resend_after' => (int) ($result['resend_after'] ?? 30),
+            ],
+            ($result['channel'] ?? null) === 'review'
+                ? $result['message']
+                : 'OTP request accepted. Check the available channel shown in the app.'
         );
     }
 
@@ -74,7 +84,7 @@ class AuthController extends BaseApiController
         OtpService $otpService,
         ActivityTrackingService $activityTrackingService
     ) {
-        $mobile = $this->normalizeMobile($request->mobile);
+        $mobile = (string) $request->validated('mobile');
 
         $result = $otpService->verifyLoginOtp(
             $mobile,
@@ -264,67 +274,9 @@ class AuthController extends BaseApiController
     /**
      * Login or register customer using WhatsApp.
      */
-    public function whatsappLogin(
-        Request $request,
-        ActivityTrackingService $activityTrackingService
-    ) {
-        $validator = Validator::make($request->all(), [
-            'mobile' => 'required|digits_between:10,15',
-            'name' => 'nullable|string|max:255',
-            'whatsapp_id' => 'nullable|string|max:255',
-            'device_token' => 'nullable|string',
-            'device_id' => 'nullable|string|max:191',
-            'session_id' => 'nullable|string|max:120',
-            'platform' => 'nullable|string|max:30',
-            'device_name' => 'nullable|string|max:255',
-            'operating_system' => 'nullable|string|max:255',
-            'app_version' => 'nullable|string|max:50',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error(
-                $validator->errors()->first(),
-                422,
-                $validator->errors()
-            );
-        }
-
-        $mobile = $this->normalizeMobile($request->mobile);
-
-        $email = $mobile . '@duracabs.local';
-
-        $user = User::firstOrCreate(
-            ['email' => $email],
-            $this->onlyUserColumns([
-                'name' => $request->name ?? 'WhatsApp User',
-                'email' => $email,
-                'mobile' => $mobile,
-                'password' => Hash::make(Str::random(32)),
-                'is_active' => true,
-            ])
-        );
-
-        $isNewUser = $user->wasRecentlyCreated;
-
-        $user->update($this->onlyUserColumns([
-            'mobile' => $mobile,
-            'whatsapp_id' => $request->whatsapp_id,
-            'device_token' => $request->device_token,
-            'login_type' => 'whatsapp',
-        ]));
-
-        $this->trackRegistrationAndLogin(
-            activityTrackingService: $activityTrackingService,
-            request: $request,
-            user: $user,
-            loginType: 'whatsapp',
-            isNewUser: $isNewUser
-        );
-
-        return $this->loginResponse(
-            $user,
-            'WhatsApp login successful'
-        );
+    public function whatsappLogin(Request $request)
+    {
+        return $this->error('WhatsApp login requires OTP verification. Use send-otp and verify-otp.', 410);
     }
 
     /*

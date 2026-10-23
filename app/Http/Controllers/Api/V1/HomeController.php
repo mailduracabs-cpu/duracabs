@@ -52,6 +52,8 @@ class HomeController extends BaseApiController
         $config = $homeService->appConfig();
 
         return $this->success([
+            'support_country_code' => (string) config('services.whatsapp.default_country_code', '91'),
+            'privacy_policy_url' => $config['privacy_policy_url'] ?? $config['privacy_url'] ?? null,
             'support_mobile'   => $config['support_mobile'] ?? null,
             'whatsapp_mobile'  => $config['whatsapp_mobile'] ?? null,
             'email'            => $config['email'] ?? null,

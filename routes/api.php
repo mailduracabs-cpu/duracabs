@@ -1433,3 +1433,7 @@ Route::middleware(['web', 'auth:web'])->prefix('v1/partner/admin-kyc')->group(fu
 Route::get('/v1/partner/admin-return/{booking}/photo/{slot}', [
     \App\Http\Controllers\Api\V1\PartnerReturnController::class, 'adminPhoto',
 ])->whereNumber('booking')->where('slot', 'front|back|left|right')->middleware(['web', 'auth:web']);
+
+
+// Customer app version checks (public metadata).
+require __DIR__ . '/customer_app_updates.php';

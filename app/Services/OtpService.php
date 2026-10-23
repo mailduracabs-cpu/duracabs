@@ -123,7 +123,11 @@ class OtpService
 
     public function sendLoginOtp(string $mobile): array
     {
-        $mobile = $this->cleanMobile($mobile);
+        try {
+            $mobile = CustomerPhoneNumber::normalize($mobile);
+        } catch (\InvalidArgumentException $e) {
+            return ['status' => false, 'message' => $e->getMessage()];
+        }
         if ($mobile === '0000000002') {
             return ['status' => false, 'message' => 'Use the Partner App for partner review login.'];
         }
@@ -133,16 +137,9 @@ class OtpService
             return $this->sendReviewLoginOtp();
         }
 
-        if (strlen($mobile) !== 10) {
-            return [
-                'status' => false,
-                'message' => 'Please enter a valid 10-digit mobile number.',
-            ];
-        }
-
         $rateKey = 'otp_rate_' . $mobile;
 
-        if (Cache::has($rateKey)) {
+        if (! Cache::add($rateKey, true, now()->addSeconds(self::OTP_RESEND_SECONDS))) {
             return [
                 'status' => false,
                 'message' => 'Please wait before requesting another OTP.',
@@ -153,23 +150,23 @@ class OtpService
         $expireAt = now()->addMinutes(self::OTP_EXPIRY_MINUTES);
 
         Cache::put('otp_' . $mobile, $otp, $expireAt);
-        Cache::put(
-            $rateKey,
-            true,
-            now()->addSeconds(self::OTP_RESEND_SECONDS)
-        );
 
-        $user = $this->createOrUpdateUser(
-            $mobile,
-            $otp,
-            $expireAt
-        );
+        try {
+            $user = $this->createOrUpdateUser($mobile, $otp, $expireAt);
+        } catch (\RuntimeException $e) {
+            Cache::forget('otp_' . $mobile);
+            return ['status' => false, 'message' => 'This account requires support assistance before login.'];
+        }
 
         $email = $this->getUserEmailForOtp($user, $mobile);
 
-        $smsResult = $this->sendSmsOtp($mobile, $otp);
-        $whatsAppResult = $this->sendWhatsAppOtp($mobile, $otp);
-        $emailResult = $this->sendEmailOtp($email, $otp);
+        $indian = CustomerPhoneNumber::isIndian($mobile);
+        $smsResult = $indian ? $this->sendSmsOtp($mobile, $otp)
+            : ['status' => false, 'channel' => 'sms', 'skipped' => true];
+        $whatsAppResult = $this->sendWhatsAppOtp($mobile, $otp, authenticationOnly: true);
+        // International login must succeed through WhatsApp, without depending on SMS/email.
+        $emailResult = $indian ? $this->sendEmailOtp($email, $otp)
+            : ['status' => false, 'channel' => 'email', 'skipped' => true];
 
         $results = [
             'sms' => $smsResult,
@@ -189,29 +186,29 @@ class OtpService
         $failedChannels = collect($results)
             ->filter(
                 fn ($item) =>
-                    ($item['status'] ?? false) !== true
+                    ($item['status'] ?? false) !== true && empty($item['skipped'])
             )
             ->keys()
             ->values()
             ->toArray();
 
         Log::info('Dura Cabs OTP Delivery Summary', [
-            'mobile' => $mobile,
-            'email' => $email,
+            'mobile' => $this->maskMobile($mobile),
             'success_channels' => $successChannels,
             'failed_channels' => $failedChannels,
-            'results' => $results,
         ]);
 
         if (count($successChannels) === 0) {
-            Cache::forget('otp_' . $mobile);
+            $this->clearLoginOtp($mobile, $user);
 
             return [
                 'status' => false,
-                'message' => 'Unable to send OTP. Please try again.',
-                'channels' => $results,
+                'message' => $indian ? 'Unable to send OTP. Please try again.'
+                    : 'Unable to send WhatsApp OTP. Check that this number uses WhatsApp and try again.',
             ];
         }
+
+        Cache::forget('otp_attempt_' . $mobile);
 
         return [
             'status' => true,
@@ -238,18 +235,15 @@ class OtpService
 
     public function verifyLoginOtp(string $mobile, string $otp): array
     {
-        $mobile = $this->cleanMobile($mobile);
+        try {
+            $mobile = CustomerPhoneNumber::normalize($mobile);
+        } catch (\InvalidArgumentException $e) {
+            return ['status' => false, 'message' => $e->getMessage()];
+        }
 
         // Reserved synthetic identifier: never send a real login OTP.
         if ($mobile === '0000000001') {
             return $this->verifyReviewLoginOtp($otp);
-        }
-
-        if (strlen($mobile) !== 10) {
-            return [
-                'status' => false,
-                'message' => 'Please enter a valid mobile number.',
-            ];
         }
 
         $otp = trim($otp);
@@ -263,10 +257,11 @@ class OtpService
 
         $savedOtp = Cache::get('otp_' . $mobile);
 
-        $user = User::query()
-            ->where('mobile', $mobile)
-            ->orWhere('email', $mobile . '@duracabs.local')
-            ->first();
+        try {
+            $user = $this->findLoginUserByMobile($mobile);
+        } catch (\RuntimeException) {
+            return ['status' => false, 'message' => 'This account requires support assistance before login.'];
+        }
 
         if (!$user) {
             return [
@@ -275,9 +270,12 @@ class OtpService
             ];
         }
 
-        $dbOtp = Schema::hasColumn('users', 'otp')
-            ? $user->otp
-            : null;
+        if (! $user->is_active) {
+            $this->clearLoginOtp($mobile, $user);
+            return ['status' => false, 'message' => 'This account is inactive. Please contact support.'];
+        }
+        $dbOtp = Schema::hasColumn('users', 'otp') && $user->otp_expire_at?->isFuture()
+            ? $user->otp : null;
 
         if (!$savedOtp && !$dbOtp) {
             return [
@@ -340,22 +338,18 @@ class OtpService
 
         $this->clearLoginOtp($mobile, $user);
 
-        $user->update(
+        $user->forceFill(
             $this->onlyUserColumns([
                 'otp' => null,
                 'otp_expire_at' => null,
                 'login_type' => 'otp',
-                'is_active' => true,
+                'mobile_verified_at' => now(),
             ])
-        );
+        )->save();
 
         Auth::login($user, true);
 
-        $token = method_exists($user, 'createToken')
-            ? $user
-                ->createToken('dura_app_token')
-                ->plainTextToken
-            : 'duracabs_live_token_' . $mobile;
+        $token = $user->createToken('dura_app_token')->plainTextToken;
 
         return [
             'status' => true,
@@ -863,10 +857,14 @@ class OtpService
         string $otp,
         $expireAt
     ): User {
-        $user = $this->findUserByMobile($mobile);
+        $user = $this->findLoginUserByMobile($mobile);
 
         if (!$user) {
-            $user = $this->createCustomer($mobile);
+            $user = $this->createCustomer($mobile, verified: false);
+        }
+
+        if (! $user->is_active) {
+            throw new \RuntimeException('Inactive login account.');
         }
 
         $user->forceFill($this->onlyUserColumns([
@@ -874,11 +872,32 @@ class OtpService
             'otp' => $otp,
             'otp_expire_at' => $expireAt,
             'login_type' => 'otp',
-            'is_active' => true,
         ]));
         $user->save();
+        $user->refresh();
+        if ((string) $user->mobile !== $mobile) {
+            throw new \RuntimeException('The users.mobile column cannot preserve the full number.');
+        }
 
         return $user;
+    }
+
+    private function findLoginUserByMobile(string $mobile): ?User
+    {
+        $aliases = CustomerPhoneNumber::aliases($mobile);
+        $columns = array_values(array_filter(['mobile', 'phone', 'mobile_number'],
+            fn ($column) => Schema::hasColumn('users', $column)));
+        $users = User::query()->where(function ($query) use ($columns, $aliases): void {
+            foreach ($columns as $column) {
+                $query->orWhereIn($column, $aliases);
+            }
+            // Only synthetic addresses are aliases; never claim a real Gmail account.
+            $query->orWhereIn('email', array_map(fn ($value) => $value . '@duracabs.local', $aliases));
+        })->limit(2)->get();
+        if ($users->count() > 1) {
+            throw new \RuntimeException('Ambiguous phone account aliases.');
+        }
+        return $users->first();
     }
 
     private function findUserByMobile(string $mobile): ?User
@@ -914,7 +933,7 @@ class OtpService
         return $hasCondition ? $query->first() : null;
     }
 
-    private function createCustomer(string $mobile): User
+    private function createCustomer(string $mobile, bool $verified = true): User
     {
         $data = $this->onlyUserColumns([
             'mobile' => $mobile,
@@ -923,7 +942,7 @@ class OtpService
             'password' => Hash::make(Str::random(32)),
             'login_type' => 'otp',
             'is_active' => true,
-            'mobile_verified_at' => now(),
+            'mobile_verified_at' => $verified ? now() : null,
         ]);
 
         $user = new User();
@@ -1046,7 +1065,7 @@ class OtpService
     |--------------------------------------------------------------------------
     */
 
-    private function sendSmsOtp(
+    protected function sendSmsOtp(
         string $mobile,
         string $otp
     ): array {
@@ -1127,9 +1146,10 @@ class OtpService
         }
     }
 
-    private function sendWhatsAppOtp(
+    protected function sendWhatsAppOtp(
         string $mobile,
-        string $otp
+        string $otp,
+        bool $authenticationOnly = false
     ): array {
         try {
             if (!class_exists(WhatsAppService::class)) {
@@ -1139,6 +1159,12 @@ class OtpService
                     'message' =>
                         'The WhatsApp service is not available.',
                 ];
+            }
+
+            if ($authenticationOnly) {
+                $result = WhatsAppService::sendAuthenticationOtp($mobile, $otp);
+                return ['status' => ($result['status'] ?? false) === true,
+                    'channel' => 'whatsapp'];
             }
 
             $sent = WhatsAppService::sendOtp(
@@ -1168,7 +1194,7 @@ class OtpService
         }
     }
 
-    private function sendEmailOtp(
+    protected function sendEmailOtp(
         string $email,
         string $otp
     ): array {

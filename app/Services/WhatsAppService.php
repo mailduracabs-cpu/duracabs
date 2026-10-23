@@ -398,6 +398,31 @@ class WhatsAppService
     |--------------------------------------------------------------------------
     */
 
+    /** Login OTPs use the approved authentication template, never free-form text. */
+    public static function sendAuthenticationOtp(string $number, string $otp): array
+    {
+        if (! preg_match('/^[0-9]{4}$/D', $otp)) {
+            return self::failed(message: 'Invalid OTP format.', error: 'invalid_otp');
+        }
+        $template = self::resolveReadyTemplate('otp_login');
+        if (! $template || strtoupper(trim((string) $template->category)) !== 'AUTHENTICATION') {
+            return self::failed(message: 'An active approved authentication template is required.',
+                error: 'authentication_template_not_ready');
+        }
+        $result = self::sendTemplate(
+            number: $number,
+            templateName: (string) $template->template_name,
+            languageCode: trim((string) $template->language) ?: self::defaultLanguage(),
+            bodyParameters: [$otp],
+            buttonParameters: [['sub_type' => 'url', 'index' => '0', 'value' => $otp]]
+        );
+        if (($result['status'] ?? false) && empty($result['message_id'])) {
+            return self::failed(message: 'WhatsApp did not confirm a message identifier.',
+                error: 'missing_message_acknowledgement');
+        }
+        return $result;
+    }
+
     public static function sendOtp(string $number, string $otp): bool
     {
         $result = self::sendByKey(
@@ -2613,6 +2638,8 @@ class WhatsAppService
 
     public static function cleanNumber(string $number): string
     {
+        $explicitInternational = str_starts_with(trim($number), '+')
+            || str_starts_with(trim($number), '00');
         $number = preg_replace('/\D+/', '', trim($number)) ?? '';
 
         if ($number === '') {
@@ -2621,6 +2648,11 @@ class WhatsAppService
 
         if (str_starts_with($number, '00')) {
             $number = substr($number, 2);
+        }
+
+        // +45xxxxxxxx has ten total digits but is not an Indian local number.
+        if ($explicitInternational) {
+            return preg_match('/^[1-9][0-9]{7,14}$/D', $number) ? $number : '';
         }
 
         if (
