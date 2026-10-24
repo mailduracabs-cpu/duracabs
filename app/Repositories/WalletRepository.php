@@ -72,7 +72,19 @@ class WalletRepository
             $bookingId
         ) {
 
-            $wallet = $this->getWallet($userId);
+            if (! is_finite($amount) || $amount <= 0 || round($amount, 2) <= 0) {
+                throw new \InvalidArgumentException('Wallet amount must be positive.');
+            }
+            $amount = round($amount, 2);
+            // Lock an existing user first, including the first wallet creation.
+            if (! DB::table('users')->where('id', $userId)->lockForUpdate()->first()) {
+                throw new \RuntimeException('Wallet customer not found.');
+            }
+            $walletId = $this->getWallet($userId)->id;
+            $wallet = Wallet::query()->whereKey($walletId)->lockForUpdate()->firstOrFail();
+            if (! $wallet->is_active || $wallet->currency !== 'INR') {
+                throw new \RuntimeException('Wallet is unavailable.');
+            }
 
             $opening = (float) $wallet->balance;
             $closing = $opening + $amount;
@@ -116,9 +128,21 @@ class WalletRepository
             $bookingId
         ) {
 
-            $wallet = $this->getWallet($userId);
+            if (! is_finite($amount) || $amount <= 0 || round($amount, 2) <= 0) {
+                throw new \InvalidArgumentException('Wallet amount must be positive.');
+            }
+            $amount = round($amount, 2);
+            // Lock an existing user first, including the first wallet creation.
+            if (! DB::table('users')->where('id', $userId)->lockForUpdate()->first()) {
+                throw new \RuntimeException('Wallet customer not found.');
+            }
+            $walletId = $this->getWallet($userId)->id;
+            $wallet = Wallet::query()->whereKey($walletId)->lockForUpdate()->firstOrFail();
+            if (! $wallet->is_active || $wallet->currency !== 'INR') {
+                throw new \RuntimeException('Wallet is unavailable.');
+            }
 
-            if ($wallet->balance < $amount) {
+            if (round((float) $wallet->balance - (float) $wallet->hold_balance, 2) < $amount) {
                 return false;
             }
 

@@ -346,6 +346,7 @@ class PaymentController extends BaseApiController
             'booking_no' => ['nullable', 'string', 'max:100'],
             'booking_source' => ['nullable', 'in:order,self_drive,bike_rental'],
             'amount' => ['nullable', 'numeric', 'min:1'],
+            'idempotency_key' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]{16,100}$/'],
         ]);
 
         if ($validator->fails()) {
@@ -360,6 +361,19 @@ class PaymentController extends BaseApiController
 
         if (! $user) {
             return $this->error('Unauthenticated', 401);
+        }
+
+        if ((int) $request->input('booking_id') < 0) {
+            try {
+                $data = app(\App\Services\BookingPaymentCheckoutService::class)->payWithWallet(
+                    (int) $request->input('booking_id'), $user,
+                    $request->filled('amount') ? (float) $request->amount : null
+                );
+                return $this->success($data, 'Wallet payment successful');
+            } catch (Throwable $e) {
+                Log::warning('Wallet checkout failed', ['customer_id' => $user->id, 'error' => $e->getMessage()]);
+                return $this->error($e instanceof \RuntimeException ? $e->getMessage() : 'Unable to process wallet payment.', 422);
+            }
         }
 
         $booking = $this->findBooking(
@@ -378,41 +392,37 @@ class PaymentController extends BaseApiController
 
         $remaining = $this->bookingRemainingAmount($booking);
 
-        if ($remaining <= 0) {
-            return $this->error('This booking is already fully paid', 422);
-        }
 
         $amount = $request->filled('amount')
             ? round((float) $request->amount, 2)
             : $remaining;
 
-        if ($amount <= 0 || $amount > $remaining) {
+        if ($amount <= 0) {
             return $this->error('Invalid wallet payment amount', 422, [
                 'remaining_amount' => $remaining,
             ]);
         }
 
-        $walletResult = $this->walletService->pay(
-            $user,
-            $amount,
-            (int) $booking->id
-        );
-
-        if (! ($walletResult['status'] ?? false)) {
-            return $this->error(
-                $walletResult['message'] ?? 'Wallet payment failed',
-                (int) ($walletResult['code'] ?? 422),
-                $walletResult['errors'] ?? null
-            );
+        $requestKey = trim((string) $request->input('idempotency_key', ''));
+        if (! preg_match('/^[A-Za-z0-9_-]{16,100}$/', $requestKey)) {
+            return $this->error('A payment retry key is required. Please update the app.', 422);
         }
-
         try {
-            $paymentData = DB::transaction(function () use ($booking, $amount, $walletResult): array {
+            $paymentData = DB::transaction(function () use ($booking, $amount, $user, $request, $requestKey): array {
                 $locked = $this->lockBooking($booking);
-
-                if (! $locked) {
-                    throw new \RuntimeException('Booking not found while applying wallet payment');
+                if (! $locked || ! $this->canAccessBooking($request, $locked) || $this->isClosedBooking($locked)) {
+                    throw new \RuntimeException('Booking is unavailable for payment.');
                 }
+                $reference = 'wallet_booking:' . $user->id . ':' . $locked->_source . ':' . $locked->id . ':' . $requestKey;
+                $existing = \App\Models\WalletTransaction::query()->where('user_id', $user->id)->where('reference', $reference)->first();
+                if ($existing) {
+                    if (abs((float) $existing->amount - $amount) > 0.001) throw new \RuntimeException('Payment retry amount changed.');
+                    return $this->paymentResponseData($locked, true);
+                }
+                if ($amount > $this->bookingRemainingAmount($locked)) throw new \RuntimeException('Amount exceeds the remaining balance. Refresh booking.');
+                $walletResult = $this->walletService->pay($user, $amount, (int) $locked->id, $reference,
+                    ['booking_source' => $locked->_source]);
+                if (! ($walletResult['status'] ?? false)) throw new \RuntimeException($walletResult['message'] ?? 'Wallet payment failed.');
 
                 $payable = $this->bookingPayableAmount($locked);
                 $oldPaid = $this->bookingPaidAmount($locked);
@@ -449,7 +459,7 @@ class PaymentController extends BaseApiController
                 return $this->paymentResponseData($fresh ?: $locked, false);
             }, 3);
         } catch (Throwable $e) {
-            Log::critical('Wallet debited but booking update failed', [
+            Log::error('Wallet booking payment rolled back', [
                 'booking_id' => $booking->id,
                 'booking_source' => $booking->_source,
                 'user_id' => $user->id,
@@ -458,8 +468,8 @@ class PaymentController extends BaseApiController
             ]);
 
             return $this->error(
-                'Wallet was debited but booking update failed. Please contact support.',
-                500
+                $e instanceof \RuntimeException ? $e->getMessage() : 'Wallet payment could not be completed. No new debit was committed.',
+                422
             );
         }
 

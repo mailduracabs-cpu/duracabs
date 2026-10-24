@@ -138,43 +138,9 @@ class WalletController extends BaseApiController
         );
     }
 
-    public function payment(
-        Request $request,
-        WalletService $walletService
-    ): JsonResponse {
-        $validator = Validator::make($request->all(), [
-            'amount' => ['required', 'numeric', 'min:1', 'max:500000'],
-            'booking_id' => ['nullable', 'integer', 'min:1'],
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error(
-                $validator->errors()->first(),
-                422,
-                $validator->errors()
-            );
-        }
-
-        $result = $walletService->pay(
-            $request->user(),
-            (float) $request->input('amount'),
-            $request->filled('booking_id')
-                ? (int) $request->input('booking_id')
-                : null
-        );
-
-        if (! ($result['status'] ?? false)) {
-            return $this->error(
-                $result['message'] ?? 'Wallet payment failed',
-                (int) ($result['code'] ?? 422),
-                $result['errors'] ?? null
-            );
-        }
-
-        return $this->success(
-            $result['data'] ?? null,
-            $result['message'] ?? 'Wallet payment successful'
-        );
+    public function payment(Request $request, WalletService $walletService)
+    {
+        return app(PaymentController::class)->walletPayment($request);
     }
 
     public function refund(

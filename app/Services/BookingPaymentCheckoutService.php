@@ -136,88 +136,11 @@ class BookingPaymentCheckoutService
                     return $this->response($row, true);
                 }
                 $this->ensureNotUsed($paymentId);
-                $payload = json_decode($row->payload, true, 512, JSON_THROW_ON_ERROR);
-                $attributes = $payload['attributes'];
-                unset($attributes['id'], $attributes['booking_no'], $attributes['booking_number']);
-                $this->checkAvailability($row->source, $attributes, $payload);
-                $remaining = max(0, round((float) $row->total - $received, 2));
-                $money = [
-                    'paid_amount' => $received, 'advance_amount' => $row->payment_type === 'advance' ? $received : 0,
-                    'remaining_amount' => $remaining, 'balance_due' => $remaining,
-                    'payment_method' => 'razorpay', 'payment_type' => $row->payment_type,
-                    'payment_status' => $remaining > 0 ? 'partial' : 'paid',
-                    'payment_reference' => $paymentId, 'razorpay_order_id' => $row->gateway_order_id,
-                    'razorpay_payment_id' => $paymentId, 'payment_completed_at' => $remaining <= 0 ? now() : null, 'paid_at' => now(),
-                ];
-                if ($row->source === 'self_drive') {
-                    $model = new SelfDriveBooking();
-                    $attributes['booking_status'] = 'pending_vendor_confirmation';
-                    $attributes['booking_no'] = 'SD' . now()->format('ymdHis') . Str::upper(Str::random(6));
-                } else {
-                    $model = new Order();
-                    // Preserve existing order observers/number generation at the first real save.
-                    $meta = $attributes['extraOptions'] ?? [];
-                    if (is_string($meta)) {
-                        $meta = json_decode($meta, true) ?: [];
-                    }
-                    $meta = array_merge((array) $meta, $money, ['last_payment_amount' => $received]);
-                    $meta['reservation']['paid_amount'] = $received;
-                    $meta['reservation']['balance_amount'] = $remaining;
-                    if (Schema::hasColumn('orders', 'extraOptions')) {
-                        $attributes['extraOptions'] = json_encode($meta, JSON_THROW_ON_ERROR);
-                    }
-                }
-                foreach ($money as $column => $value) {
-                    if (Schema::hasColumn($model->getTable(), $column)) {
-                        $attributes[$column] = $value;
-                    }
-                }
-                // Payload consists solely of server-built raw Eloquent attributes.
-                $model->setRawAttributes($attributes);
-                $model->save();
-                if ($row->source === 'order') {
-                    $address = $payload['address'];
-                    unset($address['id'], $address['order_id']);
-                    $address['order_id'] = $model->id;
-                    Address::query()->create($address);
-                    foreach ($payload['items'] ?? [] as $item) {
-                        $model->items()->create($item);
-                    }
-                }
-                DB::table('booking_payment_checkouts')->where('id', $row->id)->update([
-                    'booking_id' => $model->id, 'gateway_payment_id' => $paymentId,
-                    'state' => 'completed', 'updated_at' => now(),
-                ]);
-                $row->booking_id = $model->id;
-                $row->gateway_payment_id = $paymentId;
-                $row->state = 'completed';
-                DB::afterCommit(function () use ($model, $row): void {
-                    try {
-                        if ($model instanceof SelfDriveBooking) {
-                            app(SelfDriveBookingService::class)->notifyVerifiedCreation($model);
-                        } else {
-                            $model->loadMissing('address');
-                            WhatsAppService::dispatchEvent('booking.received', [
-                                'booking_id' => $model->booking_number ?? $model->booking_no ?? (string) $model->id,
-                                'customer_name' => $model->address?->full_name,
-                                'customer_mobile' => $model->address?->phone,
-                                'mobile' => $model->address?->phone,
-                                'vehicle' => $model->productName,
-                                'pickup' => $model->cityFrom, 'drop' => $model->cityTo,
-                                'travel_date' => (string) $model->date, 'travel_time' => (string) $model->time,
-                                'amount' => number_format((float) $row->amount, 2),
-                                'total_amount' => number_format((float) $row->total, 2),
-                            ]);
-                        }
-                    } catch (Throwable $e) {
-                        Log::warning('Paid booking notification failed.', ['checkout_id' => $row->id, 'error' => $e->getMessage()]);
-                    }
-                });
-                return $this->response($row, false);
+                return $this->persistPaidBooking($row, $received, $paymentId, 'razorpay');
             }, 3);
         } catch (Throwable $e) {
             // A captured payment is retained for retry/manual resolution; never silently lost.
-            DB::table('booking_payment_checkouts')->where('id', $checkout->id)->whereNull('booking_id')->update([
+            DB::table('booking_payment_checkouts')->where('id', $checkout->id)->whereNull('booking_id')->where('gateway_order_id', $checkout->gateway_order_id)->update([
                 'state' => 'paid_review_required', 'gateway_payment_id' => $paymentId, 'updated_at' => now(),
             ]);
             Log::critical('Captured checkout needs booking recovery.', [
@@ -225,6 +148,121 @@ class BookingPaymentCheckoutService
             ]);
             throw new RuntimeException('Payment received, but booking needs review. Do not pay again. Contact support with payment ID ' . $paymentId, 0, $e);
         }
+    }
+
+    /** Server-owned checkout and wallet debit commit together, or neither commits. */
+    public function payWithWallet(int $reference, \App\Models\User $user, ?float $expectedAmount = null): array
+    {
+        $checkout = $this->owned($reference, (int) $user->id);
+        return DB::transaction(function () use ($checkout, $user, $expectedAmount): array {
+            $row = DB::table('booking_payment_checkouts')->where('id', $checkout->id)
+                ->where('customer_id', $user->id)->lockForUpdate()->first();
+            if (! $row) throw new RuntimeException('Payment checkout not found.');
+            $reference = 'wallet_checkout:' . $row->id;
+            if ($row->booking_id) {
+                if ($row->gateway_payment_id !== $reference) throw new RuntimeException('Checkout already paid using another method.');
+                return $this->response($row, true);
+            }
+            // A gateway payment may still arrive. Never switch funding source on that attempt.
+            if ($row->gateway_order_id || $row->state !== 'pending') {
+                throw new RuntimeException('Online payment was already started. Open a fresh checkout to pay with wallet.');
+            }
+            if (Carbon::parse($row->created_at)->lt(now()->subMinutes(30))) throw new RuntimeException('Checkout expired. Please select your vehicle again.');
+            $amount = round((float) $row->amount, 2);
+            if ($amount <= 0 || ($expectedAmount !== null && abs($expectedAmount - $amount) > 0.001)) {
+                throw new RuntimeException('Payment amount changed. Please refresh checkout.');
+            }
+            $result = app(WalletService::class)->pay($user, $amount, null, $reference,
+                ['checkout_id' => $row->id, 'booking_source' => $row->source]);
+            if (! ($result['status'] ?? false)) throw new RuntimeException($result['message'] ?? 'Wallet payment failed.');
+            $data = $this->persistPaidBooking($row, $amount, $reference, 'wallet');
+            $transaction = $result['data'];
+            $transaction->update(['booking_id' => $data['booking_id']]);
+            $data['wallet_transaction_id'] = $transaction->transaction_id;
+            return $data;
+        }, 3);
+    }
+
+    protected function persistPaidBooking(object $row, float $received, string $paymentId, string $method): array
+    {
+        $payload = json_decode($row->payload, true, 512, JSON_THROW_ON_ERROR);
+        $attributes = $payload['attributes'];
+        unset($attributes['id'], $attributes['booking_no'], $attributes['booking_number']);
+        $this->checkAvailability($row->source, $attributes, $payload);
+        $remaining = max(0, round((float) $row->total - $received, 2));
+        $money = [
+            'paid_amount' => $received, 'advance_amount' => $row->payment_type === 'advance' ? $received : 0,
+            'remaining_amount' => $remaining, 'balance_due' => $remaining,
+            'payment_method' => $method, 'payment_type' => $row->payment_type,
+            'payment_status' => $remaining > 0 ? 'partial' : 'paid',
+            'payment_reference' => $paymentId, 'razorpay_order_id' => $method === 'razorpay' ? $row->gateway_order_id : null,
+            'razorpay_payment_id' => $method === 'razorpay' ? $paymentId : null, 'payment_completed_at' => $remaining <= 0 ? now() : null, 'paid_at' => now(),
+        ];
+        if ($row->source === 'self_drive') {
+            $model = new SelfDriveBooking();
+            $attributes['booking_status'] = 'pending_vendor_confirmation';
+            $attributes['booking_no'] = 'SD' . now()->format('ymdHis') . Str::upper(Str::random(6));
+        } else {
+            $model = new Order();
+            // Preserve existing order observers/number generation at the first real save.
+            $meta = $attributes['extraOptions'] ?? [];
+            if (is_string($meta)) {
+                $meta = json_decode($meta, true) ?: [];
+            }
+            $meta = array_merge((array) $meta, $money, ['last_payment_amount' => $received]);
+            $meta['reservation']['paid_amount'] = $received;
+            $meta['reservation']['balance_amount'] = $remaining;
+            if (Schema::hasColumn('orders', 'extraOptions')) {
+                $attributes['extraOptions'] = json_encode($meta, JSON_THROW_ON_ERROR);
+            }
+        }
+        foreach ($money as $column => $value) {
+            if (Schema::hasColumn($model->getTable(), $column)) {
+                $attributes[$column] = $value;
+            }
+        }
+        // Payload consists solely of server-built raw Eloquent attributes.
+        $model->setRawAttributes($attributes);
+        $model->save();
+        if ($row->source === 'order') {
+            $address = $payload['address'];
+            unset($address['id'], $address['order_id']);
+            $address['order_id'] = $model->id;
+            Address::query()->create($address);
+            foreach ($payload['items'] ?? [] as $item) {
+                $model->items()->create($item);
+            }
+        }
+        DB::table('booking_payment_checkouts')->where('id', $row->id)->update([
+            'booking_id' => $model->id, 'gateway_payment_id' => $paymentId,
+            'state' => 'completed', 'updated_at' => now(),
+        ]);
+        $row->booking_id = $model->id;
+        $row->gateway_payment_id = $paymentId;
+        $row->state = 'completed';
+        DB::afterCommit(function () use ($model, $row): void {
+            try {
+                if ($model instanceof SelfDriveBooking) {
+                    app(SelfDriveBookingService::class)->notifyVerifiedCreation($model);
+                } else {
+                    $model->loadMissing('address');
+                    WhatsAppService::dispatchEvent('booking.received', [
+                        'booking_id' => $model->booking_number ?? $model->booking_no ?? (string) $model->id,
+                        'customer_name' => $model->address?->full_name,
+                        'customer_mobile' => $model->address?->phone,
+                        'mobile' => $model->address?->phone,
+                        'vehicle' => $model->productName,
+                        'pickup' => $model->cityFrom, 'drop' => $model->cityTo,
+                        'travel_date' => (string) $model->date, 'travel_time' => (string) $model->time,
+                        'amount' => number_format((float) $row->amount, 2),
+                        'total_amount' => number_format((float) $row->total, 2),
+                    ]);
+                }
+            } catch (Throwable $e) {
+                Log::warning('Paid booking notification failed.', ['checkout_id' => $row->id, 'error' => $e->getMessage()]);
+            }
+        });
+        return $this->response($row, false);
     }
 
     private function checkAvailability(string $source, array $attributes, array $payload): void
@@ -267,7 +305,7 @@ class BookingPaymentCheckoutService
         }
     }
 
-    private function response(object $row, bool $duplicate): array
+    protected function response(object $row, bool $duplicate): array
     {
         $model = $row->source === 'self_drive'
             ? SelfDriveBooking::query()->findOrFail($row->booking_id)
@@ -278,14 +316,15 @@ class BookingPaymentCheckoutService
             'booking_no' => $model->booking_no ?? $model->booking_number ?? (string) $model->id,
             'booking_source' => $row->source, 'checkout_id' => $row->id,
             'booking_created' => true, 'duplicate' => $duplicate,
-            'payment_status' => $model->payment_status, 'payment_method' => 'razorpay',
+            'payment_status' => $model->payment_status, 'payment_method' => str_starts_with((string) $row->gateway_payment_id, 'wallet_checkout:') ? 'wallet' : 'razorpay',
             'payment_type' => $row->payment_type,
             'booking_status' => $model->booking_status ?? $model->status,
             'paid_amount' => (float) ($model->paid_amount ?? $row->amount),
             'advance_amount' => (float) ($model->advance_amount ?? ($row->payment_type === 'advance' ? $row->amount : 0)),
             'remaining_amount' => (float) ($model->remaining_amount ?? $remaining),
             'payable_amount' => (float) $row->total,
-            'razorpay_order_id' => $row->gateway_order_id, 'razorpay_payment_id' => $row->gateway_payment_id,
+            'payment_reference' => $row->gateway_payment_id,
+            'razorpay_order_id' => $row->gateway_order_id, 'razorpay_payment_id' => str_starts_with((string) $row->gateway_payment_id, 'wallet_checkout:') ? null : $row->gateway_payment_id,
         ];
     }
 }
