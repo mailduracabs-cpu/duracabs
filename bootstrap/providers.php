@@ -1,6 +1,7 @@
 <?php
 
 return [
+    App\Providers\SelfDriveDamageServiceProvider::class,
     App\Providers\CustomerWalletReferralServiceProvider::class,
     App\Providers\AppServiceProvider::class,
     App\Providers\EventServiceProvider::class,

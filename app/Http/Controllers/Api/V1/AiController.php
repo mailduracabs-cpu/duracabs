@@ -104,31 +104,17 @@ class AiController extends BaseApiController
 
     public function selfDriveDamageDetection(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'pickup_images' => 'nullable|array',
-            'drop_images' => 'nullable|array',
-            'pickup_km' => 'nullable|numeric',
-            'drop_km' => 'nullable|numeric',
-        ]);
-
-        if ($validator->fails()) {
-            return $this->error($validator->errors()->first(), 422, $validator->errors());
-        }
-
-        $totalKm = null;
-
-        if ($request->pickup_km !== null && $request->drop_km !== null) {
-            $totalKm = max(0, (float) $request->drop_km - (float) $request->pickup_km);
-        }
-
+        abort_unless($request->user(), 401);
+        $data = $request->validate(['booking_id' => 'required|integer|min:1']);
+        $booking = \Illuminate\Support\Facades\DB::table('self_drive_bookings')->find($data['booking_id']);
+        abort_unless($booking && ((int) $booking->customer_id === (int) $request->user()->id || $request->user()->canUseAdminLogin()), 404);
+        $report = \Illuminate\Support\Facades\DB::table('self_drive_damage_reports')->where('booking_id', $booking->id)->orderByDesc('id')->first();
         return $this->success([
-            'damage_detected' => false,
-            'confidence' => 0,
-            'new_damage' => [],
-            'total_km' => $totalKm,
-            'status' => 'manual_review_required',
-            'message' => 'AI damage detection placeholder ready. Vision AI can be connected here.',
-        ], 'Self-drive damage detection result');
+            'booking_id' => $booking->id,
+            'status' => $report?->status ?? (config('self_drive_damage.enabled') ? 'awaiting_return_comparison' : 'manual_review'),
+            'damage_detected' => $report?->status === 'possible_damage' ? true : ($report?->status === 'no_visible_change' ? false : null),
+            'manual_review_required' => $report?->status !== 'no_visible_change',
+        ], 'Inspection status; final decision belongs to admin');
     }
 
     public function bannerSuggestion(Request $request)

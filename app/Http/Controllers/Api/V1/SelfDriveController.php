@@ -1178,11 +1178,17 @@ class SelfDriveController extends BaseApiController
 
     public function damageDetect(Request $request)
     {
+        abort_unless($request->user(), 401);
+        $data = $request->validate(['booking_id' => 'required|integer|min:1']);
+        $booking = \Illuminate\Support\Facades\DB::table('self_drive_bookings')->find($data['booking_id']);
+        abort_unless($booking && ((int) $booking->customer_id === (int) $request->user()->id || $request->user()->canUseAdminLogin()), 404);
+        $report = \Illuminate\Support\Facades\DB::table('self_drive_damage_reports')->where('booking_id', $booking->id)->orderByDesc('id')->first();
         return $this->success([
-            'booking_id' => $request->booking_id,
-            'damage_detected' => false,
-            'status' => 'manual_review_required',
-        ], 'Damage review request created');
+            'booking_id' => $booking->id,
+            'status' => $report?->status ?? (config('self_drive_damage.enabled') ? 'awaiting_return_comparison' : 'manual_review'),
+            'damage_detected' => $report?->status === 'possible_damage' ? true : ($report?->status === 'no_visible_change' ? false : null),
+            'manual_review_required' => $report?->status !== 'no_visible_change',
+        ], 'Inspection status; final decision belongs to admin');
     }
 
     private function customerFromRequest(Request $request): ?User
