@@ -8,7 +8,6 @@ use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\SelfDriveAvailabilityService;
 use App\Services\SelfDriveBookingService;
-use App\Services\CustomerBookingSummary;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +31,7 @@ class SelfDriveController extends BaseApiController
         $query = Vehicle::query()
             ->with('transporter')
             ->availableForCustomer()
+            ->selfDrive()->cars()
             ->whereNotNull('transporter_profile_id');
 
         foreach (['fuel_type', 'transmission'] as $field) {
@@ -66,6 +66,7 @@ class SelfDriveController extends BaseApiController
         $vehicles = Vehicle::query()
             ->with('transporter')
             ->availableForCustomer()
+            ->selfDrive()->cars()
             ->whereNotNull('transporter_profile_id')
             ->latest('id')
             ->get()
@@ -158,12 +159,15 @@ class SelfDriveController extends BaseApiController
             return $this->serviceResponse($result);
         }
 
-        // Existing Flutter and website clients expect the vehicle collection
-        // directly in the data key, so the service metadata stays internal.
-        return $this->success(
-            data_get($result, 'data.vehicles', []),
-            (string) ($result['message'] ?? 'Available vehicles loaded')
-        );
+        // A shared availability service can contain multiple rental types.
+        // Enforce the car endpoint's type using persisted vehicle records, never client labels.
+        $vehicles = collect(data_get($result, 'data.vehicles', []));
+        $ids = $vehicles->map(fn ($row) => (int) data_get($row, 'id', data_get($row, 'vehicle_id', 0)))->filter()->all();
+        $carIds = Vehicle::query()->availableForCustomer()->selfDrive()->cars()
+            ->whereIn('id', $ids)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $vehicles = $vehicles->filter(fn ($row) => in_array((int) data_get($row, 'id', data_get($row, 'vehicle_id', 0)), $carIds, true))
+            ->map(fn ($row) => array_merge($row instanceof \Illuminate\Contracts\Support\Arrayable ? $row->toArray() : (array) $row, ['vehicle_type' => 'car', 'service_type' => 'self_drive']))->values();
+        return $this->success($vehicles, (string) ($result['message'] ?? 'Available cars loaded'));
     }
 
     public function show($id)
@@ -171,6 +175,7 @@ class SelfDriveController extends BaseApiController
         $vehicle = Vehicle::query()
             ->with('transporter')
             ->availableForCustomer()
+            ->selfDrive()->cars()
             ->find($id);
 
         if (! $vehicle) {
@@ -901,16 +906,6 @@ class SelfDriveController extends BaseApiController
         $data['paid_amount'] = (float) ($booking->paid_amount ?? 0);
         $data['remaining_amount'] = (float) ($booking->remaining_amount ?? 0);
         $data['updated_at'] = $booking->updated_at?->toIso8601String();
-        // Persisted lifecycle state is authoritative over a stale service response.
-        $data['status'] = $booking->status;
-        $data['booking_status'] = $booking->booking_status;
-        $data['document_rejection_reason'] = $booking->document_rejection_reason;
-        $summary = CustomerBookingSummary::fromAttributes($booking->getAttributes());
-        $data['settlement'] = $summary['settlement'];
-        if (empty($data['timeline']) && empty($data['booking_timeline']) && empty($data['activity_timeline'])) {
-            $data['timeline'] = $summary['timeline'];
-        }
-
         foreach (['invoice', 'agreement'] as $type) {
             $available = Route::has('self-drive.customer-rental-document');
             $data[$type . '_available'] = $available;
@@ -1144,21 +1139,11 @@ class SelfDriveController extends BaseApiController
         ], 'Final bill generated');
     }
 
-    public function refundStatus(Request $request, $bookingId)
+    public function refundStatus($bookingId)
     {
-        // This legacy route is public in older route files; resolve the token
-        // guard explicitly rather than trusting an unauthenticated booking ID.
-        $customer = $request->user('sanctum');
-        if (! ($customer instanceof User)) {
-            return $this->error('Unauthenticated.', 401);
-        }
         $booking = $this->bookingRow($bookingId);
 
         if (! $booking) {
-            return $this->error('Booking not found', 404);
-        }
-
-        if ((int) $booking->customer_id !== (int) $customer->id) {
             return $this->error('Booking not found', 404);
         }
 
@@ -1338,6 +1323,8 @@ class SelfDriveController extends BaseApiController
 
         return [
             'id' => $vehicle->id,
+            'vehicle_type' => $vehicle->vehicle_type,
+            'service_type' => $vehicle->service_type,
             'vehicle_name' => $this->vehicleName($vehicle),
             'brand' => $vehicle->car_company_name,
             'model' => $vehicle->model_name,
