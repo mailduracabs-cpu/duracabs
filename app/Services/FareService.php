@@ -50,36 +50,59 @@ class FareService
             }
         }
 
-        /*
-         * Vehicle/category-wise route fare is stored in prices.
-         * Product price remains the legacy fallback.
-         */
-        $routePrice = null;
-
-        if ($category) {
-            $routePrice = Price::query()
-                ->where('product_id', $route->id)
-                ->where('category_id', $category->id)
-                ->first();
+        $isPublishedPackage = in_array($route->ride_type ?? '', ['one_way', 'local', 'airport'], true);
+        if ($isPublishedPackage && ((! ($route->in_stock ?? false))
+            || (isset($route->service_group) && $route->service_group !== 'with_driver'))) {
+            throw new \InvalidArgumentException('This route is currently unavailable.');
         }
 
-        $baseFare = $routePrice
-            ? (float) $routePrice->price
-            : (float) $route->price;
+        $routePrice = null;
+        $prices = Price::query()->where('product_id', $route->id);
+        if ($category) {
+            $prices->where('category_id', $category->id);
+            if (! empty($data['price_id'])) $prices->where('id', (int) $data['price_id']);
+            $routePrice = $prices->orderBy('price')->first();
+        }
+        if ($isPublishedPackage && ! $routePrice) {
+            if (! empty($data['price_id']) || Price::query()->where('product_id', $route->id)->exists()
+                || ! $category || (int) $category->id !== (int) ($route->category_id ?? 0)) {
+                throw new \InvalidArgumentException('Selected category price is unavailable for this route. Search again.');
+            }
+        }
+        $baseFare = $routePrice ? (float) $routePrice->price : (float) $route->price;
+        if (! is_finite($baseFare) || $baseFare <= 0) {
+            throw new \InvalidArgumentException('Route price is unavailable. Search again.');
+        }
 
+        $quantity = $isPublishedPackage ? (int) ($data['quantity'] ?? 1) : 1;
+        if ($quantity < 1 || $quantity > 20) throw new \InvalidArgumentException('Select a valid car quantity.');
+        $baseFare = round($baseFare * $quantity, 2);
         $maxFare = $routePrice
             ? (float) $routePrice->max_price
             : (float) $route->max_price;
+        $maxFare *= $quantity;
 
+        $hasDistance = isset($data['distance_km']);
+        $hasDuration = isset($data['duration_hr']);
+        foreach (['distance_km', 'duration_hr'] as $field) {
+            if (isset($data[$field]) && (! is_numeric($data[$field])
+                || ! is_finite((float) $data[$field]) || (float) $data[$field] < 0)) {
+                throw new \InvalidArgumentException('Invalid trip distance or duration.');
+            }
+        }
+        $localHours = null; $localKm = null;
+        if (($route->ride_type ?? '') === 'local' && preg_match('/^(\d+)\s+Hour\s*\/\s*(\d+)\s+Km$/i', (string) ($route->plan ?? ''), $plan)) {
+            $localHours = (float) $plan[1]; $localKm = (float) $plan[2];
+        }
         $distanceKm = (float) (
             $data['distance_km']
-            ?? $route->km_limit
+            ?? $localKm ?? $route->km_limit
             ?? 0
         );
 
         $durationHr = (float) (
             $data['duration_hr']
-            ?? $route->hr_limit
+            ?? $localHours ?? $route->hr_limit
             ?? 0
         );
 
@@ -89,14 +112,14 @@ class FareService
          */
         $extraKmCharge = max(0, (float) ($category?->extra_km_charge ?? 0));
         $extraHrCharge = max(0, (float) ($category?->extra_hr_charge ?? 0));
-        $kmLimit = (float) ($route->km_limit ?? 0);
-        $hrLimit = (float) ($route->hr_limit ?? 0);
+        $kmLimit = (float) ($localKm ?? $route->km_limit ?? 0);
+        $hrLimit = (float) ($localHours ?? $route->hr_limit ?? 0);
 
         $extraKm = max(0, $distanceKm - $kmLimit);
         $extraHr = max(0, $durationHr - $hrLimit);
 
-        $extraKmAmount = round($extraKm * $extraKmCharge, 2);
-        $extraHrAmount = round($extraHr * $extraHrCharge, 2);
+        $extraKmAmount = round($extraKm * $extraKmCharge * $quantity, 2);
+        $extraHrAmount = round($extraHr * $extraHrCharge * $quantity, 2);
 
         /*
          * Route-level configured charges.
@@ -112,6 +135,11 @@ class FareService
         $stateTaxIncluded = (bool) ($route->state_tax_included ?? false);
         $parkingIncluded = (bool) ($route->parking_included ?? false);
         $gstIncluded = (bool) ($route->gst_included ?? false);
+        // DuraCabs published one-way fare includes these charges. Parking is always separate.
+        if ($isPublishedPackage) {
+            $tollIncluded = $stateTaxIncluded = $gstIncluded = true;
+        }
+        $parkingIncluded = false;
 
         /*
          * Included charges are informational only.
@@ -121,10 +149,10 @@ class FareService
         $borderTaxExtra = $stateTaxIncluded ? 0.0 : $configuredBorderTax;
 
         /*
-         * Driver allowance currently has no included toggle in admin,
-         * so preserve legacy behaviour and add it to the payable amount.
+         * Driver allowance is included in published one-way fares.
+         * Other ride types retain the legacy configured-charge behavior.
          */
-        $driverAllowanceExtra = $configuredDriverAllowance;
+        $driverAllowanceExtra = $isPublishedPackage ? 0.0 : $configuredDriverAllowance;
 
         /*
          * Optional customer selections.
@@ -161,21 +189,24 @@ class FareService
          * The legacy request key pat_selected is retained for API compatibility,
          * but it represents the Pet Friendly option.
          */
-        $extraPickupCharge = $extraPickupSelected
-            ? max(0, (float) ($category?->extra_pickup_charge ?? 0))
-            : 0.0;
-
-        $extraDropCharge = $extraDropSelected
-            ? max(0, (float) ($category?->extra_drop_charge ?? 0))
-            : 0.0;
-
-        $patCharge = $patSelected
-            ? max(0, (float) ($category?->pet_friendly_charge ?? 0))
-            : 0.0;
-
-        $roofCarrierCharge = $roofCarrierSelected
-            ? max(0, (float) ($category?->roof_carrier_charge ?? 0))
-            : 0.0;
+        $optionKeys = [];
+        foreach (['pet_friendly' => $patSelected, 'roof_carrier' => $roofCarrierSelected,
+            'extra_pickup' => $extraPickupSelected, 'extra_drop' => $extraDropSelected] as $key => $selected) {
+            if ($selected) $optionKeys[] = $key;
+        }
+        if ($isPublishedPackage) {
+            $selectedOptions = CategoryBookingOptions::selected($category, $optionKeys);
+            $optionPrices = array_column($selectedOptions['items'], 'price', 'key');
+            $patCharge = (float) ($optionPrices['pet_friendly'] ?? 0);
+            $roofCarrierCharge = (float) ($optionPrices['roof_carrier'] ?? 0);
+            $extraPickupCharge = (float) ($optionPrices['extra_pickup'] ?? 0);
+            $extraDropCharge = (float) ($optionPrices['extra_drop'] ?? 0);
+        } else {
+            $patCharge = $patSelected ? max(0, (float) ($category?->pet_friendly_charge ?? 0)) : 0.0;
+            $roofCarrierCharge = $roofCarrierSelected ? max(0, (float) ($category?->roof_carrier_charge ?? 0)) : 0.0;
+            $extraPickupCharge = $extraPickupSelected ? max(0, (float) ($category?->extra_pickup_charge ?? 0)) : 0.0;
+            $extraDropCharge = $extraDropSelected ? max(0, (float) ($category?->extra_drop_charge ?? 0)) : 0.0;
+        }
 
         /*
          * Prefer the admin-configured night charge when selected.
@@ -183,7 +214,7 @@ class FareService
          */
         if ($nightChargeSelected) {
             $nightCharge = max(0, (float) ($route->night_charge ?? 0));
-        } elseif (array_key_exists('night_charge', $data)) {
+        } elseif (! $isPublishedPackage && array_key_exists('night_charge', $data)) {
             $nightCharge = max(0, (float) $data['night_charge']);
         } else {
             $nightCharge = 0.0;
@@ -206,11 +237,11 @@ class FareService
 
         /*
          * GST percentage is controlled by admin.
-         * Old gst_percent request is used only as a fallback for legacy routes.
+         * Old gst_percent request is used only for other legacy ride types.
          */
         $gstPercent = (float) (
             $route->gst_percentage
-            ?? ($data['gst_percent'] ?? 0)
+            ?? ($isPublishedPackage ? 0 : ($data['gst_percent'] ?? 0))
         );
 
         $gstPercent = max(0, min(28, $gstPercent));
@@ -250,11 +281,16 @@ class FareService
             ] : null,
 
             'price_id' => $routePrice?->id,
-            'distance_km' => $distanceKm,
-            'duration_hr' => $durationHr,
+            'quantity' => $quantity,
+            'distance_km' => $hasDistance ? $distanceKm : null,
+            'duration_hr' => $hasDuration ? $durationHr : null,
+            'category_options' => $isPublishedPackage ? $selectedOptions['items'] : [],
+            'category_options_total' => $isPublishedPackage ? $selectedOptions['total'] : 0,
+            'parking_policy' => 'extra_as_actual',
 
             'fare_breakup' => [
                 'base_fare' => round($baseFare, 2),
+                'quantity' => $quantity,
                 'max_fare' => round($maxFare, 2),
 
                 'km_limit' => $kmLimit,
@@ -281,7 +317,10 @@ class FareService
                     2
                 ),
 
+                'driver_allowance_included' => $isPublishedPackage,
+                'driver_allowance_payable' => round($driverAllowanceExtra, 2),
                 'parking_included' => $parkingIncluded,
+                'parking_policy' => 'extra_as_actual',
 
                 'pat_selected' => $patSelected,
                 'pat_charge' => round($patCharge, 2),

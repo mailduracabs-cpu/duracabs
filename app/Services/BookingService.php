@@ -34,7 +34,14 @@ class BookingService
             return $this->failure('Orders table not found.', 500);
         }
 
-        $mobile = preg_replace('/\D+/', '', (string) ($data['mobile'] ?? ''));
+        $customerId = (int) (auth()->id() ?? 0);
+        if ($customerId <= 0) {
+            return $this->failure('Unauthenticated.', 401);
+        }
+        // Ownership always comes from the authenticated session.
+        $data['user_id'] = $customerId;
+        $data['customer_id'] = $customerId;
+        $mobile = (string) ($data['mobile'] ?? '');
 
         if ($mobile === '') {
             return $this->failure('Customer mobile number is required.', 422);
@@ -52,26 +59,45 @@ class BookingService
 
         try {
             $result = DB::transaction(function () use ($data, $lockKey): array {
-                $recent = $this->findRecentDuplicate($data);
-
-                if ($recent) {
-                    Cache::forget($lockKey);
-
-                    return [
-                        'status' => true,
-                        'message' => 'Booking already submitted.',
-                        'data' => $this->detail($recent->id)['data'],
-                    ];
-                }
-
-                $userId = $this->findOrCreateUser($data);
+                $userId = (int) $data['user_id'];
                 $product = $this->getProduct($data['product_id'] ?? null);
                 $category = $this->getCategory(
                     $data['category_id'] ?? ($product->category_id ?? null)
                 );
 
                 $isRoundTrip = $this->isRoundTrip($data);
-                $baseFare = $this->resolveBaseFare($data, $product);
+                $isOneWay = $this->serviceType($data) === 'one_way';
+                $isPackage = in_array($this->serviceType($data), ['one_way', 'local', 'airport'], true);
+                $roundQuote = null;
+                if ($isRoundTrip) {
+                    $product = null;
+                    $roundQuote = RoundTripFareService::bookingQuote([
+                        'category_id' => $data['category_id'] ?? null, 'locations' => $data['locations'] ?? [],
+                        'start_date' => $data['pickup_date'] ?? null, 'start_time' => $data['pickup_time'] ?? null,
+                        'end_date' => $data['return_date'] ?? null, 'end_time' => $data['return_time'] ?? null,
+                        'fare_type' => $data['fare_type'] ?? 'all_inclusive', 'quantity' => $data['quantity'] ?? 1,
+                    ]);
+                    $data['fare_breakup'] = $roundQuote['fare_breakup'];
+                    $data['total_km'] = $roundQuote['total_km'];
+                    $data['minimum_km'] = $roundQuote['minimum_km'];
+                    $data['billable_km'] = $roundQuote['billable_km'];
+                    $data['trip_days'] = $roundQuote['trip_days'];
+                    $data['duration'] = $roundQuote['duration_text'];
+                } elseif ($this->serviceType($data) === 'local') {
+                    RoundTripFareService::validatePeriod($data['pickup_date'] ?? null, $data['pickup_time'] ?? null, $data['return_date'] ?? null, $data['return_time'] ?? null);
+                    $data['duration_hr'] = (strtotime($data['return_date'] . ' ' . $data['return_time']) - strtotime($data['pickup_date'] . ' ' . $data['pickup_time'])) / 3600;
+                }
+                if ($isOneWay) {
+                    $data['return_date'] = null;
+                    $data['return_time'] = null;
+                }
+                $baseFare = $isRoundTrip ? (float) $roundQuote['base_fare'] : $this->resolveBaseFare($data, $product);
+                if ($isPackage) {
+                    if ($this->serviceType($data) === 'local') $data['plan'] = $product->plan ?? 'none';
+                    $category = $this->getCategory($product->category_id ?? null);
+                    $data['category_id'] = $product->category_id ?? null;
+                    $data['price_id'] = $product->selected_price_id ?? null;
+                }
 
                 if ($baseFare <= 0) {
                     Cache::forget($lockKey);
@@ -82,17 +108,27 @@ class BookingService
                     );
                 }
 
+                $optionKeys = (array) ($data['category_options'] ?? []);
+                $options = CategoryBookingOptions::selected($category, $optionKeys);
+                if ($optionKeys && isset($category->is_active) && ! $category->is_active) {
+                    throw new \InvalidArgumentException('Selected category is unavailable.');
+                }
+                // Reject a stale add-on quote before any payment or cash booking.
+                if (abs(round((float) ($data['category_options_total'] ?? 0), 2) - $options['total']) > 0.01) {
+                    throw new \InvalidArgumentException('Optional service charges changed. Refresh the category and review your total.');
+                }
+                foreach (['extra_pickup', 'extra_drop'] as $key) {
+                    if (in_array($key, $optionKeys, true) && trim((string) ($data[$key . '_address'] ?? '')) === '') {
+                        throw new \InvalidArgumentException('Enter the additional pickup/drop address on the main route.');
+                    }
+                }
                 $special = $this->resolveSpecialRequests($data);
                 $tollAmount = $this->resolveCharge(
                     $data,
                     ['toll_amount', 'toll', 'toll_tax'],
                     ['toll_status', 'toll_included']
                 );
-                $parkingAmount = $this->resolveCharge(
-                    $data,
-                    ['parking_amount', 'parking'],
-                    ['parking_status', 'parking_included']
-                );
+                $parkingAmount = 0.0; // Parking is settled separately as actual.
                 $stateTaxAmount = $this->resolveCharge(
                     $data,
                     ['state_tax_amount', 'state_tax', 'other_tax'],
@@ -114,21 +150,46 @@ class BookingService
                         ?? 0
                     ), 2)
                 );
-                $couponValue = $this->resolveCouponValue(
-                    $data,
-                    (float) ($data['grand_total'] ?? $baseFare)
-                );
+                // Published one-way prices already include taxes and driver charges.
+                if ($isPackage || $isRoundTrip) {
+                    $tollAmount = $parkingAmount = $stateTaxAmount = $gstAmount = $driverTotal = 0.0;
 
-                if ($isRoundTrip) {
-                    $grandTotal = max(
-                        0,
-                        round((float) (
-                            $data['grand_total']
-                            ?? $data['amount']
-                            ?? $data['fare']
-                            ?? 0
-                        ), 2)
+                }
+                if ($isRoundTrip) $driverTotal = (float) $roundQuote['driver_total'];
+                $oneWayQuote = null;
+                if ($isPackage) {
+                    $oneWayQuote = app(FareService::class)->estimate([
+                        'route_id' => $product->id, 'category_id' => $category->id,
+                        'price_id' => $data['price_id'] ?? null, 'quantity' => $data['quantity'] ?? 1,
+                        'pat_selected' => in_array('pet_friendly', $optionKeys, true),
+                        'roof_carrier_selected' => in_array('roof_carrier', $optionKeys, true),
+                        'extra_pickup_selected' => in_array('extra_pickup', $optionKeys, true),
+                        'extra_drop_selected' => in_array('extra_drop', $optionKeys, true),
+                        'night_charge_selected' => (bool) ($data['night_charge_selected'] ?? false),
+                        'distance_km' => $data['distance_km'] ?? null,
+                        'duration_hr' => $data['duration_hr'] ?? null,
+                    ]);
+                    $gstAmount = (float) $oneWayQuote['fare_breakup']['gst_amount'];
+                    $data['fare_breakup'] = $oneWayQuote['fare_breakup'];
+                    $data['gst_percent'] = $oneWayQuote['fare_breakup']['gst_percent'];
+                    $options = ['items' => $oneWayQuote['category_options'], 'total' => $oneWayQuote['category_options_total']];
+                }
+                if ($isPackage || $isRoundTrip) {
+                    $coupon = CustomerCouponDiscount::calculate(
+                        (string) ($data['coupon_name'] ?? $data['coupon_code'] ?? ''),
+                        ($isRoundTrip ? (float) $roundQuote['grand_total'] + $options['total'] : (float) $oneWayQuote['total_fare']) + $special['total']
                     );
+                    $couponValue = $coupon['discount'];
+                    $data['coupon_name'] = $coupon['code'] ?: null;
+                } else {
+                    $couponValue = $this->resolveCouponValue($data, (float) ($data['grand_total'] ?? $baseFare));
+                }
+
+                if ($isPackage) {
+                    // GST/optional services are already included by FareService.
+                    $grandTotal = round((float) $oneWayQuote['total_fare'] + $special['total'] - $couponValue, 2);
+                } elseif ($isRoundTrip) {
+                    $grandTotal = round($roundQuote['grand_total'] + $options['total'] + $special['total'] - $couponValue, 2);
                 } else {
                     $grandTotal = max(
                         0,
@@ -138,6 +199,7 @@ class BookingService
                             + $parkingAmount
                             + $stateTaxAmount
                             + $special['total']
+                            + $options['total']
                             + $gstAmount
                             - $couponValue,
                             2
@@ -154,6 +216,11 @@ class BookingService
                     );
                 }
 
+                if (($isPackage || $isRoundTrip) && isset($data['grand_total'])
+                    && abs(round((float) $data['grand_total'], 2) - $grandTotal) > 0.01) {
+                    throw new \InvalidArgumentException('The route fare has changed. Search again and review the updated fare before payment.');
+                }
+
                 $paymentMethod = strtolower(
                     trim((string) ($data['payment_method'] ?? 'cash'))
                 );
@@ -163,21 +230,24 @@ class BookingService
                     true
                 );
 
-                $orderStatus = $isOnline ? 'new' : 'confirm';
-                $paymentStatus = $isOnline
-                    ? 'pending'
-                    : (string) ($data['payment_status'] ?? 'pending');
+                if (! $isOnline && $paymentMethod !== 'cash') {
+                    throw new \InvalidArgumentException('Select Cash or Razorpay.');
+                }
+                $orderStatus = 'new';
+                $paymentStatus = 'pending';
 
                 $extraOptions = [
                     'source' => $data['source'] ?? 'flutter_app',
                     'search_activity_id' => $data['search_activity_id'] ?? null,
                     'search_activity_uuid' => $data['search_activity_uuid'] ?? null,
                     'service_type' => $this->serviceType($data),
+                    'price_id' => $data['price_id'] ?? null,
                     'category_id' => $data['category_id']
                         ?? ($product->category_id ?? null),
                     'product_id' => $product->id ?? null,
                     'base_fare' => $baseFare,
                     'driver_total' => $driverTotal,
+                    'all_inclusive_charge' => (float) ($roundQuote['all_inclusive_charge'] ?? 0),
                     'toll_amount' => $tollAmount,
                     'parking_amount' => $parkingAmount,
                     'state_tax_amount' => $stateTaxAmount,
@@ -188,13 +258,18 @@ class BookingService
                         ?? self::GST_PERCENT
                     ),
                     'gst_amount' => $gstAmount,
+                    'category_options' => $options['items'],
+                    'category_options_total' => $options['total'],
+                    'extra_pickup_address' => in_array('extra_pickup', $optionKeys, true) ? $data['extra_pickup_address'] : null,
+                    'extra_drop_address' => in_array('extra_drop', $optionKeys, true) ? $data['extra_drop_address'] : null,
                     'special_requests' => $special['items'],
                     'special_request_total' => $special['total'],
                     'coupon_discount' => $couponValue,
                     'grand_total' => $grandTotal,
+                    'parking_policy' => 'extra_as_actual',
                     'trip_days' => (int) ($data['trip_days'] ?? 1),
                     'total_km' => $this->numericValue(
-                        $data['total_km']
+                        $data['distance_km'] ?? $data['total_km']
                         ?? data_get($data, 'route_meta.total_km')
                         ?? data_get($data, 'route_meta.distance')
                     ),
@@ -226,6 +301,9 @@ class BookingService
                             fn ($value) => trim((string) $value) !== ''
                         )
                     ),
+                    'fare_type' => $data['fare_type'] ?? 'all_inclusive',
+                    'quantity' => (int) ($data['quantity'] ?? 1),
+                    'pricing_breakdown' => $roundQuote ?? $oneWayQuote,
                     'fare_breakup' => is_array($data['fare_breakup'] ?? null)
                         ? $data['fare_breakup']
                         : [],
@@ -237,7 +315,7 @@ class BookingService
 
                 $orderData = [
                     'user_id' => $userId,
-                    'vehicle_id' => $data['vehicle_id'] ?? null,
+                    'vehicle_id' => ($isPackage || $isRoundTrip) ? null : ($data['vehicle_id'] ?? null),
                     'grand_total' => $grandTotal,
                     'coupon_value' => $couponValue,
                     'coupon_name' => $data['coupon_name']
@@ -247,10 +325,10 @@ class BookingService
                     'payment_method' => $paymentMethod,
                     'payment_status' => $paymentStatus,
                     'total_km' => $this->numericValue(
-                        $data['total_km']
+                        $data['distance_km'] ?? $data['total_km']
                         ?? data_get($data, 'route_meta.total_km')
                         ?? data_get($data, 'route_meta.distance')
-                        ?? ($product->km_limit ?? null)
+                        ?? ($isPackage ? null : ($product->km_limit ?? null))
                     ),
                     'date' => $data['pickup_date'] ?? null,
                     'dateTo' => $data['return_date'] ?? null,
@@ -273,8 +351,8 @@ class BookingService
                     ),
                     'cityFrom' => $data['pickup_city'] ?? null,
                     'cityTo' => $data['drop_city'] ?? null,
-                    'productName' => $product->name
-                        ?? $category->name
+                    'productName' => $category->name
+                        ?? $product->name
                         ?? $data['taxi_type']
                         ?? 'Taxi Booking',
                     'image' => $this->resolveBookingImage(
@@ -296,59 +374,80 @@ class BookingService
                     'updated_at' => now(),
                 ];
 
-                $orderId = DB::table('orders')->insertGetId($orderData);
-                $bookingNo = $this->bookingNumber($orderId);
-
-                if ($this->columnExists('orders', 'booking_no')) {
-                    DB::table('orders')->where('id', $orderId)->update([
-                        'booking_no' => $bookingNo,
-                        'updated_at' => now(),
-                    ]);
+                $type = strtolower((string) ($data['payment_type'] ?? 'advance'));
+                $type = $type === 'token' ? 'advance' : $type;
+                if (! in_array($type, ['advance', 'full'], true)) {
+                    throw new \InvalidArgumentException('Select advance or full payment.');
                 }
-
-                $this->createOrderItem(
-                    $orderId,
-                    $product,
-                    $data,
-                    $baseFare
+                $amount = $type === 'full' ? $grandTotal : min(500.0, $grandTotal);
+                $address = [
+                    'user_id' => $userId, 'email' => $data['email'] ?? null,
+                    'full_name' => $data['name'], 'phone' => $data['mobile'],
+                    'state' => $data['state'] ?? null, 'city' => $data['pickup_city'] ?? null,
+                    'pickup_address' => $data['pickup_address'], 'drop_address' => $data['drop_address'],
+                    'number_travellers' => $data['number_travellers'] ?? null,
+                    'number_luggage' => $data['number_luggage'] ?? null,
+                    'comments' => $data['notes'] ?? null,
+                ];
+                $items = $product ? [[
+                    'product_id' => $product->id, 'quantity' => (int) ($data['quantity'] ?? 1),
+                    'unit_ammount' => $baseFare / max(1, (int) ($data['quantity'] ?? 1)), 'total_ammount' => $baseFare,
+                ]] : [];
+                if ($paymentMethod === 'cash') {
+                    // Cash is a real unpaid booking; never trust client paid flags.
+                    $orderData['payment_status'] = 'pending';
+                    $orderData['status'] = 'new';
+                    $orderId = DB::table('orders')->insertGetId($orderData);
+                    if ($this->columnExists('orders', 'booking_no')) {
+                        DB::table('orders')->where('id', $orderId)->update([
+                            'booking_no' => $this->bookingNumber($orderId),
+                        ]);
+                    }
+                    $this->createOrderItem($orderId, $product, $data, $baseFare);
+                    $this->createAddress($orderId, $userId, $data);
+                    Cache::forget($lockKey);
+                    return ['status' => true, 'message' => 'Cash booking submitted. Payment is pending.',
+                        'data' => array_merge($this->detail($orderId, $userId)['data'], [
+                            'booking_created' => true, 'paid_amount' => 0,
+                            'remaining_amount' => $grandTotal,
+                        ])];
+                }
+                unset($orderData['created_at'], $orderData['updated_at']);
+                $checkout = app(BookingPaymentCheckoutService::class)->stage(
+                    $userId, 'order', ['attributes' => $orderData, 'address' => $address, 'items' => $items],
+                    $grandTotal, $type, $amount
                 );
-
-                $this->createAddress(
-                    $orderId,
-                    $userId,
-                    $data
-                );
-
                 Cache::forget($lockKey);
-
                 return [
-                    'status' => true,
-                    'message' => $isOnline
-                        ? 'Booking created. Please complete payment.'
-                        : 'Booking created successfully.',
-                    'data' => $this->detail($orderId)['data'],
+                    'status' => true, 'message' => 'Checkout ready. Complete payment to create your booking.',
+                    'data' => [
+                        'id' => -(int) $checkout->id, 'booking_id' => -(int) $checkout->id,
+                        'checkout_id' => (int) $checkout->id, 'booking_no' => null,
+                        'booking_source' => 'order', 'booking_created' => false,
+                        'payment_status' => 'pending', 'payment_type' => $type,
+                        'payment_amount' => $amount, 'paid_amount' => 0,
+                        'grand_total' => $grandTotal, 'total_amount' => $grandTotal,
+                        'remaining_amount' => $grandTotal, 'vehicle_name' => $orderData['productName'],
+                        'product_name' => $orderData['productName'],
+                        'price_id' => $data['price_id'] ?? null,
+                        'category_id' => $data['category_id'] ?? null,
+                        'fare_type' => $data['fare_type'] ?? 'all_inclusive',
+                        'category_options' => $options['items'], 'category_options_total' => $options['total'],
+                        'extra_pickup_address' => in_array('extra_pickup', $optionKeys, true) ? $data['extra_pickup_address'] : null,
+                        'extra_drop_address' => in_array('extra_drop', $optionKeys, true) ? $data['extra_drop_address'] : null,
+                        'customer' => ['name' => $data['name'], 'mobile' => $data['mobile'], 'email' => $data['email'] ?? null],
+                    ],
                 ];
             });
 
-            if (
-                ($result['status'] ?? false)
-                && ($result['message'] ?? '') !== 'Booking already submitted.'
-            ) {
-                $bookingData = $result['data'] ?? [];
-
-                $this->recordBookingCreationJourney(
-                    requestData: $data,
-                    bookingData: $bookingData
-                );
-
-                $this->sendBookingNotificationSafely(
-                    event: 'booking_created',
-                    bookingData: $bookingData,
-                    requestData: $data
-                );
+            if (($result['status'] ?? false) && ($result['data']['booking_created'] ?? false)) {
+                $this->recordBookingCreationJourney($data, $result['data']);
+                $this->sendBookingNotificationSafely('booking_created', $result['data'], $data);
             }
-
             return $result;
+        } catch (\InvalidArgumentException $e) {
+            Cache::forget($lockKey);
+            return $this->failure($e->getMessage(), 422);
         } catch (\Throwable $e) {
             Cache::forget($lockKey);
 
@@ -399,8 +498,6 @@ class BookingService
                             'pickup_location' => $order->booking_from,
                             'drop_location' => $order->booking_to,
                             'total_amount' => (float) ($order->grand_total ?? 0),
-                            'paid_amount' => 0.0,
-                            'remaining_amount' => (float) ($order->grand_total ?? 0),
                         ]
                     )
                 )
@@ -513,6 +610,11 @@ class BookingService
             ? DB::table('addresses')->where('order_id', $order->id)->first()
             : null;
 
+        $formatted['customer'] = [
+            'name' => $address->full_name ?? null,
+            'mobile' => $address->phone ?? null,
+            'email' => $address->email ?? null,
+        ];
         return [
             'status' => true,
             'data' => array_merge(
@@ -933,6 +1035,9 @@ class BookingService
         return 'booking_lock_' . md5(json_encode([
             'mobile' => $data['mobile'] ?? null,
             'product_id' => $data['product_id'] ?? null,
+            'user_id' => $data['user_id'] ?? null,
+            'category_id' => $data['category_id'] ?? null,
+            'price_id' => $data['price_id'] ?? null,
             'vehicle_id' => $data['vehicle_id'] ?? null,
             'pickup_date' => $data['pickup_date'] ?? null,
             'pickup_time' => $data['pickup_time'] ?? null,
@@ -967,6 +1072,23 @@ class BookingService
 
     private function resolveBaseFare(array $data, $product): float
     {
+        if (in_array($this->serviceType($data), ['one_way', 'local', 'airport'], true)) {
+            if (! $product) throw new \InvalidArgumentException('This route is unavailable.');
+            if (in_array($this->serviceType($data), ['one_way', 'local'], true) && ($product->ride_type ?? '') !== $this->serviceType($data)) {
+                throw new \InvalidArgumentException('Selected package does not match this booking type.');
+            }
+            if ($this->serviceType($data) === 'local' && isset($data['plan']) && $data['plan'] !== ($product->plan ?? null)) {
+                throw new \InvalidArgumentException('Selected local package changed. Search again.');
+            }
+            $quote = app(FareService::class)->estimate([
+                'route_id' => $product->id,
+                'category_id' => $data['category_id'] ?? $product->category_id ?? null,
+                'price_id' => $data['price_id'] ?? null, 'quantity' => $data['quantity'] ?? 1,
+            ]);
+            $product->category_id = $quote['category']['id'];
+            $product->selected_price_id = $quote['price_id'];
+            return (float) $quote['fare_breakup']['base_fare'];
+        }
         $serverAmount = (float) ($product->price ?? 0);
 
         if ($serverAmount > 0) {
@@ -1051,6 +1173,13 @@ class BookingService
             });
         }
 
+        if ($this->serviceType($data) === 'one_way') {
+            if ($items->count() !== $selectedIds->unique()->count()
+                || (empty($data['special_request_ids']) && ! empty($data['special_requests']))) {
+                throw new \InvalidArgumentException('Selected extras are unavailable. Select them again.');
+            }
+            return ['items' => $items->values()->all(), 'total' => round((float) $items->sum('price'), 2)];
+        }
         if ($items->isEmpty() && is_array($data['special_requests'] ?? null)) {
             $items = collect($data['special_requests'])->map(
                 function ($item): array {
@@ -1207,8 +1336,8 @@ class BookingService
         DB::table('order_items')->insert([
             'order_id' => $orderId,
             'product_id' => $productId,
-            'quantity' => 1,
-            'unit_ammount' => $baseFare,
+            'quantity' => max(1, (int) ($data['quantity'] ?? 1)),
+            'unit_ammount' => $baseFare / max(1, (int) ($data['quantity'] ?? 1)),
             'total_ammount' => $baseFare,
             'created_at' => now(),
             'updated_at' => now(),
@@ -1375,6 +1504,10 @@ class BookingService
             'service_type' => $extra['service_type'] ?? $order->ride_type,
             'taxi_type' => $order->taxi_type,
             'product_name' => $order->productName,
+            'vehicle_name' => $order->productName,
+            'price_id' => $extra['price_id'] ?? null,
+            'parking_policy' => 'extra_as_actual',
+            'fare_type' => $extra['fare_type'] ?? 'all_inclusive',
             'pickup' => $order->booking_from,
             'drop' => $order->booking_to,
             'pickup_city' => $order->cityFrom,
@@ -1403,6 +1536,10 @@ class BookingService
             'gst_amount' => (float) (
                 $extra['gst_amount'] ?? $order->tax ?? 0
             ),
+            'category_options' => $extra['category_options'] ?? [],
+            'category_options_total' => (float) ($extra['category_options_total'] ?? 0),
+            'extra_pickup_address' => $extra['extra_pickup_address'] ?? null,
+            'extra_drop_address' => $extra['extra_drop_address'] ?? null,
             'special_requests' => $extra['special_requests'] ?? [],
             'special_request_total' => (float) (
                 $extra['special_request_total'] ?? 0
@@ -1423,6 +1560,10 @@ class BookingService
             'coupon_value' => (float) ($order->coupon_value ?? 0),
             'payment_method' => $order->payment_method,
             'payment_status' => $order->payment_status,
+            'paid_amount' => (float) ($order->paid_amount ?? $extra['paid_amount'] ?? 0),
+            'advance_amount' => (float) ($order->advance_amount ?? $extra['advance_amount'] ?? 0),
+            'remaining_amount' => max(0, round((float) ($order->grand_total ?? 0)
+                - (float) ($order->paid_amount ?? $extra['paid_amount'] ?? 0), 2)),
             'total_km' => $order->total_km,
             'notes' => $order->notes,
             'created_at' => $order->created_at,

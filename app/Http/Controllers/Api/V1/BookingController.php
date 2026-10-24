@@ -16,9 +16,13 @@ class BookingController extends BaseApiController
         BookingRequest $request,
         BookingService $bookingService
     ) {
-        $result = $bookingService->create(
-            $request->validated()
-        );
+        if (! $request->user()) {
+            return $this->error('Unauthenticated.', 401);
+        }
+        $result = $bookingService->create(array_merge($request->validated(), [
+            'user_id' => (int) $request->user()->id,
+            'customer_id' => (int) $request->user()->id,
+        ]));
 
         if (! ($result['status'] ?? false)) {
             return $this->error(
@@ -124,6 +128,19 @@ class BookingController extends BaseApiController
         ApplyCouponRequest $request,
         CouponService $couponService
     ) {
+        if (in_array($request->input('service_type'), ['one_way', 'round_trip', 'local', 'airport'], true)) {
+            try {
+                $coupon = \App\Services\CustomerCouponDiscount::calculate(
+                    (string) $request->coupon_code, (float) $request->amount
+                );
+                return $this->success([
+                    'coupon_code' => $coupon['code'], 'discount' => $coupon['discount'],
+                    'discount_percentage' => $coupon['percentage'],
+                ], 'Coupon applied successfully.');
+            } catch (\InvalidArgumentException $e) {
+                return $this->error($e->getMessage(), 422);
+            }
+        }
         $result = $couponService->apply(
             $request->coupon_code,
             (float) $request->amount

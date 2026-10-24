@@ -62,7 +62,7 @@ class TaxiController extends Controller
             $categories = $categories->orderBy('id')->limit(12)->get();
 
             $popularRoutes = $this->withDriverProductQuery()
-                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+                ->with('category')
                 ->where('is_active', 1)
                 ->where('in_stock', 1)
                 ->latest('id')
@@ -109,7 +109,7 @@ class TaxiController extends Controller
     {
         try {
             $query = $this->withDriverProductQuery()
-                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+                ->with('category')
                 ->where('is_active', 1)
                 ->where('in_stock', 1);
 
@@ -168,8 +168,19 @@ class TaxiController extends Controller
                 'from' => 'nullable|string|max:255',
                 'to' => 'nullable|string|max:255',
                 'q' => 'nullable|string|max:255',
+                'service_type' => 'nullable|in:one_way,local,airport',
+                'plan' => 'nullable|string|max:120',
+                'quantity' => 'nullable|integer|min:1|max:20',
             ]);
 
+            $serviceType = $request->get('service_type', 'one_way');
+            $durationHr = null;
+            if ($serviceType === 'local') {
+                $request->validate(['pickup_date' => 'required|date', 'pickup_time' => 'required|date_format:H:i',
+                    'return_date' => 'required|date', 'return_time' => 'required|date_format:H:i']);
+                \App\Services\RoundTripFareService::validatePeriod($request->pickup_date, $request->pickup_time, $request->return_date, $request->return_time);
+                $durationHr = (strtotime($request->return_date . ' ' . $request->return_time) - strtotime($request->pickup_date . ' ' . $request->pickup_time)) / 3600;
+            }
             $from = trim((string) $request->get('from', ''));
             $to = trim((string) $request->get('to', ''));
             $q = trim((string) $request->get('q', ''));
@@ -179,9 +190,11 @@ class TaxiController extends Controller
             $qTerms = $this->extractSearchTerms($q);
 
             $routes = $this->withDriverProductQuery()
-                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+                ->with('category')
                 ->where('is_active', 1)
                 ->where('in_stock', 1)
+                ->where('ride_type', $serviceType)
+                ->when($request->filled('plan'), fn ($query) => $query->where('plan', $request->get('plan')))
                 ->orderBy('price')
                 ->limit(1000)
                 ->get();
@@ -195,22 +208,31 @@ class TaxiController extends Controller
             }
 
             $prices = Price::query()
-                ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+                ->with('category')
                 ->where('product_id', $matchedRoute->id)
+                ->whereHas('category', fn ($query) => $query->where('is_active', 1))
                 ->orderBy('price')
                 ->get();
 
             if ($prices->isEmpty()) {
+                if (Price::query()->where('product_id', $matchedRoute->id)->exists()
+                    || ! $matchedRoute->category || ! $matchedRoute->category->is_active) {
+                    return $this->success([], 'No available category for this route.');
+                }
                 return $this->success([
-                    $this->formatRoute($matchedRoute),
+                    $this->formatRoute($matchedRoute, (int) $request->get('quantity', 1), $durationHr),
                 ], 'Route search completed');
             }
 
-            $vehicles = $prices->map(function ($price) use ($matchedRoute) {
-                return $this->formatPriceVehicle($matchedRoute, $price);
+            $vehicles = $prices->map(function ($price) use ($matchedRoute, $request, $durationHr) {
+                return $this->formatPriceVehicle($matchedRoute, $price, (int) $request->get('quantity', 1), $durationHr);
             })->values();
 
             return $this->success($vehicles, 'Route search completed');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->error($e->validator->errors()->first(), 422, $e->errors());
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
         } catch (\Throwable $e) {
             Log::error('Route search API error', [
                 'error' => $e->getMessage(),
@@ -225,7 +247,7 @@ class TaxiController extends Controller
     public function popularDestinations()
     {
         $routes = $this->withDriverProductQuery()
-            ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+            ->with('category')
             ->where('is_active', 1)
             ->where('in_stock', 1)
             ->latest('id')
@@ -239,7 +261,7 @@ class TaxiController extends Controller
     public function airportRoutes()
     {
         $routes = $this->withDriverProductQuery()
-            ->with('category:id,name,slug,model,passanger_capacity,luggage_capacity,image')
+            ->with('category')
             ->where('is_active', 1)
             ->where('in_stock', 1)
             ->where(function ($q) {
@@ -289,6 +311,9 @@ class TaxiController extends Controller
             'locations.*.name' => 'required|string',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
+            'start_time' => 'required|date_format:H:i',
+            'end_time' => 'required|date_format:H:i',
+            'fare_type' => 'nullable|in:normal,all_inclusive',
         ]);
 
         if ($validator->fails()) {
@@ -425,7 +450,29 @@ class TaxiController extends Controller
         return trim(preg_replace('/\s+/', ' ', $value));
     }
 
-    private function formatPriceVehicle($route, $price): array
+    private function withCanonicalOneWayFare(array $row): array
+    {
+        if (! in_array($row['ride_type'] ?? '', ['one_way', 'local', 'airport'], true)) return $row;
+        $quote = app(FareService::class)->estimate([
+            'route_id' => $row['product_id'], 'category_id' => $row['category_id'],
+            'price_id' => $row['price_id'] ?? null, 'quantity' => $row['quantity'] ?? 1, 'duration_hr' => $row['duration_hr'] ?? null,
+        ]);
+        return array_merge($row, [
+            'price' => $quote['total_fare'], 'grand_total' => $quote['total_fare'],
+            'estimated_fare' => $quote['total_fare'],
+            'base_fare' => $quote['fare_breakup']['base_fare'],
+            'fare_breakup' => $quote['fare_breakup'],
+            'price_id' => $quote['price_id'],
+            'vehicle_name' => $quote['category']['name'],
+            'km_limit' => $quote['fare_breakup']['km_limit'], 'hr_limit' => $quote['fare_breakup']['hr_limit'],
+            'extra_km_charge' => $quote['fare_breakup']['extra_km_charge'],
+            'extra_hr_charge' => $quote['fare_breakup']['extra_hr_charge'],
+            'distance_km' => $quote['distance_km'], 'duration_hr' => $quote['duration_hr'],
+            'parking_policy' => $quote['parking_policy'],
+        ]);
+    }
+
+    private function formatPriceVehicle($route, $price, int $quantity = 1, ?float $durationHr = null): array
     {
         [$fromCity, $toCity] = $this->splitRouteName($route->name);
 
@@ -441,12 +488,14 @@ class TaxiController extends Controller
             ? ($productImage ?: $categoryImage)
             : ($categoryImage ?: $productImage);
 
-        return [
+        return $this->withCanonicalOneWayFare([
             'id' => $route->id . '-' . $price->category_id,
+            'quantity' => $quantity, 'duration_hr' => $durationHr,
             'product_id' => $route->id,
             'route_id' => $route->id,
             'price_id' => $price->id ?? null,
             'category_id' => $price->category_id,
+            'booking_options' => \App\Services\CategoryBookingOptions::available($price->category),
 
             'category' => $price->category ? [
                 'id' => $price->category->id,
@@ -488,10 +537,10 @@ class TaxiController extends Controller
             'eta' => '15 min',
             'badge' => '',
             'instant_confirm' => true,
-        ];
+        ]);
     }
 
-    private function formatRoute($route): array
+    private function formatRoute($route, int $quantity = 1, ?float $durationHr = null): array
     {
         [$fromCity, $toCity] = $this->splitRouteName($route->name);
 
@@ -507,11 +556,13 @@ class TaxiController extends Controller
             ? ($productImage ?: $categoryImage)
             : ($categoryImage ?: $productImage);
 
-        return [
+        return $this->withCanonicalOneWayFare([
             'id' => $route->id,
+            'quantity' => $quantity, 'duration_hr' => $durationHr,
             'product_id' => $route->id,
             'route_id' => $route->id,
             'category_id' => $route->category_id,
+            'booking_options' => \App\Services\CategoryBookingOptions::available($route->category),
 
             'category' => $route->category ? [
                 'id' => $route->category->id,
@@ -553,7 +604,7 @@ class TaxiController extends Controller
             'eta' => '15 min',
             'badge' => '',
             'instant_confirm' => true,
-        ];
+        ]);
     }
 
     private function splitRouteName(?string $name): array

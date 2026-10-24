@@ -54,6 +54,7 @@ class RidesPage extends Component
 
     #[Url(history: true)]
     public $days;
+    public ?string $roundTripError = null;
 
     #[Url(history: true)]
     public $nameFrom;
@@ -574,6 +575,34 @@ class RidesPage extends Component
                     ],
                     'created_at' => now()->toIso8601String(),
                 ]);
+            } elseif ($bookingType === 'return') {
+                $categoryId = (int) ($legacyPayload[0] ?? $resolvedSelectionId);
+                $fareType = (string) ($legacyPayload[12] ?? 'all_inclusive');
+                $route = $this->multiCityRoute();
+                $quote = \App\Services\RoundTripFareService::bookingQuote([
+                    'category_id' => $categoryId, 'locations' => $route,
+                    'start_date' => (string) $this->date, 'start_time' => (string) $this->time,
+                    'end_date' => (string) $this->dateto, 'end_time' => (string) $this->endTime,
+                    'fare_type' => $fareType, 'quantity' => $quantity,
+                ]);
+                session()->put('booking_draft', [
+                    'version' => 2, 'type' => 'return', 'source' => 'rides_page',
+                    'selection_id' => $categoryId, 'category_id' => $categoryId, 'product_id' => null,
+                    'trip' => ['pickup_name' => $route[0], 'drop_name' => $route[1],
+                        'date' => (string) $this->date, 'time' => (string) $this->time,
+                        'end_date' => (string) $this->dateto, 'end_time' => (string) $this->endTime,
+                        'days' => $quote['trip_days'], 'km' => $quote['billable_km'],
+                        'km_value' => $quote['total_km'] * 1000, 'route' => $route,
+                        'return_to_pickup' => true, 'quantity' => $quantity, 'fare_type' => $fareType],
+                    'fare' => array_merge($quote['fare_breakup'], [
+                        'category_id' => $categoryId, 'unit_price' => $quote['grand_total'] / $quantity,
+                        'total' => $quote['grand_total'], 'subtotal' => $quote['grand_total'],
+                        'fare_type' => $fareType, 'quantity' => $quantity,
+                        'parking_policy' => 'pay_direct_as_actual']),
+                    'product' => ['id' => null, 'name' => $quote['name'],
+                        'category_id' => $categoryId, 'category_name' => $quote['name'], 'ride_type' => 'round_trip'],
+                    'created_at' => now()->toIso8601String(),
+                ]);
             } else {
                 if (in_array($bookingType, ['one_way', 'local'], true)) {
                     if (! is_numeric($resolvedSelectionId) || (int) $resolvedSelectionId <= 0) {
@@ -664,6 +693,15 @@ class RidesPage extends Component
                     ? (int) $selectedCategoryId
                     : (int) ($selectedPrice?->category_id ?? 0);
 
+                if (in_array($bookingType, ['one_way', 'local'], true)) {
+                    $canonical = app(\App\Services\FareService::class)->estimate([
+                        'route_id' => $product->id, 'category_id' => $selectedCategoryId,
+                        'price_id' => $selectedPrice?->id, 'quantity' => $quantity,
+                    ]);
+                    $unitPrice = (float) $canonical['total_fare'] / $quantity;
+                    $selectedCategoryName = $canonical['category']['name'];
+                    $selectedProductName = $canonical['category']['name'];
+                }
                 $subtotal = $unitPrice * $quantity;
 
                 session()->put('booking_draft', [
@@ -686,8 +724,8 @@ class RidesPage extends Component
                         'drop_name' => (string) ($this->nameFrom ?: $dropCity?->name),
                         'date' => (string) $this->date,
                         'time' => (string) $this->time,
-                        'end_date' => $bookingType === 'return' ? (string) $this->dateto : null,
-                        'end_time' => $bookingType === 'return' ? (string) $this->endTime : null,
+                        'end_date' => in_array($bookingType, ['return', 'local'], true) ? (string) $this->dateto : null,
+                        'end_time' => in_array($bookingType, ['return', 'local'], true) ? (string) $this->endTime : null,
                         'days' => $bookingType === 'return' ? $this->days : null,
                         'km' => $bookingType === 'return' ? $this->km : null,
                         'km_value' => $bookingType === 'return' ? $this->kmValue : null,
@@ -1643,7 +1681,8 @@ class RidesPage extends Component
                 return array_merge($baseRules, [
                     'edit_queryFrom_search' => 'required',
                     'edit_queryTo_search' => 'required',
-                    'edit_dateto' => 'required|date|after:edit_date',
+                    'edit_dateto' => 'required|date|after_or_equal:edit_date',
+                    'edit_endTime' => 'required|date_format:H:i',
                 ]);
             case 'local':
                 return array_merge($baseRules, [
@@ -1681,6 +1720,7 @@ class RidesPage extends Component
                 $params['nameTo'] = $this->edit_queryFrom_search;
                 $params['cityFrom'] = $this->edit_queryTo_search;
                 $params['dateto'] = $this->edit_dateto;
+                $params['endTime'] = $this->edit_endTime;
                 $params['km'] = $this->edit_km;
                 $params['kmValue'] = $this->edit_kmValue;
                 $params['timeValue'] = $this->edit_timeValue;
@@ -2035,16 +2075,20 @@ class RidesPage extends Component
             ->where('is_active', 1)
             ->orderBy('name')
             ->get());
-        $returnCategories = Cache::remember('rides:return-categories', now()->addMinutes(30), fn () => Category::query()
-            ->select(['id', 'name', 'slug', 'image', 'km_charge', 'driver_charge', 'range', 'new_vehicle', 'pet_friendly', 'roof_career'])
-            ->where('in_return', 1)
-            ->get());
+        $returnCategories = \App\Services\RoundTripFareService::returnTripCategories();
+        $this->roundTripError = null;
+        if ($this->tab === 'return') {
+            try {
+                \App\Services\RoundTripFareService::validatePeriod((string) $this->date, (string) $this->time, (string) $this->dateto, (string) $this->endTime);
+                $routeInfo = \App\Services\RoundTripFareService::routeInfo($this->multiCityRoute());
+                $this->kmValue = $routeInfo['total_km'] * 1000;
+                $this->days = \App\Services\RoundTripFareService::tripDays((string) $this->date, (string) $this->dateto);
+            } catch (\InvalidArgumentException $e) {
+                $this->roundTripError = $e->getMessage();
+                $returnCategories = collect();
+            }
+        }
 
-        /*
-         * Round Trip cards are rendered from Category records, not from
-         * $ridesQuery. Therefore the main Product sorting never affected these
-         * cards. Sort the exact displayed Normal Fare here.
-         */
         if ($this->tab === 'return') {
             $actualRouteKm = max(0, (float) $this->kmValue / 1000);
             $tripDays = max(1, (int) $this->days);
@@ -2053,21 +2097,7 @@ class RidesPage extends Component
                 $actualRouteKm,
                 $tripDays
             ): float {
-                $minimumBillableKm =
-                    $tripDays * max(0, (float) ($category->range ?? 0));
-
-                $billableKm = max(
-                    $actualRouteKm,
-                    $minimumBillableKm
-                );
-
-                $vehicleFare =
-                    $billableKm * max(0, (float) ($category->km_charge ?? 0));
-
-                $driverAllowance =
-                    $tripDays * max(0, (float) ($category->driver_charge ?? 0));
-
-                return round($vehicleFare + $driverAllowance, 2);
+                return \App\Services\RoundTripFareService::categoryQuote($category, $actualRouteKm, $tripDays, 'all_inclusive')['grand_total'];
             };
 
             $returnCategories = $this->sort === 'latest'

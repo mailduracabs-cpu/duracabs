@@ -32,6 +32,10 @@ class CheckoutPage extends Component
     public $email;
     public $pickup_address;
     public $drop_address;
+    public string $extra_pickup_address = '';
+    public string $extra_drop_address = '';
+    public string $return_date = '';
+    public string $return_time = '';
     public $number_travellers;
     public $number_luggage;
     public $comments;
@@ -72,6 +76,8 @@ class CheckoutPage extends Component
             return redirect('/');
         }
 
+        $this->return_date = (string) data_get($this->bookingDraft, 'trip.end_date', '');
+        $this->return_time = (string) data_get($this->bookingDraft, 'trip.end_time', '');
         $this->prefillCustomerDetails();
         $this->configureExtraOptions();
         $this->recalculateTotals();
@@ -217,7 +223,7 @@ class CheckoutPage extends Component
                     ->first();
             }
 
-            if ($productId <= 0 || $categoryId <= 0 || ! $price) {
+            if ($productId <= 0 || $categoryId <= 0 || (! $price && Price::query()->where('product_id', $productId)->exists())) {
                 throw new \RuntimeException('Selected One Way vehicle fare is no longer available.');
             }
 
@@ -228,9 +234,18 @@ class CheckoutPage extends Component
                 ->pluck('type')
                 ->all();
 
+            $category = Category::query()->find($categoryId);
+            \App\Services\CategoryBookingOptions::selected($category, $selected);
+            $this->extraAmountArr = array_map(static fn (array $option): array => [
+                'is_checked' => in_array($option['key'], $selected, true),
+                'type' => $option['key'], 'title' => $option['name'], 'price' => $option['price'],
+                'description' => $option['main_route_only'] ? 'Available only on the main route.' : 'Subject to vehicle suitability.',
+            ], \App\Services\CategoryBookingOptions::available($category));
+
             $payload = [
                 'route_id' => $productId,
                 'category_id' => $categoryId,
+                'price_id' => $price?->id, 'quantity' => (int) ($trip['quantity'] ?? 1),
                 'pat_selected' => in_array('pet_friendly', $selected, true),
                 'roof_carrier_selected' => in_array('roof_carrier', $selected, true),
                 'extra_pickup_selected' => in_array('extra_pickup', $selected, true),
@@ -259,9 +274,10 @@ class CheckoutPage extends Component
             $this->extraTotal = $this->totalPrice;
 
             $beforeDiscount = $this->money($pricing['total_fare'] ?? 0);
-            $this->discountAmount = $this->couponData
-                ? round(($this->money($this->couponData) / 100) * $beforeDiscount, 2)
-                : 0.0;
+            $coupon = \App\Services\CustomerCouponDiscount::calculate((string) $this->couponName, $beforeDiscount);
+            $this->discountAmount = $coupon['discount'];
+            $this->couponData = $coupon['percentage'];
+            $this->couponValue = $coupon['percentage'];
 
             $this->grandTotal = $this->money($beforeDiscount - $this->discountAmount);
 
@@ -278,26 +294,74 @@ class CheckoutPage extends Component
     /**
      * Existing taxi calculation is kept unchanged to protect the live taxi flow.
      */
+    public function updatedReturnDate(): void { $this->recalculateTotals(); }
+    public function updatedReturnTime(): void { $this->recalculateTotals(); }
+
     private function recalculateTaxiTotals(): float
     {
-        $this->pricingBreakdown = [];
-        $this->security = 0;
-
-        $baseFare = $this->getLegacyBaseFare();
-        $this->tollTax = (float) Arr::get($this->bookingDraft, 'fare.toll', 0);
-        $this->extraTotal = $this->totalPrice;
-
-        $taxableAmount = $baseFare + $this->tollTax + $this->extraTotal;
-        $this->taxAmount = round(0.05 * $taxableAmount, 2);
-        $beforeDiscount = $taxableAmount + $this->taxAmount;
-
-        $this->discountAmount = $this->couponData
-            ? round(((float) $this->couponData / 100) * $beforeDiscount, 2)
-            : 0;
-
-        $this->grandTotal = max(0, round($beforeDiscount - $this->discountAmount, 2));
-
-        return (float) $this->grandTotal;
+        $type = $this->bookingDraft['type'] ?? '';
+        if (! in_array($type, ['return', 'round_trip', 'local'], true)) {
+            $this->pricingError = 'This booking type needs a fresh supported quote.';
+            $this->resetCalculatedAmounts();
+            return 0;
+        }
+        try {
+            $trip = (array) ($this->bookingDraft['trip'] ?? []);
+            $fare = (array) ($this->bookingDraft['fare'] ?? []);
+            $categoryId = (int) ($fare['category_id'] ?? data_get($this->bookingDraft, 'product.category_id') ?? 0);
+            $category = Category::query()->where('is_active', 1)->find($categoryId);
+            if (! $category) throw new \InvalidArgumentException('Selected category is unavailable.');
+            $selected = collect($this->extraAmountArr)->where('is_checked', true)->pluck('type')->all();
+            $options = \App\Services\CategoryBookingOptions::selected($category, $selected);
+            $this->extraAmountArr = array_map(static fn ($option) => [
+                'is_checked' => in_array($option['key'], $selected, true), 'type' => $option['key'],
+                'title' => $option['name'], 'price' => $option['price'],
+                'description' => $option['main_route_only'] ? 'On the main route only.' : 'Subject to vehicle suitability.',
+            ], \App\Services\CategoryBookingOptions::available($category));
+            $quantity = max(1, (int) ($trip['quantity'] ?? $fare['quantity'] ?? 1));
+            $trip['end_date'] = $this->return_date;
+            $trip['end_time'] = $this->return_time;
+            if ($type === 'local') {
+                if ($this->return_date !== '' && $this->return_time !== '') {
+                    \App\Services\RoundTripFareService::validatePeriod($trip['date'] ?? null, $trip['time'] ?? null, $this->return_date, $this->return_time);
+                }
+                $quote = app(FareService::class)->estimate([
+                    'route_id' => $this->bookingDraft['product_id'], 'category_id' => $categoryId,
+                    'price_id' => $fare['price_id'] ?? null, 'quantity' => $quantity,
+                    'duration_hr' => $this->return_date !== '' && $this->return_time !== ''
+                        ? (strtotime($this->return_date . ' ' . $this->return_time) - strtotime($trip['date'] . ' ' . $trip['time'])) / 3600 : null,
+                ]);
+                $before = (float) $quote['total_fare'] + $options['total'];
+            } else {
+                $quote = \App\Services\RoundTripFareService::bookingQuote([
+                    'category_id' => $categoryId, 'locations' => $trip['route'] ?? [],
+                    'start_date' => $trip['date'] ?? null, 'start_time' => $trip['time'] ?? null,
+                    'end_date' => $this->return_date, 'end_time' => $this->return_time,
+                    'fare_type' => $fare['fare_type'] ?? 'all_inclusive', 'quantity' => $quantity,
+                ]);
+                $before = (float) $quote['grand_total'] + $options['total'];
+                $trip['days'] = $quote['trip_days']; $trip['km'] = $quote['billable_km'];
+                $trip['km_value'] = $quote['total_km'] * 1000;
+            }
+            $this->pricingBreakdown = $quote;
+            $this->tollTax = 0;
+            $this->security = 0;
+            $this->taxAmount = (float) data_get($quote, 'fare_breakup.gst_amount', 0);
+            $this->extraTotal = $options['total'];
+            $coupon = \App\Services\CustomerCouponDiscount::calculate((string) $this->couponName, $before);
+            $this->discountAmount = $coupon['discount'];
+            $this->grandTotal = $this->money($before - $this->discountAmount);
+            $this->bookingDraft['trip'] = $trip;
+            $this->bookingDraft['fare'] = array_merge($fare, $quote['fare_breakup'], [
+                'total' => $type === 'local' ? $quote['total_fare'] : $quote['grand_total'],
+                'parking_policy' => 'pay_direct_as_actual',
+            ]);
+            session()->put('booking_draft', $this->bookingDraft);
+            return (float) $this->grandTotal;
+        } catch (\InvalidArgumentException $e) {
+            $this->resetCalculatedAmounts(); $this->pricingError = $e->getMessage();
+            return 0;
+        }
     }
 
     /**
@@ -423,9 +487,17 @@ class CheckoutPage extends Component
         $this->isSubmitting = true;
 
         try {
+            foreach (['phone', 'phone2'] as $field) {
+                if ($field === 'phone2' && trim((string) $this->$field) === '') continue;
+                try {
+                    $this->$field = \App\Services\CustomerPhoneNumber::normalize((string) $this->$field);
+                } catch (\InvalidArgumentException $e) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([$field => $e->getMessage()]);
+                }
+            }
             $rules = [
                 'full_name' => 'required|string|max:150',
-                'phone' => 'required|digits:10',
+                'phone' => ['required', 'string', 'regex:/^(?:[0-9]{10}|\+[1-9][0-9]{6,14})$/D'],
                 'email' => 'required|email|max:150',
             ];
 
@@ -434,13 +506,24 @@ class CheckoutPage extends Component
                 $rules['payment_method'] = 'required|in:RazorPay';
             } else {
                 $rules += [
-                    'phone2' => 'nullable|digits:10',
+                    'phone2' => ['nullable', 'string', 'regex:/^(?:[0-9]{10}|\+[1-9][0-9]{6,14})$/D'],
                     'pickup_address' => 'required|string|max:500',
                     'drop_address' => 'nullable|string|max:500',
                     'payment_method' => 'required|in:cash,RazorPay',
                 ];
             }
 
+            if (! $this->isSelfDriveBooking()) {
+                $selected = collect($this->extraAmountArr)->where('is_checked', true)->pluck('type')->all();
+                foreach (['extra_pickup', 'extra_drop'] as $key) {
+                    $rules[$key . '_address'] = in_array($key, $selected, true)
+                        ? 'required|string|max:500' : 'nullable|string|max:500';
+                }
+            }
+            if (in_array($this->bookingDraft['type'] ?? '', ['return', 'round_trip', 'local'], true)) {
+                $rules['return_date'] = 'required|date';
+                $rules['return_time'] = 'required|date_format:H:i';
+            }
             $this->validate($rules);
         } catch (Throwable $exception) {
             $this->isSubmitting = false;
@@ -543,6 +626,7 @@ class CheckoutPage extends Component
                 ? $this->money($this->pricingBreakdown['rate'] ?? 0)
                 : (float) ($fare['unit_price'] ?? 0);
             $baseFare = $this->getBaseFare();
+            if (! $this->isSelfDriveBooking()) $unitAmount = $baseFare / $quantity;
 
             $order = new Order();
             $order->user_id = auth()->id();
@@ -556,20 +640,22 @@ class CheckoutPage extends Component
             $order->notes = 'Order placed by ' . (auth()->user()?->name ?: $this->full_name);
             $order->coupon_value = $this->discountAmount;
             $order->coupon_name = $this->couponName ?: null;
-            $order->ride_type = $rideType;
+            $order->ride_type = $rideType === 'return' ? 'round_trip' : $rideType;
             $order->cityFrom = $trip['pickup_name'] ?? null;
             $order->cityTo = $trip['drop_name'] ?? ($trip['pickup_name'] ?? null);
             $order->date = $this->nullIfEmpty($trip['date'] ?? null);
-            $order->dateTo = $this->nullIfEmpty($trip['end_date'] ?? null);
+            $order->dateTo = $this->isOneWayBooking() ? null : $this->nullIfEmpty($trip['end_date'] ?? null);
             $order->time = $this->nullIfEmpty($trip['time'] ?? null);
-            $order->endTime = $this->nullIfEmpty($trip['end_time'] ?? null);
+            $order->endTime = $this->isOneWayBooking() ? null : $this->nullIfEmpty($trip['end_time'] ?? null);
             $order->booking_from = $this->isSelfDriveBooking()
                 ? 'Pending customer profile completion'
                 : $this->pickup_address;
             $order->booking_to = $this->isSelfDriveBooking()
                 ? null
                 : ($this->drop_address ?: null);
-            $order->productName = $product['name'] ?? $vehicle['name'] ?? 'Dura Cabs Booking';
+            $order->productName = ! $this->isSelfDriveBooking()
+                ? (data_get($this->pricingBreakdown, 'category.name') ?? $product['category_name'] ?? 'Taxi')
+                : ($product['name'] ?? $vehicle['name'] ?? 'Dura Cabs Booking');
             $order->taxi_type = $product['category_name'] ?? null;
             $order->total_km = $trip['km_value'] ?? $trip['km'] ?? null;
             $order->plan = $this->normalisePlan($trip['plan'] ?? null);
@@ -601,6 +687,20 @@ class CheckoutPage extends Component
                         ->where('is_checked', true)
                         ->values()
                         ->all(),
+                    'category_options' => collect($this->extraAmountArr)->where('is_checked', true)
+                        ->filter(fn (array $option): bool => in_array($option['type'] ?? '', ['pet_friendly', 'roof_carrier', 'extra_pickup', 'extra_drop'], true))
+                        ->map(fn (array $option): array => ['key' => $option['type'], 'name' => $option['title'], 'price' => $option['price']])->values()->all(),
+                    'extra_pickup_address' => collect($this->extraAmountArr)->contains(fn ($option) => ($option['type'] ?? '') === 'extra_pickup' && ($option['is_checked'] ?? false)) ? $this->extra_pickup_address : null,
+                    'extra_drop_address' => collect($this->extraAmountArr)->contains(fn ($option) => ($option['type'] ?? '') === 'extra_drop' && ($option['is_checked'] ?? false)) ? $this->extra_drop_address : null,
+                    'service_type' => $rideType === 'return' ? 'round_trip' : $rideType,
+                    'fare_type' => $fare['fare_type'] ?? 'all_inclusive',
+                    'driver_total' => $this->pricingBreakdown['driver_total'] ?? 0,
+                    'all_inclusive_charge' => $this->pricingBreakdown['all_inclusive_charge'] ?? 0,
+                    'parking_policy' => 'extra_as_actual',
+                    'category_id' => data_get($this->pricingBreakdown, 'category.id') ?? ($fare['category_id'] ?? null),
+                    'price_id' => $this->pricingBreakdown['price_id'] ?? ($fare['price_id'] ?? null),
+                    'product_id' => $draft['product_id'] ?? ($product['id'] ?? null),
+                    'category_options_total' => $this->pricingBreakdown['category_options_total'] ?? 0,
                     'base_fare' => $baseFare,
                     'toll_tax' => $this->tollTax,
                     'security_deposit' => $this->security,
@@ -708,20 +808,22 @@ class CheckoutPage extends Component
      * One Way checkout add-ons are controlled from the selected Cab Category.
      * This keeps all vehicle-specific charges in one admin screen.
      */
-    if ($type === 'one_way') {
+    if (in_array($type, ['one_way', 'return', 'round_trip', 'local'], true)) {
         $productId = (int) (
             $this->bookingDraft['product_id']
             ?? data_get($this->bookingDraft, 'product.id')
             ?? 0
         );
 
-        $selectionId = (int) ($this->bookingDraft['selection_id'] ?? 0);
+        $selectionId = (int) (data_get($this->bookingDraft, 'fare.price_id') ?? $this->bookingDraft['selection_id'] ?? 0);
         $price = ($productId > 0 && $selectionId > 0)
             ? Price::query()->where('product_id', $productId)->find($selectionId)
             : null;
 
         $categoryId = (int) (
-            $price?->category_id
+            data_get($this->bookingDraft, 'fare.category_id')
+            ?? data_get($this->bookingDraft, 'product.category_id')
+            ?? $price?->category_id
             ?? data_get($this->bookingDraft, 'fare.breakup.category_id')
             ?? 0
         );
@@ -735,36 +837,11 @@ class CheckoutPage extends Component
             return;
         }
 
-        $this->extraAmountArr = [
-            [
-                'is_checked' => false,
-                'type' => 'pet_friendly',
-                'title' => 'Pet Friendly',
-                'description' => 'Travel with your pet. Subject to vehicle suitability.',
-                'price' => $this->optionPrice($category->pet_friendly_charge ?? 0),
-            ],
-            [
-                'is_checked' => false,
-                'type' => 'roof_carrier',
-                'title' => 'Roof Carrier',
-                'description' => 'Roof carrier request for additional luggage.',
-                'price' => $this->optionPrice($category->roof_carrier_charge ?? 0),
-            ],
-            [
-                'is_checked' => false,
-                'type' => 'extra_pickup',
-                'title' => 'Extra Pickup',
-                'description' => 'Available only when the additional pickup is on the main route.',
-                'price' => $this->optionPrice($category->extra_pickup_charge ?? 0),
-            ],
-            [
-                'is_checked' => false,
-                'type' => 'extra_drop',
-                'title' => 'Extra Drop',
-                'description' => 'Available only when the additional drop is on the main route.',
-                'price' => $this->optionPrice($category->extra_drop_charge ?? 0),
-            ],
-        ];
+        $this->extraAmountArr = array_map(static fn (array $option): array => [
+            'is_checked' => false, 'type' => $option['key'], 'title' => $option['name'],
+            'description' => $option['main_route_only'] ? 'Available only on the main route.' : 'Subject to vehicle suitability.',
+            'price' => $option['price'],
+        ], \App\Services\CategoryBookingOptions::available($category));
 
         return;
     }
@@ -961,7 +1038,7 @@ class CheckoutPage extends Component
             return $this->money($this->pricingBreakdown['rent'] ?? 0);
         }
 
-        if ($this->isOneWayBooking() && $this->pricingBreakdown !== []) {
+        if (! $this->isSelfDriveBooking() && $this->pricingBreakdown !== []) {
             return $this->money(data_get($this->pricingBreakdown, 'fare_breakup.base_fare', 0));
         }
 

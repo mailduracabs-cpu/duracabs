@@ -626,73 +626,32 @@
                                 </div>
                             @endunless
 
+                            @if ($this->roundTripError)
+                                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{{ $this->roundTripError }} Please use Modify Search to select the missing date/time or retry the route.</div>
+                            @endif
                             @foreach ($categories2 as $category)
                                 @php
-                                    $actualRouteKm = max(
-                                        0,
-                                        (float) $kmValue / 1000
-                                    );
-
-                                    $tripDays = max(
-                                        1,
-                                        (int) $days
-                                    );
-
-                                    $minimumKmPerDay = max(
-                                        0,
-                                        (float) ($category->range ?? 0)
-                                    );
-
-                                    $minimumBillableKm =
-                                        $tripDays * $minimumKmPerDay;
-
-                                    $billableKm = max(
-                                        $actualRouteKm,
-                                        $minimumBillableKm
-                                    );
-
-                                    $kmRate = max(
-                                        0,
-                                        (float) ($category->km_charge ?? 0)
-                                    );
-
-                                    $driverAllowancePerDay = max(
-                                        0,
-                                        (float) ($category->driver_charge ?? 0)
-                                    );
-
-                                    $vehicleFare = round(
-                                        $billableKm * $kmRate
-                                    );
-
-                                    $driverAllowance = round(
-                                        $tripDays * $driverAllowancePerDay
-                                    );
-
-                                    $normalGrandTotal =
-                                        $vehicleFare + $driverAllowance;
-
-                                    /*
-                                     * Final approved business rule:
-                                     * All Inclusive = ₹3 per billable kilometre.
-                                     * It includes Driver Allowance, Toll Tax and State Tax.
-                                     * Parking remains payable directly as per actual charges.
-                                     */
-                                    $allInclusiveRate = 3;
-
-                                    $allInclusiveCharge = round(
-                                        $billableKm * $allInclusiveRate
-                                    );
-
-                                    $allInclusiveGrandTotal =
-                                        $vehicleFare + $allInclusiveCharge;
+                                    $tripDays = max(1, (int) $days);
+                                    $roundQuote = \App\Services\RoundTripFareService::categoryQuote($category, (float) $kmValue / 1000, $tripDays, 'all_inclusive', max(1, (int) $cars));
+                                    $actualRouteKm = $roundQuote['total_km'];
+                                    $minimumKmPerDay = $roundQuote['minimum_km_per_day'];
+                                    $minimumBillableKm = $roundQuote['minimum_km'];
+                                    $billableKm = $roundQuote['billable_km'];
+                                    $kmRate = $roundQuote['km_charge'];
+                                    $driverAllowancePerDay = $roundQuote['driver_charge_per_day'];
+                                    $vehicleFare = $roundQuote['base_fare'];
+                                    $driverAllowance = $roundQuote['driver_allowance'];
+                                    $normalGrandTotal = $roundQuote['normal_total'];
+                                    $allInclusiveRate = $roundQuote['all_inclusive_rate'];
+                                    $allInclusiveCharge = $roundQuote['all_inclusive_charge'];
+                                    $allInclusiveGrandTotal = $roundQuote['all_inclusive_total'];
                                 @endphp
 
                                 <article
                                     wire:key="return-category-{{ $category->id }}"
                                     class="ride-package-card"
                                     x-data="{
-                                        allInclusive: false,
+                                        allInclusive: true,
                                         fareDetailsOpen: false,
                                         normalTotal: {{ $normalGrandTotal }},
                                         inclusiveTotal: {{ $allInclusiveGrandTotal }}
@@ -2041,6 +2000,11 @@
                                 <input type="time" wire:model="edit_time"
                                     class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-900 outline-none focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
                                 @error('edit_time') <p class="mt-1 text-xs font-semibold text-red-600">{{ $message }}</p> @enderror
+                            </div>
+                            <div>
+                                <label class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-600">Return Time</label>
+                                <input type="time" wire:model="edit_endTime" class="h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold">
+                                @error('edit_endTime') <p class="mt-1 text-xs text-red-600">{{ $message }}</p> @enderror
                             </div>
                         </div>
 

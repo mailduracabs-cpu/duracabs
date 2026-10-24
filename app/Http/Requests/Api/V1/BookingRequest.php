@@ -15,15 +15,14 @@ class BookingRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
-        $mobile = preg_replace(
-            '/\D+/',
-            '',
-            (string) (
-                $this->input('mobile')
-                ?? $this->input('customer_mobile')
-                ?? ''
-            )
-        );
+        try {
+            $mobile = \App\Services\CustomerPhoneNumber::normalize(
+                (string) ($this->input('mobile') ?: $this->input('customer_mobile', '')),
+                $this->input('country_code')
+            );
+        } catch (\InvalidArgumentException $e) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['mobile' => $e->getMessage()]);
+        }
 
         $rideType = strtolower(
             trim((string) (
@@ -73,12 +72,27 @@ class BookingRequest extends FormRequest
             'name' => ['required', 'string', 'max:120'],
             'customer_name' => ['nullable', 'string', 'max:120'],
 
-            'mobile' => ['required', 'digits:10'],
+            'mobile' => ['required', 'string', 'regex:/^(?:[0-9]{10}|\+[1-9][0-9]{6,14})$/D'],
             'customer_mobile' => ['nullable', 'string', 'max:20'],
 
             'email' => ['nullable', 'email', 'max:190'],
             'customer_email' => ['nullable', 'email', 'max:190'],
 
+            'fare_type' => ['nullable', 'in:normal,all_inclusive'],
+            'quantity' => ['nullable', 'integer', 'min:1', 'max:20'],
+            'locations' => ['nullable', 'array', 'max:22'],
+            'trip_route' => ['nullable', 'array', 'max:22'],
+            'distance_km' => ['nullable', 'numeric', 'min:0'],
+            'duration_hr' => ['nullable', 'numeric', 'min:0'],
+            'night_charge_selected' => ['nullable', 'boolean'],
+            'category_options' => ['nullable', 'array', 'max:4'],
+            'category_options.*' => ['required', 'string', 'distinct', 'in:pet_friendly,roof_carrier,extra_pickup,extra_drop'],
+            'category_options_total' => ['nullable', 'numeric', 'min:0'],
+            'extra_pickup_address' => ['nullable', 'string', 'max:2000'],
+            'extra_drop_address' => ['nullable', 'string', 'max:2000'],
+            'price_id' => ['nullable', 'integer', 'min:1'],
+            'country_code' => ['nullable', 'string', 'max:4'],
+            'payment_type' => ['nullable', 'string', 'in:advance,token,full'],
             'product_id' => ['nullable', 'integer'],
             'category_id' => ['nullable', 'integer'],
             'vehicle_id' => ['nullable', 'integer'],
@@ -111,13 +125,14 @@ class BookingRequest extends FormRequest
 
             'pickup_date' => ['required', 'date'],
             'return_date' => [
+                \Illuminate\Validation\Rule::requiredIf(fn () => in_array($this->input('ride_type'), ['round_trip', 'local'], true)),
                 'nullable',
                 'date',
                 'after_or_equal:pickup_date',
             ],
 
             'pickup_time' => ['required', 'date_format:H:i'],
-            'return_time' => ['nullable', 'date_format:H:i'],
+            'return_time' => [\Illuminate\Validation\Rule::requiredIf(fn () => in_array($this->input('ride_type'), ['round_trip', 'local'], true)), 'nullable', 'date_format:H:i'],
 
             'base_fare' => ['nullable', 'numeric', 'min:0'],
             'subtotal' => ['nullable', 'numeric', 'min:0'],
@@ -185,7 +200,7 @@ class BookingRequest extends FormRequest
         return [
             'name.required' => 'Customer name is required.',
             'mobile.required' => 'Customer mobile number is required.',
-            'mobile.digits' => 'Enter a valid 10 digit mobile number.',
+            'mobile.regex' => 'Enter a valid mobile number with country code.',
             'ride_type.required' => 'Ride type is required.',
             'ride_type.in' => 'Selected ride type is invalid.',
             'pickup_address.required' => 'Pickup address is required.',

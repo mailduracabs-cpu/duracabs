@@ -184,16 +184,15 @@
                             <div>
                                 <label for="phone" class="mb-2 block text-sm font-bold text-slate-700">Mobile Number</label>
                                 <div class="relative">
-                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 border-r border-slate-200 pr-3 text-sm font-black text-slate-600">+91</span>
                                     <input
                                         wire:model="phone"
                                         id="phone"
                                         type="tel"
-                                        inputmode="numeric"
-                                        maxlength="10"
+                                        inputmode="tel"
+                                        maxlength="24"
                                         autocomplete="tel"
-                                        placeholder="10-digit mobile number"
-                                        class="h-14 w-full rounded-2xl border bg-slate-50 pl-[4.6rem] pr-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-sky-100 @error('phone') border-red-400 focus:border-red-500 @else border-slate-200 focus:border-sky-500 @enderror"
+                                        placeholder="Indian mobile or +country code and number"
+                                        class="h-14 w-full rounded-2xl border bg-slate-50 px-4 text-sm font-semibold text-slate-900 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:bg-white focus:ring-4 focus:ring-sky-100 @error('phone') border-red-400 focus:border-red-500 @else border-slate-200 focus:border-sky-500 @enderror"
                                     >
                                 </div>
                                 @error('phone')
@@ -224,7 +223,7 @@
                             <div class="mt-6 grid gap-5 sm:grid-cols-2">
                                 <div>
                                     <label for="phone2" class="mb-2 block text-sm font-bold text-slate-700">Alternative Mobile Number <span class="font-medium text-slate-400">(Optional)</span></label>
-                                    <input wire:model="phone2" id="phone2" type="tel" maxlength="10" class="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
+                                    <input wire:model="phone2" id="phone2" type="tel" maxlength="24" class="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold focus:border-sky-500 focus:bg-white focus:ring-4 focus:ring-sky-100">
                                     @error('phone2')<p class="mt-2 text-xs font-bold text-red-600">{{ $message }}</p>@enderror
                                 </div>
                                 <div>
@@ -313,31 +312,69 @@
                             </div>
                         </section>
                     @else
+                            @if (in_array($bookingDraft['type'] ?? '', ['return', 'round_trip', 'local'], true))
+                                <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <h2 class="text-xl font-black">Return schedule</h2>
+                                    <p class="mt-1 text-sm text-slate-500">Choose your own end date and time.</p>
+                                    <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                        <div><label for="return_date" class="mb-2 block text-sm font-bold">End Date</label>
+                                            <input id="return_date" type="date" wire:model.live="return_date" min="{{ $pickupDate }}" class="w-full rounded-2xl border border-slate-200 px-4 py-3">
+                                            @error('return_date')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                                        <div><label for="return_time" class="mb-2 block text-sm font-bold">End Time</label>
+                                            <input id="return_time" type="time" wire:model.live="return_time" class="w-full rounded-2xl border border-slate-200 px-4 py-3">
+                                            @error('return_time')<p class="mt-1 text-xs text-red-600">{{ $message }}</p>@enderror</div>
+                                    </div>
+                                </section>
+                            @endif
                         @if (!empty($this->extraAmountArr))
                             <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
                                 <h2 class="text-xl font-black text-slate-900">Optional Booking Preferences</h2>
                                 @if (($bookingDraft['type'] ?? null) === 'one_way')
                                     <p class="mt-1 text-sm leading-6 text-slate-500">Pet Friendly, Roof Carrier aur route par Extra Pickup / Extra Drop yahin add karein.</p>
                                 @endif
-                                <div class="mt-5 space-y-3">
+                                <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                                     @foreach ($this->extraAmountArr as $key => $item)
-                                        <label class="flex cursor-pointer items-start justify-between gap-4 rounded-2xl border border-slate-200 p-4 transition hover:border-sky-300 hover:bg-sky-50/40">
-                                            <span class="flex items-start gap-3">
-                                                <input type="checkbox" wire:click="newWehicalValueFun({{ $key }})" {{ $item['is_checked'] ? 'checked' : '' }} class="mt-1 h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500">
-                                                <span>
-                                                    <span class="flex flex-wrap items-center gap-2">
-                                                        <strong class="block text-sm text-slate-900">{{ $item['title'] }}</strong>
-                                                        @if (in_array($item['type'] ?? '', ['extra_pickup', 'extra_drop'], true))
-                                                            <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-800">On Route Only</span>
-                                                        @endif
-                                                    </span>
-                                                    <small class="mt-1 block text-xs leading-5 text-slate-500">{{ $item['description'] ?? '' }}</small>
+                                        @php
+                                            $selected = (bool) ($item['is_checked'] ?? false);
+                                            $serviceIcon = match ($item['type'] ?? '') {
+                                                'pet_friendly', 'petFrindly' => 'fa-paw',
+                                                'roof_carrier', 'roofCareer' => 'fa-suitcase-rolling',
+                                                'extra_pickup' => 'fa-location-dot',
+                                                'extra_drop' => 'fa-flag-checkered',
+                                                default => 'fa-car',
+                                            };
+                                        @endphp
+                                        <button type="button"
+                                            wire:key="checkout-preference-{{ $item['type'] ?? $key }}-{{ $key }}"
+                                            wire:click="newWehicalValueFun({{ $key }})"
+                                            wire:loading.attr="disabled"
+                                            wire:target="newWehicalValueFun"
+                                            aria-pressed="{{ $selected ? 'true' : 'false' }}"
+                                            class="rounded-2xl border p-5 text-left transition focus:outline-none focus:ring-4 focus:ring-sky-100 disabled:opacity-60 {{ $selected ? 'border-sky-500 bg-sky-50 shadow-md' : 'border-slate-200 bg-white hover:border-sky-300 hover:bg-sky-50/40' }}">
+                                            <span class="flex items-center justify-between gap-3">
+                                                <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl {{ $selected ? 'bg-sky-600 text-white' : 'bg-sky-50 text-sky-600' }}">
+                                                    <i class="fa-solid {{ $serviceIcon }} text-lg" aria-hidden="true"></i>
                                                 </span>
+                                                <i class="fa-solid {{ $selected ? 'fa-circle-check' : 'fa-circle-plus' }} text-xl text-sky-600" aria-hidden="true"></i>
                                             </span>
-                                            <strong class="text-sm text-slate-900">{{ Number::currency($item['price'] ?? 0, 'INR') }}</strong>
-                                        </label>
+                                            <strong class="mt-4 block text-sm font-black text-slate-900">{{ $item['title'] }}</strong>
+                                            <strong class="mt-1 block text-lg font-black text-sky-700">{{ (float) ($item['price'] ?? 0) > 0 ? '+ ' . Number::currency($item['price'], 'INR') : 'No extra charge' }}</strong>
+                                            <small class="mt-2 block text-xs leading-5 text-slate-500">{{ $item['description'] ?? '' }}</small>
+                                            <span class="mt-3 block text-xs font-bold text-sky-700">{{ $selected ? 'Added · Tap to remove' : 'Tap to add' }}</span>
+                                        </button>
                                     @endforeach
                                 </div>
+                                @foreach ($this->extraAmountArr as $item)
+                                    @if (($item['is_checked'] ?? false) && in_array($item['type'] ?? '', ['extra_pickup', 'extra_drop'], true))
+                                        @php $addressField = $item['type'] . '_address'; @endphp
+                                        <div class="mt-4">
+                                            <label for="{{ $addressField }}" class="mb-2 block text-sm font-bold text-slate-700">{{ $item['title'] }} address (on main route)</label>
+                                            <textarea id="{{ $addressField }}" wire:model.blur="{{ $addressField }}" rows="2" class="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm focus:border-sky-500 focus:ring-4 focus:ring-sky-100"></textarea>
+                                            @error($addressField)<p class="mt-2 text-xs font-bold text-red-600">{{ $message }}</p>@enderror
+                                        </div>
+                                    @endif
+                                @endforeach
+                                <p class="mt-4 text-xs font-semibold text-slate-500">Optional services are added only when selected. Parking is extra as actual.</p>
                             </section>
                         @endif
                     @endif
@@ -538,12 +575,6 @@
                                         </div>
                                     @endif
 
-                                    @if ($parkingPayDirect)
-                                        <div class="flex items-center justify-between gap-4 text-slate-600">
-                                            <span>Parking Charges</span>
-                                            <strong class="text-amber-700">As Actual (Pay Direct)</strong>
-                                        </div>
-                                    @endif
                                 @else
                                     <div class="flex items-center justify-between gap-4 text-slate-600">
                                         <span>Toll Charges</span>
@@ -553,8 +584,15 @@
                                     </div>
 
                                     <div class="flex items-center justify-between gap-4 text-slate-600">
-                                        <span>Taxes</span>
+                                        <span>GST (Included)</span>
                                         <strong class="text-slate-900">{{ Number::currency($taxAmount, 'INR') }}</strong>
+                                    </div>
+                                @endif
+
+                                @if (!$isSelfDriveCheckout)
+                                    <div class="flex items-center justify-between gap-4 text-slate-600">
+                                        <span>Parking Charges</span>
+                                        <strong class="text-amber-700">Extra as actual (pay direct)</strong>
                                     </div>
                                 @endif
 
