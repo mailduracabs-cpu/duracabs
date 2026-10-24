@@ -740,10 +740,10 @@ Route::prefix('bike-rental')->group(function (): void {
     |--------------------------------------------------------------------------
     */
 
-    Route::post('/booking', [
-        BookingController::class,
-        'store',
-    ]);
+    Route::middleware('auth:sanctum')->post('/booking', [
+    BookingController::class,
+    'store',
+]);
 
     Route::middleware('auth:sanctum')->get('/my-bookings', [
         BookingController::class,
