@@ -639,6 +639,37 @@ class VehicleResource extends Resource
                         ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
                         ->helperText('Admin sets the agreement once. Saved terms apply to new bookings; existing booking terms stay unchanged.'),
+                    Forms\Components\DatePicker::make('partner_joining_date')
+                        ->label('Car joining / attachment date')
+                        ->displayFormat('d M Y')
+                        ->format('Y-m-d')
+                        ->default(fn (): string => \App\Services\VendorLifecycleClock::today()->toDateString())
+                        ->required(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE)
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->live()
+                        ->helperText('Actual joining date. Monthly cycles follow this day each calendar month; short months use their last day.'),
+                    Placeholder::make('partner_monthly_cycle_preview')
+                        ->label('Monthly cycle')
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'monthly')
+                        ->content(function (Forms\Get $get): string {
+                            if (blank($get('partner_joining_date'))) {
+                                return 'Select the actual joining date to see the monthly cycle.';
+                            }
+                            if (! in_array(config('vendor_lifecycle.billing_basis'), ['joining_date', 'fixed_day'], true)) {
+                                return 'Joining date saved. Monthly billing rule is awaiting configuration.';
+                            }
+                            try {
+                                $cycle = \App\Services\VendorMonthlySchedule::forBillingDate((string) $get('partner_joining_date'), (string) config('vendor_lifecycle.billing_basis'), (int) config('vendor_lifecycle.billing_day', 15));
+                            } catch (\Illuminate\Validation\ValidationException $exception) {
+                                return 'Select a valid joining date.';
+                            }
+                            $display = static fn (string $date): string => \Carbon\CarbonImmutable::parse($date)->format('d M Y');
+
+                            return ($cycle['started'] ? 'Period: ' : 'Upcoming period: ') . $display($cycle['period_start']) . ' – ' . $display($cycle['period_end'])
+                                . '. Next cycle: ' . $display($cycle['next_billing_date']) . '.';
+                        }),
                     TextInput::make('partner_fixed_rate_per_24h')
                         ->label('Vendor amount per 24 hours')->prefix('₹')->numeric()
                         ->minValue(0.01)->maxValue(500000)->rules(['decimal:0,2'])
@@ -1304,6 +1335,36 @@ class VehicleResource extends Resource
             | Documents
             |--------------------------------------------------------------------------
             */
+
+            Section::make('Car validity and document renewals')
+                ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE)
+                ->columns(3)
+                ->schema([
+                    Forms\Components\DatePicker::make('first_registration_date')
+                        ->label('RC first registration date')->format('Y-m-d')->displayFormat('d M Y')
+                        ->required()->maxDate(\App\Services\VendorLifecycleClock::today())
+                        ->minDate(fn (Forms\Get $get) => \App\Services\VendorLifecycleClock::date($get('partner_joining_date') ?: \App\Services\VendorLifecycleClock::today()->toDateString())->subYearsNoOverflow(3))
+                        ->helperText('At attachment the car must be at most 3 years old.'),
+                    Forms\Components\DatePicker::make('partner_agreement_expires_on')
+                        ->label('Agreement expiry date')->format('Y-m-d')->displayFormat('d M Y')
+                        ->minDate(fn (Forms\Get $get) => \App\Services\VendorLifecycleClock::date($get('partner_joining_date') ?: \App\Services\VendorLifecycleClock::today()->toDateString())->addDay())
+                        ->maxDate(fn (Forms\Get $get) => \App\Services\VendorLifecycleClock::date($get('partner_joining_date') ?: \App\Services\VendorLifecycleClock::today()->toDateString())->addYearsNoOverflow(3))
+                        ->dehydrateStateUsing(fn ($state, Forms\Get $get) => filled($state) ? $state : \App\Services\VendorLifecycleClock::date($get('partner_joining_date') ?: \App\Services\VendorLifecycleClock::today()->toDateString())->addYearsNoOverflow(3)->toDateString())
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->helperText('Leave blank for joining + 3 years. For a 6-month agreement select joining + 6 months. Maximum 3 years; expires at the start of this date.'),
+                    Placeholder::make('agreement_remaining')
+                        ->label('Remaining attachment validity')
+                        ->content(function (?Vehicle $record): string {
+                            if (! $record?->partner_agreement_expires_on) return 'Expiry will be set when the joining date is saved.';
+                            $days = (int) \App\Services\VendorLifecycleClock::today()->diffInDays(\App\Services\VendorLifecycleClock::date($record->partner_agreement_expires_on->toDateString()), false);
+                            return $days <= 0 ? 'Validity expired' : $days . ' days';
+                        }),
+                    Forms\Components\DatePicker::make('rc_expiry_date')->label('RC validity end date')->format('Y-m-d')->displayFormat('d M Y'),
+                    Forms\Components\DatePicker::make('puc_expiry_date')->label('PUC expiry')->format('Y-m-d')->displayFormat('d M Y'),
+                    Forms\Components\DatePicker::make('insurance_expiry_date')->label('Insurance expiry')->format('Y-m-d')->displayFormat('d M Y'),
+                    Forms\Components\DatePicker::make('gps_expiry_date')->label('GPS recharge validity end')->format('Y-m-d')->displayFormat('d M Y'),
+                ]),
 
             Section::make('Vehicle Documents')
                 ->compact()

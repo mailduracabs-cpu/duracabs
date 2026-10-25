@@ -120,6 +120,12 @@ class Vehicle extends Model
         'partner_payout_mode',
         'partner_fixed_rate_per_24h',
         'partner_monthly_amount',
+        'partner_joining_date',
+        'first_registration_date',
+        'partner_agreement_expires_on',
+        'rc_expiry_date',
+        'gps_expiry_date',
+
         'weekly_price',
         'monthly_price',
         'security_deposit',
@@ -215,6 +221,12 @@ class Vehicle extends Model
         'commission_percentage' => 'decimal:2',
         'partner_fixed_rate_per_24h' => 'decimal:2',
         'partner_monthly_amount' => 'decimal:2',
+        'partner_joining_date' => 'date:Y-m-d',
+        'first_registration_date' => 'date:Y-m-d',
+        'partner_agreement_expires_on' => 'date:Y-m-d',
+        'rc_expiry_date' => 'date:Y-m-d',
+        'gps_expiry_date' => 'date:Y-m-d',
+
         'weekly_price' => 'decimal:2',
         'monthly_price' => 'decimal:2',
         'security_deposit' => 'decimal:2',
@@ -307,6 +319,9 @@ class Vehicle extends Model
     {
         if (blank($value)) {
             $this->attributes['vehicle_number'] = null;
+            if (\Illuminate\Support\Facades\Schema::hasColumn('vehicles', 'vehicle_registration_key')) {
+                $this->attributes['vehicle_registration_key'] = null;
+            }
 
             return;
         }
@@ -314,6 +329,9 @@ class Vehicle extends Model
         $this->attributes['vehicle_number'] = strtoupper(
             preg_replace('/[^A-Za-z0-9]/', '', trim($value))
         );
+        if (\Illuminate\Support\Facades\Schema::hasColumn('vehicles', 'vehicle_registration_key')) {
+            $this->attributes['vehicle_registration_key'] = $this->attributes['vehicle_number'];
+        }
     }
 
     public function setChassisNumberAttribute(?string $value): void
@@ -765,9 +783,34 @@ class Vehicle extends Model
     /**
      * Customer ko sirf approved aur active vehicles dikhengi.
      */
+    public function scopeAttachmentValid(Builder $query): Builder
+    {
+        if (! \Illuminate\Support\Facades\Schema::hasColumn('vehicles', 'partner_agreement_expires_on')) return $query;
+
+        return $query->where(function (Builder $q): void {
+            $q->where('service_type', '!=', self::SERVICE_SELF_DRIVE)
+                ->orWhereNull('partner_agreement_expires_on')
+                ->orWhere('partner_agreement_expires_on', '>', \App\Services\VendorLifecycleClock::today()->toDateString());
+        });
+    }
+
+    public function attachmentIsExpired(): bool
+    {
+        return $this->isSelfDrive() && $this->partner_agreement_expires_on
+            && $this->partner_agreement_expires_on->toDateString() <= \App\Services\VendorLifecycleClock::today()->toDateString();
+    }
+
+    public function attachmentDaysRemaining(): ?int
+    {
+        if (! $this->partner_agreement_expires_on) return null;
+        return (int) \App\Services\VendorLifecycleClock::today()->diffInDays(
+            \App\Services\VendorLifecycleClock::date($this->partner_agreement_expires_on->toDateString()), false
+        );
+    }
+
     public function scopeAvailableForCustomer(Builder $query): Builder
     {
-        return $query
+        return $query->attachmentValid()
             ->where(
                 'verification_status',
                 self::STATUS_APPROVED
@@ -780,7 +823,7 @@ class Vehicle extends Model
      */
     public function scopeAvailableForRental(Builder $query): Builder
     {
-        return $query
+        return $query->attachmentValid()
             ->whereIn('service_type', [
                 self::SERVICE_SELF_DRIVE,
                 self::SERVICE_BIKE_RENTAL,
@@ -903,12 +946,14 @@ class Vehicle extends Model
     public function canBeShownToCustomer(): bool
     {
         return $this->isApproved()
+            && ! $this->attachmentIsExpired()
             && (bool) $this->is_active;
     }
 
     public function canBeBookedForRental(): bool
     {
         return $this->isRentalVehicle()
+            && ! $this->attachmentIsExpired()
             && $this->isApproved()
             && (bool) $this->is_active
             && (bool) $this->is_live
@@ -1085,6 +1130,65 @@ class Vehicle extends Model
         return blank($mode) ? 'percentage' : (string) $mode;
     }
 
+    /** Store a real calendar date, independently of the row creation date. */
+    public function setPartnerJoiningDateAttribute(mixed $value): void
+    {
+        if ($value instanceof \DateTimeInterface) {
+            $value = $value->format('Y-m-d');
+        }
+        $value = blank($value) ? null : $value;
+        \Illuminate\Support\Facades\Validator::make(
+            ['partner_joining_date' => $value],
+            ['partner_joining_date' => ['nullable', 'date_format:Y-m-d']]
+        )->validate();
+        $this->attributes['partner_joining_date'] = $value;
+    }
+
+    public function setFirstRegistrationDateAttribute(mixed $value): void
+    {
+        if ($value instanceof \DateTimeInterface) $value = $value->format('Y-m-d');
+        $value = blank($value) ? null : $value;
+        \Illuminate\Support\Facades\Validator::make(['first_registration_date' => $value], ['first_registration_date' => ['nullable', 'date_format:Y-m-d']])->validate();
+        $this->attributes['first_registration_date'] = $value;
+    }
+
+    public function setPartnerAgreementExpiresOnAttribute(mixed $value): void
+    {
+        if ($value instanceof \DateTimeInterface) $value = $value->format('Y-m-d');
+        $value = blank($value) ? null : $value;
+        \Illuminate\Support\Facades\Validator::make(['partner_agreement_expires_on' => $value], ['partner_agreement_expires_on' => ['nullable', 'date_format:Y-m-d']])->validate();
+        $this->attributes['partner_agreement_expires_on'] = $value;
+    }
+
+    public function setRcExpiryDateAttribute(mixed $value): void
+    {
+        if ($value instanceof \DateTimeInterface) $value = $value->format('Y-m-d');
+        $value = blank($value) ? null : $value;
+        \Illuminate\Support\Facades\Validator::make(['rc_expiry_date' => $value], ['rc_expiry_date' => ['nullable', 'date_format:Y-m-d']])->validate();
+        $this->attributes['rc_expiry_date'] = $value;
+    }
+
+    public function setGpsExpiryDateAttribute(mixed $value): void
+    {
+        if ($value instanceof \DateTimeInterface) $value = $value->format('Y-m-d');
+        $value = blank($value) ? null : $value;
+        \Illuminate\Support\Facades\Validator::make(['gps_expiry_date' => $value], ['gps_expiry_date' => ['nullable', 'date_format:Y-m-d']])->validate();
+        $this->attributes['gps_expiry_date'] = $value;
+    }
+
+    /** Calendar-month anniversaries, never a fixed 30-day interval. */
+    public function partnerMonthlySchedule(?string $asOf = null): ?array
+    {
+        if (self::normalizePartnerPayoutMode($this->partner_payout_mode) !== 'monthly'
+            || ! $this->partner_joining_date) {
+            return null;
+        }
+
+        return \App\Services\VendorMonthlySchedule::forDate(
+            $this->partner_joining_date->format('Y-m-d'), $asOf
+        );
+    }
+
     public function partnerPayoutTerms(): array
     {
         $mode = self::normalizePartnerPayoutMode($this->partner_payout_mode);
@@ -1093,6 +1197,7 @@ class Vehicle extends Model
             'commission_percentage' => number_format((float) ($this->commission_percentage ?? 30), 2, '.', ''),
             'fixed_rate_per_24h' => $mode === 'fixed' ? $this->partner_fixed_rate_per_24h : null,
             'monthly_amount' => $mode === 'monthly' ? $this->partner_monthly_amount : null,
+            'joining_date' => $this->partner_joining_date?->format('Y-m-d'),
         ];
     }
 
@@ -1115,7 +1220,7 @@ class Vehicle extends Model
         $user = auth()->user();
         $admin = $user && $user->canUseAdminLogin();
         if ($user && ! $admin && $this->exists) {
-            foreach (['partner_payout_mode', 'partner_fixed_rate_per_24h', 'partner_monthly_amount', 'commission_percentage'] as $field) {
+            foreach (['partner_payout_mode', 'partner_fixed_rate_per_24h', 'partner_monthly_amount', 'partner_joining_date', 'partner_agreement_expires_on', 'commission_percentage'] as $field) {
                 if ($this->isDirty($field)) {
                     throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Only admin can change vendor payout terms.']);
                 }
@@ -1132,6 +1237,7 @@ class Vehicle extends Model
             $this->partner_payout_mode = 'percentage';
             $this->partner_fixed_rate_per_24h = null;
             $this->partner_monthly_amount = null;
+            $this->partner_joining_date = null;
             $this->commission_percentage = 30;
         }
         $mode = self::normalizePartnerPayoutMode($this->partner_payout_mode);
@@ -1147,6 +1253,7 @@ class Vehicle extends Model
         } else {
             \App\Services\PartnerRentalPayoutCalculator::percentage('1.00', (string) ($this->commission_percentage ?? 30));
         }
+        \App\Services\VehicleAgreementPolicy::validate($this);
     }
 
     protected static function booted(): void

@@ -354,6 +354,7 @@ class PartnerController extends Controller
             'transmission' => ['required', 'in:manual,automatic'],
             'seats' => ['required', 'integer', 'min:1', 'max:20'],
             'manufacture_year' => ['required', 'integer', 'min:1980', 'max:' . (date('Y') + 1)],
+            'first_registration_date' => [$role === 'host' ? 'required' : 'nullable', 'date_format:Y-m-d', 'before_or_equal:' . \App\Services\VendorLifecycleClock::today()->toDateString()],
             'daily_price' => ['nullable', 'numeric', 'min:0', 'max:500000', 'decimal:0,2'],
             'hourly_price' => ['nullable', 'numeric', 'min:0', 'max:500000', 'decimal:0,2'],
         ]);
@@ -383,6 +384,10 @@ class PartnerController extends Controller
                 if ($role === 'host') {
                 $record->partner_payout_mode = 'percentage';
                 $record->commission_percentage = 30;
+            }
+            if ($role === 'host') {
+                $record->partner_joining_date = \App\Services\VendorLifecycleClock::today()->toDateString();
+                \App\Services\VehicleAgreementPolicy::validate($record);
             }
             $record->saveQuietly();
                 return $record;
@@ -422,6 +427,7 @@ class PartnerController extends Controller
             'fuel_type' => ['required', 'in:petrol,diesel,cng,electric,hybrid'],
             'transmission' => ['required', 'in:manual,automatic'], 'seats' => ['required', 'integer', 'min:1', 'max:20'],
             'manufacture_year' => ['required', 'integer', 'min:1980', 'max:' . (date('Y') + 1)],
+            'first_registration_date' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:' . \App\Services\VendorLifecycleClock::today()->toDateString()],
         ]);
         $lock = Cache::lock('partner_vehicle_registration', 120);
         abort_unless($lock->get(), 409, 'Another vehicle is being saved. Retry shortly.');
@@ -478,6 +484,12 @@ class PartnerController extends Controller
         $page = $query->orderByDesc('id')->paginate(20);
         $items = collect($page->items())->map(fn (Vehicle $v): array => [
             ...$v->partnerPricingPolicy(),
+            'joining_date' => $v->partner_joining_date?->toDateString(),
+            'agreement_expiry_date' => $v->partner_agreement_expires_on?->toDateString(),
+            'attachment_expired' => $v->attachmentIsExpired(),
+            'agreement_days_remaining' => $v->attachmentDaysRemaining(),
+            'first_registration_date' => $v->first_registration_date?->toDateString(),
+            'renewal_dates' => collect(['rc_expiry_date', 'puc_expiry_date', 'insurance_expiry_date', 'gps_expiry_date'])->mapWithKeys(fn ($field) => [$field => $v->getAttribute($field)?->toDateString()])->all(),
             'id' => $v->id, 'name' => trim($v->car_company_name . ' ' . $v->model_name),
             'vehicle_number' => $v->vehicle_number, 'car_classification' => $v->car_classification, 'service_type' => $v->service_type,
             'image_url' => $this->photoUrl($v, 'front'), 'fuel_type' => $v->fuel_type,
@@ -610,6 +622,13 @@ class PartnerController extends Controller
             'service_type' => $vehicle->service_type, 'fuel_type' => $vehicle->fuel_type,
             'transmission' => $vehicle->transmission, 'seats' => $vehicle->seats,
             ...$vehicle->partnerPricingPolicy(),
+            'joining_date' => $vehicle->partner_joining_date?->toDateString(),
+            'agreement_expiry_date' => $vehicle->partner_agreement_expires_on?->toDateString(),
+            'attachment_expired' => $vehicle->attachmentIsExpired(),
+            'agreement_days_remaining' => $vehicle->attachmentDaysRemaining(),
+            'first_registration_date' => $vehicle->first_registration_date?->toDateString(),
+            'renewal_fields' => array_values(array_filter(['rc_expiry_date', 'insurance_expiry_date', 'puc_expiry_date', 'gps_expiry_date'],
+                fn ($field) => Schema::hasColumn('vehicles', $field))),
             'daily_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->daily_price : null,
             'hourly_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->hourly_price : null,
             'weekly_price' => $vehicle->partnerPricingPolicy()['can_edit_rental_prices'] ? $vehicle->weekly_price : null,
@@ -626,6 +645,8 @@ class PartnerController extends Controller
                 'insurance_company_name' => $vehicle->insurance_company_name,
                 'insurance_expiry_date' => $vehicle->insurance_expiry_date?->format('Y-m-d'),
                 'puc_expiry_date' => $vehicle->puc_expiry_date?->format('Y-m-d'),
+                'rc_expiry_date' => $vehicle->rc_expiry_date?->format('Y-m-d'),
+                'gps_expiry_date' => $vehicle->gps_expiry_date?->format('Y-m-d'),
             ],
         ];
     }
@@ -656,14 +677,13 @@ class PartnerController extends Controller
         [$profile, $role] = $this->context($request);
         $fields = ['owner_name', 'chassis_number', 'engine_number', 'insurance_number', 'insurance_company_name'];
         $rules = array_fill_keys($fields, ['sometimes', 'nullable', 'string', 'max:150']);
-        foreach (['insurance_expiry_date', 'puc_expiry_date'] as $field) {
+        foreach (['insurance_expiry_date', 'puc_expiry_date', 'rc_expiry_date', 'gps_expiry_date'] as $field) {
             $rules[$field] = ['sometimes', 'nullable', 'date_format:Y-m-d'];
         }
         $input = $request->validate($rules);
         abort_if(count($input) === 0, 422, 'No document details were supplied.');
         DB::transaction(function () use ($profile, $role, $vehicle, $input): void {
             $record = $this->ownedVehicle($profile, $role, $vehicle, true);
-            abort_unless($record->partnerPricingPolicy()['can_edit_rental_prices'], 422, 'Fixed-mode prices are managed by admin.');
             foreach ($input as $field => $value) {
                 abort_unless(Schema::hasColumn('vehicles', $field), 422, 'This document field is not configured.');
                 $record->setAttribute($field, filled($value) ? trim($value) : null);
@@ -799,7 +819,7 @@ class PartnerController extends Controller
 
     private function reminderData(TransporterProfile $profile, string $role): array
     {
-        $fields = ['insurance_expiry_date' => 'Insurance', 'puc_expiry_date' => 'PUC'];
+        $fields = ['insurance_expiry_date' => 'Insurance', 'puc_expiry_date' => 'PUC', 'rc_expiry_date' => 'RC', 'gps_expiry_date' => 'GPS Recharge', 'partner_agreement_expires_on' => 'Attachment agreement'];
         foreach (array_keys($fields) as $field) {
             if (!Schema::hasColumn('vehicles', $field)) {
                 return ['configured' => false, 'total' => 0, 'items' => []];
@@ -1062,9 +1082,38 @@ class PartnerController extends Controller
             ])->values() : [],
             'batch_page' => $batchPage?->currentPage() ?? 1, 'batch_last_page' => $batchPage?->lastPage() ?? 1,
             'batch_basis' => 'Payout batches whose period starts in this month. Paid amounts are cumulative, not necessarily paid during this month.',
-            'note' => $host ? 'New bookings use saved Fixed/Percentage terms. Existing saved payouts are unchanged; legacy bookings retain the old calculation. Deposits and return charges are excluded from rental earnings.'
+            'note' => $host ? 'New bookings use saved Fixed/Percentage/Monthly terms. Monthly agreement bills are separate from booking payouts. Existing saved payouts are unchanged; legacy bookings retain the old calculation. Deposits and return charges are excluded from rental earnings.'
                 : 'With Driver earnings use the accepted admin partner offer saved at completion, not the customer fare. Deposits are not income.',
         ]]);
+    }
+
+    public function monthlyBills(Request $request)
+    {
+        [$profile, $role] = $this->context($request);
+        abort_unless($role === 'host', 403, 'Self-drive host account required.');
+        $bills = DB::table('vendor_monthly_bills')->where('transporter_profile_id', $profile->id)
+            ->orderByDesc('bill_date')->orderByDesc('id')->paginate(20);
+        return response()->json(['status' => true, 'data' => $bills])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function monthlyBill(Request $request, int $bill)
+    {
+        [$profile, $role] = $this->context($request);
+        abort_unless($role === 'host', 403, 'Self-drive host account required.');
+        $record = DB::table('vendor_monthly_bills')->where('transporter_profile_id', $profile->id)->where('id', $bill)->first();
+        abort_unless($record, 404);
+        return response()->json(['status' => true, 'data' => $record])->header('Cache-Control', 'private, no-store');
+    }
+
+    public function monthlyBillCopy(Request $request, int $bill)
+    {
+        [$profile, $role] = $this->context($request);
+        abort_unless($role === 'host', 403, 'Self-drive host account required.');
+        abort_unless(DB::table('vendor_monthly_bills')->where('id', $bill)->where('transporter_profile_id', $profile->id)->exists(), 404);
+        $copy = app(\App\Services\VendorMonthlyBilling::class)->billCopy($bill);
+        return response($copy['bytes'])->header('Content-Type', $copy['mime'])
+            ->header('Content-Disposition', 'attachment; filename="' . $copy['filename'] . '"')
+            ->header('Cache-Control', 'private, no-store')->header('X-Content-Type-Options', 'nosniff');
     }
 
     public function logout(Request $request)
