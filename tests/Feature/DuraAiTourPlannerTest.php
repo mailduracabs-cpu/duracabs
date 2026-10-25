@@ -31,18 +31,24 @@ class DuraAiTourPlannerTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['dura_ai_tour.enabled' => true, 'dura_ai_tour.api_key' => 'test-only-key', 'dura_ai_tour.model' => 'gpt-4.1-mini']);
+        config(['dura_ai_tour.enabled' => true, 'seo-ai.providers.gemini.api_key' => 'test-only-key',
+            'seo-ai.providers.gemini.model' => 'gemini-2.5-flash',
+            'seo-ai.providers.gemini.endpoint' => 'https://generativelanguage.googleapis.com/v1beta/models']);
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
         Http::preventStrayRequests();
     }
     public function test_endpoint_generates_itinerary_without_a_fare(): void
     {
-        Http::fake(['api.openai.com/*' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode($this->plan())]]]])]);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [['finishReason' => 'STOP', 'content' => ['parts' => [['text' => json_encode($this->plan())]]]]]])]);
         $this->postJson('/api/v1/ai/tour-itinerary', $this->details() + ['fare' => 1, 'grand_total' => 1])
             ->assertOk()->assertJsonPath('status', true)->assertJsonPath('data.days.0.day', 1)
             ->assertJsonMissingPath('data.fare')->assertJsonMissingPath('data.grand_total');
-        Http::assertSent(fn ($request) => $request['store'] === false
-            && $request['response_format']['json_schema']['strict'] === true
-            && ! str_contains($request['messages'][1]['content'], 'grand_total'));
+        Http::assertSent(fn ($request) => $request->hasHeader('x-goog-api-key', 'test-only-key')
+            && ! $request->hasHeader('Authorization')
+            && $request['generationConfig']['responseMimeType'] === 'application/json'
+            && $request['generationConfig']['responseJsonSchema']['additionalProperties'] === false
+            && ! str_contains($request['contents'][0]['parts'][0]['text'], 'grand_total')
+            && $request->url() === 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent');
     }
     public function test_return_time_is_required_and_no_provider_call_occurs(): void
     {
@@ -58,7 +64,7 @@ class DuraAiTourPlannerTest extends TestCase
     }
     public function test_provider_error_does_not_expose_its_body_or_key(): void
     {
-        Http::fake(['api.openai.com/*' => Http::response(['error' => 'secret-provider-body test-only-key'], 401)]);
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['error' => 'secret-provider-body test-only-key'], 401)]);
         $response = $this->postJson('/api/v1/ai/tour-itinerary', $this->details())->assertStatus(503);
         $this->assertStringNotContainsString('secret-provider-body', $response->getContent());
         $this->assertStringNotContainsString('test-only-key', $response->getContent());
@@ -120,5 +126,33 @@ class DuraAiTourPlannerTest extends TestCase
         $result = $planner->validatePlan($this->plan(), $planner->input($data));
         $this->assertSame($data['start_date'], $result['days'][0]['date']);
         $this->assertSame($data['end_date'], $result['days'][1]['date']);
+    }
+    public function test_tour_ignores_legacy_openai_key_and_model(): void
+    {
+        config(['dura_ai_tour.api_key' => 'obsolete-openai-key', 'dura_ai_tour.model' => 'gpt-4.1-mini',
+            'seo-ai.providers.gemini.api_key' => '']);
+        $this->postJson('/api/v1/ai/tour-itinerary', $this->details())->assertStatus(503);
+        Http::assertNothingSent();
+    }
+    public function test_truncated_gemini_response_is_not_displayed_as_a_plan(): void
+    {
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [
+            ['finishReason' => 'MAX_TOKENS', 'content' => ['parts' => [['text' => json_encode($this->plan())]]]]]])]);
+        $this->postJson('/api/v1/ai/tour-itinerary', $this->details())->assertStatus(503);
+    }
+    public function test_thought_parts_are_excluded_from_the_json(): void
+    {
+        Http::fake(['generativelanguage.googleapis.com/*' => Http::response(['candidates' => [
+            ['finishReason' => 'STOP', 'content' => ['parts' => [
+                ['thought' => true, 'text' => 'internal planning text'], ['text' => json_encode($this->plan())],
+            ]]]]])]);
+        $result = $this->postJson('/api/v1/ai/tour-itinerary', $this->details())->assertOk();
+        $this->assertStringNotContainsString('internal planning text', $result->getContent());
+    }
+    public function test_api_key_is_not_sent_to_an_unrecognised_endpoint(): void
+    {
+        config(['seo-ai.providers.gemini.endpoint' => 'https://example.invalid/models']);
+        $this->postJson('/api/v1/ai/tour-itinerary', $this->details())->assertStatus(503);
+        Http::assertNothingSent();
     }
 }

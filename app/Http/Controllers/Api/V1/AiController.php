@@ -52,7 +52,7 @@ class AiController extends BaseApiController
     public function tourItinerary(Request $request, \App\Services\DuraAiTourPlanner $planner)
     {
         $data = $planner->input($request->all());
-        if (! config('dura_ai_tour.enabled') || ! config('dura_ai_tour.api_key')) {
+        if (! config('dura_ai_tour.enabled') || ! $planner->isConfigured()) {
             return $this->error('AI itinerary is not enabled yet. Live vehicle fares are still available.', 503);
         }
         try {
