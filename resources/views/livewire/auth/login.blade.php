@@ -66,10 +66,31 @@
             .dura-auth-right { height: auto; min-height: 540px; padding: 26px 22px !important; overflow: visible; }
         }
 
+        /* Compact, mobile-first customer login without affecting site header/footer. */
+        .dura-login-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .dura-login-fields > div { min-width: 0; }
+        .dura-login-control { width: 100%; min-width: 0; }
         @media (max-width: 640px) {
-            .dura-auth-page { padding: 8px; }
-            .dura-auth-card { border-radius: 18px; }
-            .dura-auth-right { min-height: auto; padding: 22px 16px !important; }
+            .dura-auth-page { min-height: 0; padding: 12px 10px 24px; }
+            .dura-auth-shell { min-height: 0; display: block; }
+            .dura-auth-card { width: 100%; border-radius: 18px; box-shadow: 0 10px 30px rgba(15,23,42,.08); }
+            .dura-auth-right { min-height: 0; padding: 20px 18px 24px !important; }
+            .dura-auth-right > div { max-width: 100%; }
+            .dura-auth-mobile-brand { margin-bottom: 14px !important; }
+            .dura-auth-progress { margin-bottom: 18px !important; }
+            .dura-login-topline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+            .dura-login-topline > button { margin-bottom: 0 !important; }
+            .dura-login-heading { font-size: 25px !important; line-height: 1.22 !important; letter-spacing: -.035em; margin-top: 18px !important; }
+            .dura-login-form { margin-top: 18px !important; }
+            .dura-login-fields { grid-template-columns: minmax(0,1fr); gap: 12px; }
+            .dura-login-control { height: 50px !important; font-size: 16px !important; }
+            .dura-login-submit { margin-top: 18px !important; height: 50px !important; }
+            .dura-auth-right .passwordLogin { width: 50px; height: 52px; }
+        }
+        @media (max-width: 360px) {
+            .dura-auth-right { padding: 18px 14px 22px !important; }
+            .dura-login-heading { font-size: 23px !important; }
+            .dura-auth-right .passwordLogin { width: 45px; height: 48px; }
         }
     </style>
    
@@ -145,7 +166,7 @@
                     <div class="mx-auto w-full max-w-[430px]">
 
                         {{-- Mobile brand header --}}
-                        <div class="mb-4 flex items-center justify-center gap-2 lg:hidden">
+                        <div class="dura-auth-mobile-brand mb-4 flex items-center justify-center gap-2 lg:hidden">
                             <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20">
                                 <i class="fa-solid fa-taxi"></i>
                             </span>
@@ -156,7 +177,7 @@
                         </div>
 
                         {{-- Progress --}}
-                        <div class="mb-5 flex items-center gap-2">
+                        <div class="dura-auth-progress mb-5 flex items-center gap-2">
                             @foreach ([1, 2, 3, 4] as $progressStep)
                                 <div class="h-1.5 flex-1 rounded-full {{ $step >= $progressStep ? 'bg-blue-600' : 'bg-slate-200' }}"></div>
                             @endforeach
@@ -228,6 +249,7 @@
                         {{-- Step 2: mobile --}}
                         @if ($step === 2)
                             <div>
+                                <div class="dura-login-topline">
                                 <button type="button" wire:click="backToAccountType" class="mb-4 inline-flex items-center gap-2 text-xs font-bold text-slate-500 transition hover:text-blue-600">
                                     <i class="fa-solid fa-arrow-left"></i>
                                     Change account type
@@ -237,27 +259,32 @@
                                     <i class="fa-solid {{ $accountType === 'vendor' ? 'fa-car-side' : 'fa-user' }}"></i>
                                     {{ ucfirst($accountType) }} Login
                                 </span>
+                                </div>
 
-                                <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900">Enter mobile number</h1>
+                                <h1 class="dura-login-heading mt-3 text-3xl font-black tracking-tight text-slate-900">Enter mobile number</h1>
                                 <p class="mt-1.5 text-sm leading-6 text-slate-500">{{ $countryCode === '91' ? 'Receive OTP by SMS and WhatsApp.' : 'Receive OTP via WhatsApp only.' }}</p>
 
-                                <form wire:submit.prevent="save" class="mt-6">
-                                    <label for="mobile" class="mb-2 block text-sm font-bold text-slate-800">Mobile number</label>
-
-                                    <div class="flex gap-2">
-                                        <select wire:model.live="countryCode" aria-label="Country calling code"
-                                            class="h-[54px] w-[46%] min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-2 text-sm font-semibold text-slate-700 focus:border-blue-500 focus:ring-blue-100">
-                                            @foreach ($countryCodes as $code => $label)
-                                                <option value="{{ $code }}">{{ $label }}</option>
-                                            @endforeach
-                                        </select>
-                                        <input type="tel" id="mobile" wire:model.live="mobile"
-                                            inputmode="numeric" autocomplete="tel-national" maxlength="14"
-                                            placeholder="Mobile number"
-                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 14)"
-                                            class="h-[54px] min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-[15px] font-semibold text-slate-900 focus:border-blue-500 focus:ring-blue-100"
-                                            autofocus>
+                                <form wire:submit.prevent="save" class="dura-login-form mt-6">
+                                    <div class="dura-login-fields">
+                                        <div>
+                                            <label for="dura-country-code" class="mb-2 block text-sm font-bold text-slate-800">Country / calling code</label>
+                                            <select id="dura-country-code" wire:model.live="countryCode" aria-label="Country calling code"
+                                                class="dura-login-control h-[54px] rounded-xl border border-slate-300 bg-slate-50 px-3 text-sm font-semibold text-slate-700 focus:border-blue-500 focus:ring-blue-100">
+                                                @foreach ($countryCodes as $code => $label)
+                                                    <option value="{{ $code }}">{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="mobile" class="mb-2 block text-sm font-bold text-slate-800">Mobile number</label>
+                                            <input type="tel" id="mobile" wire:model.live="mobile"
+                                                inputmode="numeric" autocomplete="tel-national" maxlength="14"
+                                                placeholder="Enter mobile number"
+                                                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 14)"
+                                                class="dura-login-control h-[54px] rounded-xl border border-slate-300 bg-white px-3 text-[15px] font-semibold text-slate-900 focus:border-blue-500 focus:ring-blue-100">
+                                        </div>
                                     </div>
+                                    <p class="mt-2 text-xs leading-5 text-slate-500">{{ $countryCode === '91' ? 'India: OTP via SMS + WhatsApp.' : 'International: OTP via WhatsApp only.' }}</p>
 
                                     @error('mobile')
                                         <p class="mt-2 flex items-center gap-1.5 text-xs font-semibold text-red-600">
@@ -271,7 +298,7 @@
                                         wire:loading.attr="disabled"
                                         wire:target="save"
                                         @disabled(strlen((string) $mobile) < 6)
-                                        class="mt-5 inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-sky-500 px-4 text-sm font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                        class="dura-login-submit mt-5 inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-sky-500 px-4 text-sm font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                                     >
                                         <span wire:loading.remove wire:target="save">Send OTP</span>
                                         <i wire:loading.remove wire:target="save" class="fa-solid fa-arrow-right"></i>
