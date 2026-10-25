@@ -21,6 +21,31 @@ class Login extends Component
 
     public string $mobile = '';
 
+    public string $countryCode = '91';
+
+    public array $countryCodes = [
+        '91' => '🇮🇳 India (+91)',
+        '1' => '🇺🇸 USA / Canada (+1)',
+        '44' => '🇬🇧 United Kingdom (+44)',
+        '971' => '🇦🇪 UAE (+971)',
+        '966' => '🇸🇦 Saudi Arabia (+966)',
+        '974' => '🇶🇦 Qatar (+974)',
+        '965' => '🇰🇼 Kuwait (+965)',
+        '968' => '🇴🇲 Oman (+968)',
+        '973' => '🇧🇭 Bahrain (+973)',
+        '61' => '🇦🇺 Australia (+61)',
+        '64' => '🇳🇿 New Zealand (+64)',
+        '65' => '🇸🇬 Singapore (+65)',
+        '49' => '🇩🇪 Germany (+49)',
+        '33' => '🇫🇷 France (+33)',
+        '39' => '🇮🇹 Italy (+39)',
+        '81' => '🇯🇵 Japan (+81)',
+        '977' => '🇳🇵 Nepal (+977)',
+        '880' => '🇧🇩 Bangladesh (+880)',
+        '94' => '🇱🇰 Sri Lanka (+94)',
+        '27' => '🇿🇦 South Africa (+27)',
+    ];
+
     public bool $sendOtp = false;
 
     public string $digit1 = '';
@@ -71,6 +96,7 @@ class Login extends Component
         $this->resetValidation();
         $this->resetOtpState();
         $this->mobile = '';
+        $this->countryCode = '91';
         $this->accountType = 'customer';
         $this->step = 2;
     }
@@ -85,69 +111,96 @@ class Login extends Component
     public function save(): bool
     {
         $this->accountType = 'customer';
-
-        $this->mobile = $this->normalizeMobile($this->mobile);
+        $this->mobile = preg_replace('/\D+/', '', $this->mobile) ?? '';
+        $this->countryCode = preg_replace('/\D+/', '', $this->countryCode) ?? '';
 
         $this->validate([
-            'mobile' => [
-                'required',
-                'digits:10',
-                'regex:/^[6-9][0-9]{9}$/',
-            ],
-        ], [
-            'mobile.required' => 'Please enter your mobile number.',
-            'mobile.digits' => 'Please enter a valid 10-digit mobile number.',
-            'mobile.regex' => 'Please enter a valid Indian mobile number.',
+            'countryCode' => ['required', 'in:'.implode(',', array_keys($this->countryCodes))],
+            'mobile' => ['required', 'regex:/^[0-9]{6,14}$/D'],
         ]);
 
+        if ($this->countryCode === '91' && !preg_match('/^[6-9][0-9]{9}$/D', $this->mobile)) {
+            $this->addError('mobile', 'Enter a valid 10-digit Indian mobile number.');
+            return false;
+        }
+
+        $fullNumber = $this->fullMobileNumber();
+        if (strlen($fullNumber) > 15) {
+            $this->addError('mobile', 'Enter a valid international mobile number.');
+            return false;
+        }
+
+        // A resend cooldown protects both paid messaging channels.
+        if (now()->timestamp < (int) session('login_otp_resend_after', 0)) {
+            $this->addError('mobile', 'Please wait before requesting another OTP.');
+            return false;
+        }
+
         $this->resetOtpInputs();
-
         $otp = (string) random_int(1000, 9999);
+        $whatsapp = WhatsAppService::sendAuthenticationOtp($fullNumber, $otp);
+        $whatsappSent = (bool) ($whatsapp['status'] ?? false);
+        $smsSent = false;
+
+        if ($this->countryCode === '91') {
+            $smsSent = $this->sendIndianSms($otp);
+        }
+
+        if (!$whatsappSent && !$smsSent) {
+            Log::warning('Customer OTP delivery failed', [
+                'country_code' => $this->countryCode,
+                'mobile_last4' => substr($this->mobile, -4),
+                'whatsapp_error' => $whatsapp['error'] ?? null,
+            ]);
+            $this->addError('mobile', 'OTP could not be sent. Please try again later.');
+            return false;
+        }
+
+        session([
+            'login_otp_hash' => hash('sha256', $otp),
+            'login_otp_mobile' => $fullNumber,
+            'login_otp_expires_at' => now()->addMinutes(5)->timestamp,
+            'login_otp_resend_after' => now()->addSeconds(60)->timestamp,
+            'login_otp_attempts' => 0,
+        ]);
+
+        $this->sendOtp = true;
+        $this->step = 3;
+        $this->otpmessage = 1;
+        $this->dispatch('otp-step-ready');
+        return true;
+    }
+
+    private function fullMobileNumber(): string
+    {
+        return $this->countryCode.$this->mobile;
+    }
+
+    private function sendIndianSms(string $otp): bool
+    {
+        $key = (string) config('services.sambsms.key', env('SAMBSMS_API_KEY', ''));
+        $entity = (string) config('services.sambsms.entity', env('SAMBSMS_ENTITY_ID', ''));
+        $template = (string) config('services.sambsms.template', env('SAMBSMS_TEMPLATE_ID', ''));
+        if ($key === '' || $entity === '' || $template === '') {
+            Log::warning('Customer SMS gateway configuration missing');
+            return false;
+        }
+
         $message = "This is your 4-digit OTP '{$otp}' for Mobile Number Verification on Duracabs.com. Valid for 5 Minutes only. From DURA CABS";
-        $encodedMessage = urlencode($message);
-
-        $apiUrl = 'http://manage.sambsms.com/app/smsapi/index.php'
-            . '?key=3627633B7AC9C6'
-            . '&entity=1701165124480381903'
-            . '&tempid=1507165596189427962'
-            . '&campaign=0'
-            . '&routeid=7'
-            . '&type=text'
-            . "&contacts={$this->mobile}"
-            . '&senderid=DURACB'
-            . "&msg={$encodedMessage}";
-
         try {
-            $client = new Client([
-                'timeout' => 15,
-                'connect_timeout' => 10,
-            ]);
-
-            $client->get($apiUrl);
-
-            session([
-                'login_otp_hash' => hash('sha256', $otp),
-                'login_otp_mobile' => $this->mobile,
-                'login_otp_expires_at' => now()->addMinutes(5)->timestamp,
-            ]);
-
-            $this->sendOtp = true;
-            $this->step = 3;
-            $this->otpmessage = 1;
-            $this->sendOtpOnWhatsApp($otp);
-
-            $this->dispatch('otp-step-ready');
-
-            return true;
+            $response = (new Client(['timeout' => 15, 'connect_timeout' => 10]))->get(
+                'https://manage.sambsms.com/app/smsapi/index.php',
+                ['query' => [
+                    'key' => $key, 'entity' => $entity, 'tempid' => $template,
+                    'campaign' => 0, 'routeid' => 7, 'type' => 'text',
+                    'contacts' => $this->mobile, 'senderid' => 'DURACB', 'msg' => $message,
+                ]]
+            );
+            // HTTP acceptance does not guarantee handset delivery.
+            return $response->getStatusCode() >= 200 && $response->getStatusCode() < 300
+                && !preg_match('/\b(error|invalid|failed|failure)\b/i', (string) $response->getBody());
         } catch (\Throwable $e) {
-            Log::error('Login OTP send failed', [
-                'mobile' => $this->mobile,
-                'account_type' => $this->accountType,
-                'error' => $e->getMessage(),
-            ]);
-
-            $this->addError('mobile', 'OTP send nahi ho paya. Please thodi der baad dobara try karein.');
-
+            Log::warning('Customer SMS OTP request failed', ['error' => $e->getMessage()]);
             return false;
         }
     }
@@ -179,7 +232,7 @@ class Login extends Component
             return false;
         }
 
-        if ($storedMobile !== $this->normalizeMobile($this->mobile)) {
+        if ($storedMobile !== $this->fullMobileNumber()) {
             $this->otpError = 'Mobile number changed. Please request a new OTP.';
 
             return false;
@@ -192,18 +245,25 @@ class Login extends Component
             return false;
         }
 
+        if ((int) session('login_otp_attempts', 0) >= 5) {
+            $this->clearOtpSession();
+            $this->otpError = 'Too many attempts. Request a new OTP.';
+            return false;
+        }
+
         if (!hash_equals($storedHash, hash('sha256', $enteredOtp))) {
+            session(['login_otp_attempts' => (int) session('login_otp_attempts', 0) + 1]);
             $this->otpError = 'Please enter a valid OTP.';
 
             return false;
         }
 
-        $this->mobile = $this->normalizeMobile($this->mobile);
+        $this->mobile = preg_replace('/\D+/', '', $this->mobile) ?? '';
 
         try {
             $result = DB::transaction(function (): array {
                 $user = User::query()
-                    ->where('mobile', $this->mobile)
+                    ->where('mobile', $this->databaseMobile())
                     ->lockForUpdate()
                     ->first();
 
@@ -216,7 +276,7 @@ class Login extends Component
 
                 $user = User::query()->create([
                     'name' => 'Customer ' . substr($this->mobile, -4),
-                    'mobile' => $this->mobile,
+                    'mobile' => $this->databaseMobile(),
                     'email' => $this->generateUniqueEmail(),
                     'password' => bcrypt(Str::random(40)),
                     'is_active' => true,
@@ -275,15 +335,10 @@ class Login extends Component
         return view('livewire.auth.login');
     }
 
-    private function normalizeMobile($mobile): string
+    private function databaseMobile(): string
     {
-        $mobile = preg_replace('/[^0-9]/', '', (string) $mobile);
-
-        if (strlen($mobile) > 10) {
-            $mobile = substr($mobile, -10);
-        }
-
-        return $mobile;
+        // Preserve existing +91 customer records stored as local 10-digit numbers.
+        return $this->countryCode === '91' ? $this->mobile : $this->fullMobileNumber();
     }
 
     private function existingUserCanContinue(User $user): bool
@@ -395,30 +450,13 @@ class Login extends Component
 
     private function generateUniqueEmail(): string
     {
-        $baseEmail = $this->mobile.'@duracabs.local';
+        $baseEmail = $this->databaseMobile().'@duracabs.local';
 
         if (!User::query()->where('email', $baseEmail)->exists()) {
             return $baseEmail;
         }
 
-        return $this->mobile.'-'.Str::lower(Str::random(6)).'@duracabs.local';
-    }
-
-    private function sendOtpOnWhatsApp(string $otp): void
-    {
-        try {
-            $message = "🔐 *DURA CABS — OTP Verification*\n\n";
-            $message .= "Your 4-digit OTP is: *{$otp}*\n\n";
-            $message .= "Valid for 5 minutes only.\n\n";
-            $message .= "Do not share this code with anyone.";
-
-            WhatsAppService::send($this->mobile, $message);
-        } catch (\Throwable $e) {
-            Log::error('WhatsApp OTP send failed in Login', [
-                'mobile' => $this->mobile,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        return $this->databaseMobile().'-'.Str::lower(Str::random(6)).'@duracabs.local';
     }
 
     private function sendNewAccountMessages(User $user): void
@@ -489,6 +527,7 @@ class Login extends Component
             'login_otp_hash',
             'login_otp_mobile',
             'login_otp_expires_at',
+            'login_otp_attempts',
         ]);
     }
 }

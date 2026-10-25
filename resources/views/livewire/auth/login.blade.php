@@ -74,7 +74,7 @@
     </style>
    
     @section('title', 'Login & Register - Dura Cabs Services')
-    @section('description', 'Customer and vendor login or registration with secure OTP verification at Dura Cabs Services.')
+    @section('description', 'Customer login and registration with secure OTP verification at Dura Cabs Services.')
 
    
 
@@ -103,7 +103,7 @@
                                 One secure account for every journey.
                             </h2>
                             <p class="mt-4 max-w-md text-sm leading-6 text-blue-100">
-                                Book cabs as a customer or manage your transport business as a vendor using fast OTP verification.
+                                Book cabs and self-drive cars with secure OTP verification.
                             </p>
                         </div>
 
@@ -239,30 +239,24 @@
                                 </span>
 
                                 <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900">Enter mobile number</h1>
-                                <p class="mt-1.5 text-sm leading-6 text-slate-500">We will send a 4-digit OTP by SMS and WhatsApp.</p>
+                                <p class="mt-1.5 text-sm leading-6 text-slate-500">{{ $countryCode === '91' ? 'Receive OTP by SMS and WhatsApp.' : 'Receive OTP via WhatsApp only.' }}</p>
 
                                 <form wire:submit.prevent="save" class="mt-6">
                                     <label for="mobile" class="mb-2 block text-sm font-bold text-slate-800">Mobile number</label>
 
-                                    <div class="flex overflow-hidden rounded-xl border {{ $errors->has('mobile') ? 'border-red-400 ring-4 ring-red-50' : 'border-slate-300 focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-50' }} transition">
-                                        <div class="flex min-w-[78px] items-center justify-center gap-1 border-r border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700">
-                                            <span>🇮🇳</span>
-                                            <span>+91</span>
-                                        </div>
-
-                                        <input
-                                            type="tel"
-                                            id="mobile"
-                                            wire:model.live="mobile"
-                                            inputmode="numeric"
-                                            autocomplete="tel"
-                                            maxlength="10"
-                                            pattern="[0-9]{10}"
-                                            placeholder="Enter 10-digit number"
-                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10)"
-                                            class="h-[54px] w-full border-0 bg-white px-4 text-[15px] font-semibold tracking-wide text-slate-900 outline-none placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-0 focus:outline-none focus:ring-0"
-                                            autofocus
-                                        >
+                                    <div class="flex gap-2">
+                                        <select wire:model.live="countryCode" aria-label="Country calling code"
+                                            class="h-[54px] w-[46%] min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-2 text-sm font-semibold text-slate-700 focus:border-blue-500 focus:ring-blue-100">
+                                            @foreach ($countryCodes as $code => $label)
+                                                <option value="{{ $code }}">{{ $label }}</option>
+                                            @endforeach
+                                        </select>
+                                        <input type="tel" id="mobile" wire:model.live="mobile"
+                                            inputmode="numeric" autocomplete="tel-national" maxlength="14"
+                                            placeholder="Mobile number"
+                                            oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 14)"
+                                            class="h-[54px] min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-[15px] font-semibold text-slate-900 focus:border-blue-500 focus:ring-blue-100"
+                                            autofocus>
                                     </div>
 
                                     @error('mobile')
@@ -276,7 +270,7 @@
                                         type="submit"
                                         wire:loading.attr="disabled"
                                         wire:target="save"
-                                        @disabled(strlen((string) $mobile) !== 10)
+                                        @disabled(strlen((string) $mobile) < 6)
                                         class="mt-5 inline-flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-700 to-sky-500 px-4 text-sm font-extrabold text-white shadow-lg shadow-blue-500/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
                                     >
                                         <span wire:loading.remove wire:target="save">Send OTP</span>
@@ -318,7 +312,7 @@
 
                                 <h1 class="mt-3 text-3xl font-black tracking-tight text-slate-900">Verify your OTP</h1>
                                 <p class="mt-1.5 text-sm leading-6 text-slate-500">
-                                    Enter the 4-digit code sent to <span class="font-bold text-slate-700">+91 {{ $mobile }}</span>.
+                                    Enter the 4-digit code sent to <span class="font-bold text-slate-700">+{{ $countryCode }} {{ $mobile }}</span>.
                                 </p>
 
                                 @if ($otpmessage === 1)
@@ -326,7 +320,7 @@
                                         <i class="fa-solid fa-circle-check mt-0.5"></i>
                                         <div>
                                             <p class="font-bold">OTP sent successfully</p>
-                                            <p class="mt-0.5 text-xs text-emerald-700">Please check SMS or WhatsApp.</p>
+                                            <p class="mt-0.5 text-xs text-emerald-700">{{ $countryCode === '91' ? 'Please check SMS or WhatsApp.' : 'Please check WhatsApp.' }}</p>
                                         </div>
                                     </div>
                                 @endif
