@@ -22,6 +22,15 @@ class EditVehicle extends EditRecord
 {
     protected static string $resource = VehicleResource::class;
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        if (($data['service_type'] ?? null) === \App\Models\Vehicle::SERVICE_SELF_DRIVE) {
+            $data['partner_payout_mode'] = \App\Models\Vehicle::normalizePartnerPayoutMode($data['partner_payout_mode'] ?? null);
+        }
+
+        return $data;
+    }
+
     /**
      * Newly uploaded media that must be attached to this vehicle.
      *

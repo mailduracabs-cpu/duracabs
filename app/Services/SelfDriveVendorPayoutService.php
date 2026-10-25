@@ -263,6 +263,7 @@ class SelfDriveVendorPayoutService
 
                 SelfDriveVendorPayoutItem::create([
                     'received_amount' => '0.00',
+                    'payout_terms' => $calculation['payout_terms'] ?? ['mode' => 'legacy'],
                     'self_drive_vendor_payout_id' =>
                         $payout->id,
 
@@ -310,7 +311,7 @@ class SelfDriveVendorPayoutService
 
                 throw ValidationException::withMessages([
                     'payout' =>
-                        'Eligible bookings found, but payout could not be calculated.',
+                        'No booking-wise payout could be calculated. Monthly agreements are paid separately by admin.',
                 ]);
             }
 
@@ -333,6 +334,14 @@ class SelfDriveVendorPayoutService
     public function calculateBookingPayout(
         SelfDriveBooking $booking
     ): ?array {
+        // The booking snapshot is authoritative, even if today's vehicle mode changed.
+        $terms = $booking->partner_payout_terms ?? ['mode' => 'legacy'];
+        $mode = $terms['mode'] ?? 'legacy';
+        if ($mode === 'monthly') {
+            // The owner is paid by monthly agreement, never once per booking.
+            return null;
+        }
+
         $booking->loadMissing('vehicle');
 
         $vehicle = $booking->vehicle;
@@ -341,13 +350,8 @@ class SelfDriveVendorPayoutService
             return null;
         }
 
-        /*
-         * 24H payout units.
-         *
-         * Prefer booked_hours क्योंकि यही exact duration है.
-         * SelfDriveBooking already total_days =
-         * CEIL(booked_hours / 24) calculate करता है.
-         */
+        // Legacy integer units remain for reporting and old unsnapshotted bookings.
+        // Fixed-mode money below uses exact start/end seconds, never these ceil units.
         $bookedHours = max(
             1,
             (int) ($booking->booked_hours ?? 0)
@@ -382,7 +386,8 @@ class SelfDriveVendorPayoutService
             max(
                 0,
                 (float) (
-                    $vehicle->commission_percentage
+                    $booking->partner_payout_terms['commission_percentage']
+                    ?? $vehicle->commission_percentage
                     ?? 0
                 )
             )
@@ -416,7 +421,28 @@ class SelfDriveVendorPayoutService
                     $vendorRatePer24h
                 );
 
+        if ($mode === 'fixed') {
+            // Contract start/end, in exact seconds; no rounding up to a full day.
+            if (! $booking->start_datetime || ! $booking->end_datetime) return null;
+            $seconds = $booking->end_datetime->getTimestamp() - $booking->start_datetime->getTimestamp();
+            $vendorRatePer24h = $terms['fixed_rate_per_24h'];
+            $commissionPercentage = 0;
+            $payoutAmount = PartnerRentalPayoutCalculator::fixed((string) $vendorRatePer24h, $seconds);
+            $terms['duration_seconds'] = $seconds;
+            $terms['prorated_days'] = round($seconds / 86400, 8);
+        } elseif ($mode === 'percentage') {
+            // Base rental only: security deposit and return penalties are separate ledgers.
+            $rental = $booking->return_completion_audit['base_rental'] ?? $booking->effectiveRentalAmount();
+            $commissionPercentage = (float) $terms['commission_percentage'];
+            $payoutAmount = PartnerRentalPayoutCalculator::percentage(number_format((float) $rental, 2, '.', ''), (string) $terms['commission_percentage']);
+            $vendorRatePer24h = PartnerRentalPayoutCalculator::percentage(number_format($customerDailyRate, 2, '.', ''), (string) $terms['commission_percentage']);
+            $terms['rental_basis'] = number_format((float) $rental, 2, '.', '');
+        } elseif ($mode !== 'legacy') {
+            throw ValidationException::withMessages(['payout' => 'Booking payout terms require admin review.']);
+        }
+
         return [
+            'payout_terms' => $terms,
             'booking_id' =>
                 $booking->id,
 

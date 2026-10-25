@@ -626,22 +626,37 @@ class VehicleResource extends Resource
                 ->schema([
                     Select::make('partner_payout_mode')
                         ->label('Vendor payout mode')
-                        ->options(['percentage' => 'Percentage of rental', 'fixed' => 'Fixed per 24 hours'])
-                        ->default('percentage')->required()->live()
+                        ->options(['percentage' => 'Percentage of rental', 'fixed' => 'Fixed per 24 hours', 'monthly' => 'Monthly fixed agreement'])
+                        ->default('percentage')
+                        ->afterStateHydrated(function (Select $component, mixed $state): void {
+                            $component->state(Vehicle::normalizePartnerPayoutMode($state));
+                        })
+                        ->required(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->rules(['in:percentage,fixed,monthly'])
+                        ->selectablePlaceholder(false)
+                        ->live()
                         ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE)
                         ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
-                        ->helperText('Admin only. Changes apply to new bookings.'),
+                        ->helperText('Admin sets the agreement once. Saved terms apply to new bookings; existing booking terms stay unchanged.'),
                     TextInput::make('partner_fixed_rate_per_24h')
                         ->label('Vendor amount per 24 hours')->prefix('₹')->numeric()
                         ->minValue(0.01)->maxValue(500000)->rules(['decimal:0,2'])
-                        ->required(fn (Forms\Get $get): bool => $get('partner_payout_mode') === 'fixed')
+                        ->required(fn (Forms\Get $get): bool => $get('partner_payout_mode') === 'fixed' && (auth()->user()?->canUseAdminLogin() ?? false))
                         ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed')
                         ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
-                        ->helperText('Prorated by exact duration: ₹900 × 30 / 24 = ₹1,125. Security excluded.'),
+                        ->helperText('Exact duration: ₹3,000 × 30 / 24 = ₹3,750. Independent of customer rent; security excluded.'),
+                    TextInput::make('partner_monthly_amount')
+                        ->label('Vendor monthly agreement amount')->prefix('₹')->numeric()
+                        ->minValue(0.01)->maxValue(500000)->rules(['decimal:0,2'])
+                        ->required(fn (Forms\Get $get): bool => $get('partner_payout_mode') === 'monthly' && (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->visible(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'monthly')
+                        ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
+                        ->helperText('Fixed monthly owner payment, independent of bookings. No booking-wise vendor payout. Admin records the monthly payment separately.'),
                     TextInput::make('hourly_price')
-                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && in_array($get('partner_payout_mode'), ['fixed', 'monthly'], true) && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('Hourly Price')
                         ->numeric()
                         ->minValue(0)
@@ -669,7 +684,7 @@ class VehicleResource extends Resource
                         ),
 
                     TextInput::make('daily_price')
-                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && in_array($get('partner_payout_mode'), ['fixed', 'monthly'], true) && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('24-Hour Price')
                         ->numeric()
                         ->minValue(0)
@@ -697,6 +712,7 @@ class VehicleResource extends Resource
 
                     TextInput::make('commission_percentage')
                         ->label('DuraCabs commission')
+                        ->helperText('DuraCabs 70% means vendor 30%. Applied to rental only; refundable security is excluded.')
                         ->rules(['decimal:0,2'])
                         ->disabled(fn (): bool => ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->dehydrated(fn (): bool => auth()->user()?->canUseAdminLogin() ?? false)
@@ -788,21 +804,21 @@ class VehicleResource extends Resource
                         ),
 
                     TextInput::make('weekly_price')
-                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && in_array($get('partner_payout_mode'), ['fixed', 'monthly'], true) && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('7-Day Price')
                         ->numeric()
                         ->minValue(0)
                         ->prefix('₹'),
 
                     TextInput::make('monthly_price')
-                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && in_array($get('partner_payout_mode'), ['fixed', 'monthly'], true) && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('30-Day Price')
                         ->numeric()
                         ->minValue(0)
                         ->prefix('₹'),
 
                     TextInput::make('security_deposit')
-                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && $get('partner_payout_mode') === 'fixed' && ! (auth()->user()?->canUseAdminLogin() ?? false))
+                        ->disabled(fn (Forms\Get $get): bool => $get('service_type') === Vehicle::SERVICE_SELF_DRIVE && in_array($get('partner_payout_mode'), ['fixed', 'monthly'], true) && ! (auth()->user()?->canUseAdminLogin() ?? false))
                         ->label('Security Deposit')
                         ->numeric()
                         ->minValue(0)

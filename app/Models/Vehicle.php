@@ -117,6 +117,9 @@ class Vehicle extends Model
         'hourly_price',
         'daily_price',
         'commission_percentage',
+        'partner_payout_mode',
+        'partner_fixed_rate_per_24h',
+        'partner_monthly_amount',
         'weekly_price',
         'monthly_price',
         'security_deposit',
@@ -210,6 +213,8 @@ class Vehicle extends Model
         'hourly_price' => 'decimal:2',
         'daily_price' => 'decimal:2',
         'commission_percentage' => 'decimal:2',
+        'partner_fixed_rate_per_24h' => 'decimal:2',
+        'partner_monthly_amount' => 'decimal:2',
         'weekly_price' => 'decimal:2',
         'monthly_price' => 'decimal:2',
         'security_deposit' => 'decimal:2',
@@ -1074,6 +1079,76 @@ class Vehicle extends Model
     |--------------------------------------------------------------------------
     */
 
+    /** Blank legacy records use percentage; unknown nonblank values remain invalid. */
+    public static function normalizePartnerPayoutMode(mixed $mode): string
+    {
+        return blank($mode) ? 'percentage' : (string) $mode;
+    }
+
+    public function partnerPayoutTerms(): array
+    {
+        $mode = self::normalizePartnerPayoutMode($this->partner_payout_mode);
+        return [
+            'version' => 2, 'mode' => $mode, 'vehicle_id' => $this->id,
+            'commission_percentage' => number_format((float) ($this->commission_percentage ?? 30), 2, '.', ''),
+            'fixed_rate_per_24h' => $mode === 'fixed' ? $this->partner_fixed_rate_per_24h : null,
+            'monthly_amount' => $mode === 'monthly' ? $this->partner_monthly_amount : null,
+        ];
+    }
+
+    public function partnerPricingPolicy(): array
+    {
+        $terms = $this->partnerPayoutTerms();
+        $percentage = $terms['mode'] === 'percentage';
+        return [
+            'payout_mode' => $terms['mode'],
+            'can_edit_rental_prices' => $this->isSelfDrive() && $percentage,
+            'vendor_share_percentage' => $percentage ? round(100 - (float) $terms['commission_percentage'], 2) : null,
+            'vendor_rate_per_24h' => $terms['mode'] === 'fixed' ? $terms['fixed_rate_per_24h'] : null,
+            'vendor_monthly_amount' => $terms['mode'] === 'monthly' ? $terms['monthly_amount'] : null,
+        ];
+    }
+
+    private function validatePartnerPayoutPolicy(): void
+    {
+        if (! $this->isSelfDrive()) return;
+        $user = auth()->user();
+        $admin = $user && $user->canUseAdminLogin();
+        if ($user && ! $admin && $this->exists) {
+            foreach (['partner_payout_mode', 'partner_fixed_rate_per_24h', 'partner_monthly_amount', 'commission_percentage'] as $field) {
+                if ($this->isDirty($field)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Only admin can change vendor payout terms.']);
+                }
+            }
+            if (in_array(self::normalizePartnerPayoutMode($this->getRawOriginal('partner_payout_mode')), ['fixed', 'monthly'], true)) {
+                foreach (['daily_price', 'hourly_price', 'weekly_price', 'monthly_price', 'security_deposit'] as $field) {
+                    if ($this->isDirty($field)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([$field => 'Fixed and monthly agreement prices are managed by admin.']);
+                    }
+                }
+            }
+        }
+        if ($user && ! $admin && ! $this->exists) {
+            $this->partner_payout_mode = 'percentage';
+            $this->partner_fixed_rate_per_24h = null;
+            $this->partner_monthly_amount = null;
+            $this->commission_percentage = 30;
+        }
+        $mode = self::normalizePartnerPayoutMode($this->partner_payout_mode);
+        if (! in_array($mode, ['fixed', 'percentage', 'monthly'], true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['partner_payout_mode' => 'Select Percentage, Fixed per 24 hours, or Monthly fixed.']);
+        }
+        // Persist the fallback too, so it survives save/reopen of old blank records.
+        $this->partner_payout_mode = $mode;
+        if ($mode === 'fixed') {
+            \App\Services\PartnerRentalPayoutCalculator::fixed((string) $this->partner_fixed_rate_per_24h, 86400);
+        } elseif ($mode === 'monthly') {
+            \App\Services\PartnerRentalPayoutCalculator::monthly((string) $this->partner_monthly_amount);
+        } else {
+            \App\Services\PartnerRentalPayoutCalculator::percentage('1.00', (string) ($this->commission_percentage ?? 30));
+        }
+    }
+
     protected static function booted(): void
     {
         static::creating(function (Vehicle $vehicle): void {
@@ -1084,6 +1159,8 @@ class Vehicle extends Model
             if (blank($vehicle->service_type)) {
                 $vehicle->service_type = self::SERVICE_TAXI;
             }
+
+            $vehicle->validatePartnerPayoutPolicy();
 
             if (blank($vehicle->vehicle_type)) {
                 $vehicle->vehicle_type = $vehicle->isBikeRental()
@@ -1125,6 +1202,7 @@ class Vehicle extends Model
         });
 
         static::updating(function (Vehicle $vehicle): void {
+            $vehicle->validatePartnerPayoutPolicy();
             if ($vehicle->getAttribute('partner_removed_at') !== null) {
                 $vehicle->is_active = false;
                 $vehicle->is_live = false;
