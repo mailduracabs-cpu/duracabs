@@ -7,4 +7,5 @@
 
 /public/storage
 /storage/logs
-/bootstrap/cache/*.php
+/bootstrap/cache/*.php/backups/
+/.phpunit.result.cache
