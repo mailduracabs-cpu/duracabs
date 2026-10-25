@@ -585,6 +585,15 @@ class EditOrder extends EditRecord
                     'booking_id' => OrderResource::bookingNumber(
                         $this->record
                     ),
+                    'car_category' => trim((string) ($this->record->taxi_type ?: $this->record->productName ?: 'Taxi')),
+                    'vehicle_name' => trim((string) ($this->record->productName ?: $this->record->taxi_type ?: 'Taxi')),
+                    'invoice_url' => Route::has('invoice.shared')
+                        ? URL::temporarySignedRoute(
+                            'invoice.shared',
+                            now()->addDays(max(1, (int) config('services.whatsapp.invoice_link_days', 30))),
+                            ['booking' => OrderResource::bookingNumber($this->record)]
+                        )
+                        : '',
                     'pickup' => $this->pickupLabel(),
                     'drop' => $this->dropLabel(),
                     'date' => $this->travelDateLabel(),

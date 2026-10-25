@@ -771,6 +771,16 @@ class BookingService
                 ?? ''
             ));
 
+            $bookingNumber = (string) ($bookingData['booking_no'] ?? $bookingData['booking_id'] ?? $bookingId);
+            $invoiceUrl = '';
+            if (\Illuminate\Support\Facades\Route::has('invoice.shared')) {
+                $invoiceUrl = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+                    'invoice.shared',
+                    now()->addDays(max(1, (int) config('services.whatsapp.invoice_link_days', 30))),
+                    ['booking' => $bookingNumber]
+                );
+            }
+
             WhatsAppService::dispatchEvent('booking.confirmed', [
                 'customer_name' => $contact['name']
                     ?? $user?->name
@@ -788,9 +798,13 @@ class BookingService
                 'service' => $bookingData['service_type']
                     ?? $bookingData['ride_type']
                     ?? 'Taxi',
+                'service_type' => $bookingData['service_type'] ?? $bookingData['ride_type'] ?? 'Taxi',
+                'vehicle_name' => $bookingData['product_name'] ?? $bookingData['taxi_type'] ?? 'Taxi',
                 'vehicle' => $bookingData['product_name']
                     ?? $bookingData['taxi_type']
                     ?? 'Dura Cabs Vehicle',
+                'car_category' => $bookingData['taxi_type'] ?? $bookingData['product_name'] ?? 'Taxi',
+                'invoice_url' => $invoiceUrl,
                 'pickup' => $pickup,
                 'drop' => $drop,
                 'route' => ($pickup !== '' && $drop !== '')

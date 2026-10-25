@@ -523,45 +523,53 @@ class WhatsAppService
         $bookingId = trim((string) ($data['booking_id'] ?? 'N/A')) ?: 'N/A';
         $service = trim((string) ($data['service_type'] ?? $data['service'] ?? 'Cab Booking')) ?: 'Cab Booking';
         $vehicle = trim((string) ($data['vehicle_name'] ?? $data['car_name'] ?? 'N/A')) ?: 'N/A';
-
+        $category = trim((string) ($data['car_category'] ?? $data['vehicle_category'] ?? $data['category_name'] ?? $vehicle)) ?: 'N/A';
         $pickup = trim((string) ($data['pickup'] ?? $data['pickup_city'] ?? 'N/A')) ?: 'N/A';
         $drop = trim((string) ($data['drop'] ?? $data['drop_city'] ?? 'N/A')) ?: 'N/A';
         $route = trim((string) ($data['route'] ?? '')) ?: "{$pickup} to {$drop}";
-
         $date = trim((string) ($data['travel_date'] ?? $data['date'] ?? $data['pickup_date'] ?? 'N/A')) ?: 'N/A';
         $time = trim((string) ($data['travel_time'] ?? $data['time'] ?? $data['pickup_time'] ?? 'N/A')) ?: 'N/A';
-
         $amount = $data['total_amount'] ?? $data['grand_total'] ?? $data['amount'] ?? '0';
-        $amount = is_numeric($amount)
-            ? number_format((float) $amount, 2, '.', '')
-            : (trim((string) $amount) ?: '0.00');
+        $amount = is_numeric($amount) ? number_format((float) $amount, 2, '.', '') : (trim((string) $amount) ?: '0.00');
+        $appUrl = 'https://play.google.com/store/apps/details?id=com.duracabs.app';
+        // Use only a signed URL supplied by the booking/invoice flow. Never reuse another booking's URL.
+        $invoiceUrl = trim((string) ($data['invoice_url'] ?? $data['invoice_link'] ?? ''));
+        if ($invoiceUrl !== '' && (!filter_var($invoiceUrl, FILTER_VALIDATE_URL) || !str_starts_with($invoiceUrl, 'https://www.duracabs.com/invoice/share/'))) {
+            Log::warning('Booking confirmation invoice URL was not a valid Dura Cabs share link.', ['booking_id' => $bookingId]);
+            $invoiceUrl = '';
+        }
 
-        $message =
-            "Hello {$customerName},\n\n" .
+        $message = "Hello {$customerName},\n\n" .
             "Your Dura Cabs booking is confirmed.\n\n" .
             "Booking ID: {$bookingId}\n" .
             "Service: {$service}\n" .
             "Vehicle: {$vehicle}\n" .
+            "Car Category: {$category}\n" .
             "Route: {$route}\n" .
             "Travel Date: {$date}\n" .
             "Travel Time: {$time}\n" .
             "Total Amount: INR {$amount}\n\n" .
-            "Thank you for choosing Dura Cabs.";
+            "Download Dura Cabs App: {$appUrl}\n" .
+            ($invoiceUrl !== '' ? "View Invoice: {$invoiceUrl}\n" : '') .
+            "\nThank you for choosing Dura Cabs.";
+
+        // Approved Meta templates have a fixed number/order of parameters.
+        // Preserve the existing 8-variable template; use extended variables only
+        // after a corresponding 10-variable template has been approved.
+        $parameters = [$customerName, $bookingId, $service, $vehicle, $route, $date, $time, $amount];
+        $template = self::resolveReadyTemplate('booking_confirmed');
+        if ($template && preg_match_all('/\{\{\s*(\d+)\s*\}\}/', (string) $template->body, $matches)) {
+            $count = $matches[1] === [] ? 0 : max(array_map('intval', $matches[1]));
+            if ($count === 10 && $invoiceUrl !== '') {
+                $parameters = [$customerName, $bookingId, $service, $vehicle, $route, $date, $time, $amount, $category, $invoiceUrl];
+            }
+        }
 
         return self::sendConfiguredTemplateOrText(
             number: $number,
             templateConfigKey: 'booking_confirmed',
             fallbackMessage: $message,
-            parameters: [
-                $customerName,
-                $bookingId,
-                $service,
-                $vehicle,
-                $route,
-                $date,
-                $time,
-                $amount,
-            ]
+            parameters: $parameters
         );
     }
 

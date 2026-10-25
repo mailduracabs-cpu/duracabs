@@ -152,6 +152,49 @@ BODY,
                 ]
             ),
 
+            // New version: keep booking_confirmed_v2 unchanged until Meta approves v3.
+            $this->template(
+                name: 'Booking Confirmed',
+                templateName: 'booking_confirmed_v3',
+                body: <<<'BODY'
+👋 Hello {{1}},
+
+✅ *Your Dura Cabs Booking is Confirmed!*
+
+🆔 Booking ID: {{2}}
+🚖 Service: {{3}}
+🚘 Vehicle: {{4}}
+🚙 Car Category: {{9}}
+📍 Route: {{5}}
+📅 Travel Date: {{6}}
+🕐 Pickup Time: {{7}}
+💰 Total Fare: INR {{8}}
+
+📱 *Download Dura Cabs App:*
+https://play.google.com/store/apps/details?id=com.duracabs.app
+
+🧾 *View / Download Invoice:*
+{{10}}
+
+📱 Please keep your registered mobile number available before pickup.
+
+🙏 Thank you for choosing Dura Cabs.
+🚕 We wish you a safe and comfortable journey.
+BODY,
+                variables: [
+                    $this->variable(1, 'customer_name', 'Sanjay Singh'),
+                    $this->variable(2, 'booking_id', 'OW000309'),
+                    $this->variable(3, 'service_type', 'One Way Cab'),
+                    $this->variable(4, 'vehicle_name', 'Swift Dzire'),
+                    $this->variable(5, 'route', 'Agra to Delhi'),
+                    $this->variable(6, 'travel_date', '05 August 2026'),
+                    $this->variable(7, 'travel_time', '10:00 AM'),
+                    $this->variable(8, 'total_amount', '4500.00'),
+                    $this->variable(9, 'car_category', 'Sedan'),
+                    $this->variable(10, 'invoice_url', 'https://www.duracabs.com/invoice/share/OW000309?expires=1792940677&signature=05e5d3ed4beb2e2ff4afb0df0d5b88ee506dcecce62f15ade07693efb0180730'),
+                ]
+            ),
+
             $this->template(
                 name: 'Booking Rejected',
                 templateName: 'booking_rejected_v2',
