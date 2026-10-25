@@ -980,27 +980,8 @@ if (
                                                 fetchpriority="{{ $loop->first
                                                     ? 'high'
                                                     : 'low' }}"
-                                                onerror="
-                                                    this.hidden = true;
-                                                    this.nextElementSibling
-                                                        .classList
-                                                        .remove('hidden');
-                                                "
+                                                onerror="this.hidden=true;"
                                             >
-
-                                            <i
-                                                class="fa-solid fa-car-side
-                                                       hidden text-4xl
-                                                       text-[var(--dura-primary,#2563eb)]"
-                                                aria-hidden="true"
-                                            ></i>
-                                        @else
-                                            <i
-                                                class="fa-solid fa-car-side
-                                                       text-4xl
-                                                       text-[var(--dura-primary,#2563eb)]"
-                                                aria-hidden="true"
-                                            ></i>
                                         @endif
                                     </div>
                                 </div>
