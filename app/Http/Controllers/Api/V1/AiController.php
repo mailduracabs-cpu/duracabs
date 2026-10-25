@@ -49,6 +49,20 @@ class AiController extends BaseApiController
         ], 'AI trip plan generated');
     }
 
+    public function tourItinerary(Request $request, \App\Services\DuraAiTourPlanner $planner)
+    {
+        $data = $planner->input($request->all());
+        if (! config('dura_ai_tour.enabled') || ! config('dura_ai_tour.api_key')) {
+            return $this->error('AI itinerary is not enabled yet. Live vehicle fares are still available.', 503);
+        }
+        try {
+            return $this->success($planner->generate($data), 'Personalised tour itinerary');
+        } catch (\Throwable $exception) {
+            Log::warning('Dura AI itinerary unavailable', ['exception_type' => get_class($exception)]);
+            return $this->error('AI could not complete this itinerary. Try again or continue with the live vehicle fares.', 503);
+        }
+    }
+
     public function imageGenerate(Request $request)
     {
         return $this->success([

@@ -1218,6 +1218,8 @@ Route::post('/booking/{booking}/live-location/stop', [
         'chat',
     ]);
 
+    Route::post('/ai/tour-itinerary', [AiController::class, 'tourItinerary'])->middleware('throttle:3,1');
+
     Route::post('/ai/trip-planner', [
         AiController::class,
         'tripPlanner',
