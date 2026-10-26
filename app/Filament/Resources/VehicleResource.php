@@ -43,6 +43,16 @@ class VehicleResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'vehicle_number';
 
+    // Dedicated fleet resources share this form, table and ownership scope.
+    protected static ?string $fleetServiceType = null;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        // Preserve the existing combined menu in partner/other panels.
+        return filament()->getCurrentPanel()?->getId() !== 'admin'
+            && parent::shouldRegisterNavigation();
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([
@@ -68,7 +78,9 @@ class VehicleResource extends Resource
                     Select::make('service_type')
                         ->label('Service')
                         ->options(Vehicle::serviceTypeOptions())
-                        ->default(Vehicle::SERVICE_SELF_DRIVE)
+                        ->default(static::$fleetServiceType ?? Vehicle::SERVICE_SELF_DRIVE)
+                        ->disabled(static::$fleetServiceType !== null)
+                        ->dehydrated()
                         ->required()
                         ->native(false)
                         ->live()
@@ -128,7 +140,9 @@ class VehicleResource extends Resource
                                         Vehicle::TYPE_CAR => 'Car',
                                     ]
                         )
-                        ->default(Vehicle::TYPE_CAR)
+                        ->default(static::$fleetServiceType === Vehicle::SERVICE_BIKE_RENTAL
+                            ? Vehicle::TYPE_BIKE
+                            : Vehicle::TYPE_CAR)
                         ->required()
                         ->native(false),
 
@@ -1746,6 +1760,12 @@ class VehicleResource extends Resource
                 'insuranceMedia',
                 'pollutionMedia',
             ]);
+
+        if (static::$fleetServiceType !== null) {
+            // Scope the resource itself, including direct edit record lookup.
+            // A table filter cannot expose a different fleet through this URL.
+            $query->where('service_type', static::$fleetServiceType);
+        }
 
         if (! static::isPartnerPanel()) {
             return $query;
