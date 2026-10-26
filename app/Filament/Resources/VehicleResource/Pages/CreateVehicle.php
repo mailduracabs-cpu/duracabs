@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 
@@ -56,6 +57,15 @@ class CreateVehicle extends CreateRecord
         array $data
     ): Model {
         $this->applyOwnershipAndDefaults($data);
+
+        // Match the form's promise: accept lower-case plates and remove
+        // spacing/hyphens before the existing agreement policy validates them.
+        if (is_string($data['vehicle_number'] ?? null)) {
+            $number = trim($data['vehicle_number']);
+            $data['vehicle_number'] = strtoupper(
+                preg_replace('/[\s-]+/u', '', $number) ?? $number
+            );
+        }
 
         $vehicleName = $this->resolveVehicleName($data);
 
@@ -256,6 +266,26 @@ class CreateVehicle extends CreateRecord
             $this->deleteTemporaryUploads();
 
             return $vehicle->refresh();
+        } catch (ValidationException $exception) {
+            $this->cleanupUnusedMedia();
+
+            // Model policies return unprefixed field names. Filament stores
+            // this form under its state path (normally "data"). Preserve
+            // validation errors instead of wrapping them as a server error.
+            $statePath = (string) $this->form->getStatePath();
+            $errors = [];
+
+            foreach ($exception->errors() as $field => $messages) {
+                $field = (string) $field;
+                $key = $statePath !== ''
+                    && ! str_starts_with($field, $statePath . '.')
+                        ? $statePath . '.' . $field
+                        : $field;
+
+                $errors[$key] = array_merge($errors[$key] ?? [], (array) $messages);
+            }
+
+            throw ValidationException::withMessages($errors);
         } catch (Throwable $exception) {
             $this->cleanupUnusedMedia();
 
