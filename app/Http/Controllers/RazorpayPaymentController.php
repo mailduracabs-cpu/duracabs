@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
 use Illuminate\View\View;
 use RuntimeException;
 use Throwable;
@@ -297,6 +299,16 @@ class RazorpayPaymentController extends Controller
                 [
                     'customer_name' => $this->customerName($order),
                     'booking_id' => $bookingId,
+                    'service_type' => (string) ($order->ride_type ?: 'Taxi'),
+                    'vehicle_name' => (string) ($order->productName ?: $order->taxi_type ?: 'Taxi'),
+                    'car_category' => (string) ($order->taxi_type ?: $order->productName ?: 'Taxi'),
+                    'invoice_url' => Route::has('invoice.shared')
+                        ? URL::temporarySignedRoute(
+                            'invoice.shared',
+                            now()->addDays(max(1, (int) config('services.whatsapp.invoice_link_days', 30))),
+                            ['booking' => $bookingId]
+                        )
+                        : '',
                     'pickup' => $this->pickupLabel($order),
                     'drop' => $this->dropLabel($order),
                     'date' => $this->travelDateLabel($order),

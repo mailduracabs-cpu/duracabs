@@ -335,6 +335,28 @@ class WhatsAppService
                     continue;
                 }
 
+                // Do not send a booking confirmation with placeholder category
+                // or invoice link when the approved template requires them.
+                if ($eventKey === 'booking.confirmed') {
+                    $requiredKeys = collect(is_array($template->variables) ? $template->variables : [])
+                        ->filter(fn (mixed $variable): bool => is_array($variable))
+                        ->pluck('key')
+                        ->all();
+                    $missing = array_values(array_filter(
+                        ['car_category', 'invoice_url'],
+                        fn (string $key): bool => in_array($key, $requiredKeys, true)
+                            && trim((string) data_get($data, $key, '')) === ''
+                    ));
+                    if ($missing !== []) {
+                        Log::warning('Booking confirmation WhatsApp skipped: required values missing.', [
+                            'booking_id' => $data['booking_id'] ?? null,
+                            'missing_keys' => $missing,
+                        ]);
+                        $failed++;
+                        continue;
+                    }
+                }
+
                 $bodyParameters = self::resolveEventBodyParameters(
                     template: $template,
                     data: $data
@@ -560,7 +582,14 @@ class WhatsAppService
         $template = self::resolveReadyTemplate('booking_confirmed');
         if ($template && preg_match_all('/\{\{\s*(\d+)\s*\}\}/', (string) $template->body, $matches)) {
             $count = $matches[1] === [] ? 0 : max(array_map('intval', $matches[1]));
-            if ($count === 10 && $invoiceUrl !== '') {
+            if ($count === 10) {
+                if ($invoiceUrl === '' || in_array($bookingId, ['', 'N/A'], true)) {
+                    Log::warning('Booking confirmation not sent: signed invoice URL or booking ID missing.', [
+                        'booking_id' => $bookingId,
+                        'invoice_url_present' => $invoiceUrl !== '',
+                    ]);
+                    return false;
+                }
                 $parameters = [$customerName, $bookingId, $service, $vehicle, $route, $date, $time, $amount, $category, $invoiceUrl];
             }
         }

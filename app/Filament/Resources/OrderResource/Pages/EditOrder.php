@@ -585,6 +585,7 @@ class EditOrder extends EditRecord
                     'booking_id' => OrderResource::bookingNumber(
                         $this->record
                     ),
+                    'service_type' => (string) ($this->record->ride_type ?: 'Taxi'),
                     'car_category' => trim((string) ($this->record->taxi_type ?: $this->record->productName ?: 'Taxi')),
                     'vehicle_name' => trim((string) ($this->record->productName ?: $this->record->taxi_type ?: 'Taxi')),
                     'invoice_url' => Route::has('invoice.shared')

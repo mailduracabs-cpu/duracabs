@@ -781,7 +781,7 @@ class BookingService
                 );
             }
 
-            WhatsAppService::dispatchEvent('booking.confirmed', [
+            $whatsAppResult = WhatsAppService::dispatchEvent('booking.confirmed', [
                 'customer_name' => $contact['name']
                     ?? $user?->name
                     ?? 'Customer',
@@ -803,7 +803,11 @@ class BookingService
                 'vehicle' => $bookingData['product_name']
                     ?? $bookingData['taxi_type']
                     ?? 'Dura Cabs Vehicle',
-                'car_category' => $bookingData['taxi_type'] ?? $bookingData['product_name'] ?? 'Taxi',
+                'car_category' => trim((string) (
+                    ($bookingData['taxi_type'] ?? null)
+                    ?: ($bookingData['product_name'] ?? null)
+                    ?: 'Taxi'
+                )),
                 'invoice_url' => $invoiceUrl,
                 'pickup' => $pickup,
                 'drop' => $drop,
@@ -819,6 +823,13 @@ class BookingService
                 'amount' => (string) ($bookingData['grand_total'] ?? 0),
                 'total_amount' => (string) ($bookingData['grand_total'] ?? 0),
             ]);
+            if (! ($whatsAppResult['status'] ?? false)) {
+                Log::warning('Booking confirmed WhatsApp event was not fully delivered.', [
+                    'booking_id' => $bookingNumber,
+                    'error' => $whatsAppResult['error'] ?? null,
+                    'message' => $whatsAppResult['message'] ?? null,
+                ]);
+            }
         } catch (\Throwable $exception) {
             Log::error('Booking confirmed WhatsApp event failed.', [
                 'booking_id' => $bookingData['booking_no']
@@ -1965,7 +1976,10 @@ class BookingService
 
             $channels = ['push'];
 
-            if (filled($user->mobile)) {
+            // Confirmed bookings use the dedicated WhatsApp event below,
+            // which supplies category and a booking-specific signed invoice.
+            // Keep push, in-app, email and other booking WhatsApp events intact.
+            if ($event !== 'booking_confirmed' && filled($user->mobile)) {
                 $channels[] = 'whatsapp';
             }
 

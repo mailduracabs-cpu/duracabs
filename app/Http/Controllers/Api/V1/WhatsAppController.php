@@ -85,6 +85,8 @@ class WhatsAppController extends BaseApiController
             'car_type' => ['nullable', 'string', 'max:100'],
             'amount' => ['nullable'],
             'booking_id' => ['nullable'],
+            'service_type' => ['nullable', 'string', 'max:100'],
+            'invoice_url' => ['nullable', 'url', 'max:2048'],
         ]);
 
         if ($validator->fails()) {
@@ -117,7 +119,19 @@ class WhatsAppController extends BaseApiController
         try {
             $response = WhatsAppService::bookingConfirmation(
                 $request->mobile,
-                $message
+                [
+                    'customer_name' => $customerName,
+                    'booking_id' => $bookingId,
+                    'service_type' => $request->input('service_type', 'Cab Booking'),
+                    'vehicle_name' => $carType,
+                    'car_category' => $carType,
+                    'pickup' => $request->pickup,
+                    'drop' => $request->drop,
+                    'date' => $request->date,
+                    'time' => $request->time,
+                    'amount' => $request->amount ?? '0',
+                    'invoice_url' => $request->input('invoice_url', ''),
+                ]
             );
 
             $sent = $this->isSuccessful($response);
