@@ -1087,6 +1087,22 @@ class OrderResource extends Resource
                 ? Carbon::parse($record->time)->format('h:i A')
                 : 'N/A';
 
+            // Include the category and booking-specific signed invoice URL
+            // required by the approved booking confirmation WhatsApp template.
+            $carCategory = trim((string) (
+                $record->taxi_type
+                ?: $record->productName
+                ?: 'Taxi'
+            ));
+
+            $invoiceUrl = Route::has('invoice.shared')
+                ? URL::temporarySignedRoute(
+                    'invoice.shared',
+                    now()->addDays(max(1, (int) config('services.whatsapp.invoice_link_days', 30))),
+                    ['booking' => $bookingId]
+                )
+                : '';
+
             $commonPayload = [
                 'mobile' => $mobile,
                 'customer_mobile' => $mobile,
@@ -1094,6 +1110,8 @@ class OrderResource extends Resource
                 'booking_id' => $bookingId,
                 'service_type' => $serviceType,
                 'vehicle_name' => $vehicleName,
+                'car_category' => $carCategory,
+                'invoice_url' => $invoiceUrl,
                 'pickup' => $record->cityFrom ?: 'N/A',
                 'drop' => $record->cityTo ?: 'N/A',
                 'route' => $route,
