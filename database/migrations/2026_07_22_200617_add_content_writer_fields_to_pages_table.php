@@ -19,7 +19,7 @@ return new class extends Migration
 
             $table->string('content_type', 50)
                 ->default('page')
-                ->after('description');
+                ->after('long_description');
 
             $table->text('excerpt')
                 ->nullable()
@@ -41,7 +41,7 @@ return new class extends Migration
 
             $table->string('focus_keyword')
                 ->nullable()
-                ->after('meta_keywords');
+                ->after('reading_time');
 
             $table->json('secondary_keywords')
                 ->nullable()

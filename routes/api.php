@@ -1388,6 +1388,21 @@ Route::prefix('v1/partner')->group(function (): void {
         Route::post('/bookings/{booking}/return/preview', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'preview'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/complete', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'complete'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/admin-request', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'adminRequest'])->whereNumber('booking');
+        Route::post('/marketplace/{post}/quotes/{quote}/select', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'selectQuote'])->whereNumber('post')->whereNumber('quote')->middleware('throttle:10,1');
+        Route::post('/marketplace/payments/{payment}/order', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'createOrder'])->whereNumber('payment')->middleware('throttle:5,1');
+        Route::post('/marketplace/payments/{payment}/verify', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'verify'])->whereNumber('payment')->middleware('throttle:10,1');
+        // Phase 4: marketplace lifecycle and refund routes (authenticated vendors).
+        Route::get('/marketplace/payments/{payment}', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'show'])->whereNumber('payment');
+        Route::post('/marketplace/payments/{payment}/end', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'end'])->whereNumber('payment');
+        Route::post('/marketplace/payments/{payment}/confirm-completion', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'confirmCompletion'])->whereNumber('payment');
+        Route::post('/marketplace/payments/{payment}/cancel', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'cancel'])->whereNumber('payment')->middleware('throttle:5,1');
+        Route::post('/marketplace/payments/{payment}/retry-refund', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'retryRefund'])->whereNumber('payment')->middleware('throttle:3,1');
+        Route::get('/marketplace', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'index']);
+        Route::post('/marketplace', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'store'])->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/quotes', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'quote'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/close', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'close'])->whereNumber('post');
+        Route::get('/marketplace/{post}/messages', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'messages'])->whereNumber('post');
+        Route::post('/marketplace/{post}/messages', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'sendMessage'])->whereNumber('post')->middleware('throttle:30,1');
         Route::get('/me', [\App\Http\Controllers\Api\V1\PartnerController::class, 'me']);
         Route::get('/dashboard', [\App\Http\Controllers\Api\V1\PartnerController::class, 'dashboard']);
         Route::get('/bookings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'bookings']);
@@ -1439,3 +1454,6 @@ Route::get('/v1/partner/admin-return/{booking}/photo/{slot}', [
 
 // Customer app version checks (public metadata).
 require __DIR__ . '/customer_app_updates.php';
+
+// Register this webhook URL separately in Razorpay dashboard (same configured webhook secret).
+Route::post('/v1/partner/marketplace/payment-webhook', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'webhook']);
