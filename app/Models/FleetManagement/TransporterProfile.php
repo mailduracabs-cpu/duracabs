@@ -6,7 +6,7 @@ use App\Models\Order;
 use App\Models\SelfDriveBooking;
 use App\Models\User;
 use App\Models\Vehicle;
-use App\Services\AdminLeadNotificationService;
+use App\Services\RegistrationOrigin;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -75,7 +75,9 @@ class TransporterProfile extends Model
 
     protected static function booted(): void
     {
+        static::updating(fn (self $profile) => RegistrationOrigin::preserveCompletedSource($profile));
         static::creating(function (self $profile): void {
+            RegistrationOrigin::stamp($profile);
             $profile->partner_type ??= self::TYPE_HOST;
             $profile->verification_status ??=
                 self::VERIFICATION_PENDING;
@@ -102,8 +104,7 @@ class TransporterProfile extends Model
                         return;
                     }
 
-                    app(AdminLeadNotificationService::class)
-                        ->sendNewVendorRegistration($freshProfile);
+                    RegistrationOrigin::completeVendor($freshProfile);
                 } catch (\Throwable $exception) {
                     Log::error(
                         'New vendor registration admin notification failed.',

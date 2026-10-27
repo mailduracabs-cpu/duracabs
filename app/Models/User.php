@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\AdminLeadNotificationService;
+use App\Services\RegistrationOrigin;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -121,6 +121,9 @@ class User extends Authenticatable implements FilamentUser
     protected $hidden = [
         'password',
         'remember_token',
+        'registration_account_type',
+        'registration_completed_at',
+        'registration_admin_attempted_at',
         'otp',
     ];
 
@@ -134,37 +137,21 @@ class User extends Authenticatable implements FilamentUser
             'otp_expire_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'registration_completed_at' => 'datetime',
+            'registration_admin_attempted_at' => 'datetime',
         ];
     }
 
     protected static function booted(): void
     {
-        static::created(function (self $user): void {
-            /*
-             * Run after the current database transaction commits. Notification
-             * failure must never roll back or interrupt account registration.
-             */
-            DB::afterCommit(function () use ($user): void {
-                try {
-                    $freshUser = self::query()->find($user->getKey());
+        static::creating(fn (self $user) => RegistrationOrigin::stamp($user));
+        static::updating(fn (self $user) => RegistrationOrigin::preserveCompletedSource($user));
+        static::created(fn (self $user) => RegistrationOrigin::deferUser($user));
+    }
 
-                    if (! $freshUser) {
-                        return;
-                    }
-
-                    app(AdminLeadNotificationService::class)
-                        ->sendNewCustomerRegistration($freshUser);
-                } catch (\Throwable $exception) {
-                    Log::error(
-                        'New customer registration admin notification failed.',
-                        [
-                            'customer_id' => $user->getKey(),
-                            'message' => $exception->getMessage(),
-                        ]
-                    );
-                }
-            });
-        });
+    public function getRegistrationSourceLabelAttribute(): string
+    {
+        return RegistrationOrigin::label($this->registration_source);
     }
 
     /*

@@ -61,6 +61,7 @@ class GoogleAuthService
                 return ['status' => false, 'message' => 'Account token configuration is incomplete. Please contact support.'];
             }
             $token = $user->createToken('dura_app_token')->plainTextToken;
+            RegistrationOrigin::completeUser($user, 'customer');
 
             return [
                 'status' => true,
@@ -121,6 +122,8 @@ class GoogleAuthService
         $token = method_exists($user, 'createToken')
             ? $user->createToken('dura_app_token')->plainTextToken
             : 'duracabs_firebase_token_' . $user->id;
+
+        RegistrationOrigin::completeUser($user, 'customer');
 
         return [
             'status' => true,

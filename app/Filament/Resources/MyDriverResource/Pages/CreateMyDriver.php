@@ -4,6 +4,7 @@ namespace App\Filament\Resources\MyDriverResource\Pages;
 
 use App\Filament\Resources\MyDriverResource;
 use App\Models\User;
+use App\Services\RegistrationOrigin;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
@@ -36,6 +37,8 @@ class CreateMyDriver extends CreateRecord
         if (! $this->record->hasRole('Driver')) {
             $this->record->assignRole('Driver');
         }
+
+        RegistrationOrigin::completeUser($this->record, 'driver', RegistrationOrigin::WEBSITE);
     }
 
     protected function getRedirectUrl(): string

@@ -4,6 +4,8 @@ namespace App\Livewire\Auth;
 
 use App\Mail\UserRegister;
 use App\Models\User;
+use App\Services\RegistrationOrigin;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -42,6 +44,7 @@ class Register extends Component
     // login user
        Auth::guard('customer')->login($user, true);
 request()->session()->regenerate();
+        RegistrationOrigin::completeUser($user, 'customer', RegistrationOrigin::WEBSITE);
 
         Mail::to(request()->user())->send(new UserRegister($user));
 

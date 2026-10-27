@@ -64,10 +64,15 @@ class UserResource extends Resource
                     )
                         ->label('Email Verified At'),
 
+                    Forms\Components\Placeholder::make('registration_source_display')
+                        ->label('Registration Source')
+                        ->content(fn (?User $record): string =>
+                            $record?->registration_source_label ?? 'Set when registration completes'),
+
                     Forms\Components\Select::make('login_type')
-                        ->label('Login Source')
+                        ->label('Login Method')
                         ->options([
-                            'otp' => 'Flutter / OTP',
+                            'otp' => 'OTP',
                             'website' => 'Website',
                             'email' => 'Email',
                             'google' => 'Google',
@@ -227,8 +232,15 @@ class UserResource extends Resource
                     ->separator(',')
                     ->placeholder('Customer'),
 
+                Tables\Columns\TextColumn::make('registration_source')
+                    ->label('Registration Source')
+                    ->badge()
+                    ->formatStateUsing(fn ($state): string =>
+                        \App\Services\RegistrationOrigin::label($state))
+                    ->placeholder('Unknown'),
+
                 Tables\Columns\TextColumn::make('login_type')
-                    ->label('Login Source')
+                    ->label('Login Method')
                     ->badge()
                     ->formatStateUsing(
                         fn ($state): string =>
@@ -269,10 +281,22 @@ class UserResource extends Resource
                     ->multiple()
                     ->preload(),
 
+                Tables\Filters\SelectFilter::make('registration_source')
+                    ->label('Registration Source')
+                    ->options(['website' => 'Website', 'app' => 'App', 'unknown' => 'Unknown'])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $source = $data['value'] ?? null;
+                        if (blank($source)) return $query;
+                        return $source === 'unknown'
+                            ? $query->where(fn (Builder $q) => $q->whereNull('registration_source')
+                                ->orWhere('registration_source', 'unknown'))
+                            : $query->where('registration_source', $source);
+                    }),
+
                 Tables\Filters\SelectFilter::make('login_type')
-                    ->label('Login Source')
+                    ->label('Login Method')
                     ->options([
-                        'otp' => 'Flutter / OTP',
+                        'otp' => 'OTP',
                         'website' => 'Website',
                         'email' => 'Email',
                         'google' => 'Google',
@@ -680,7 +704,7 @@ class UserResource extends Resource
     private static function loginSourceLabel(mixed $state): string
     {
         return match (strtolower((string) $state)) {
-            'otp' => 'Flutter / OTP',
+            'otp' => 'OTP',
             'website' => 'Website',
             'email' => 'Email',
             'google' => 'Google',
@@ -689,7 +713,7 @@ class UserResource extends Resource
             'facebook' => 'Facebook',
             'apple' => 'Apple',
             'guest' => 'Guest',
-            default => 'Website / Old User',
+            default => 'Unknown',
         };
     }
 

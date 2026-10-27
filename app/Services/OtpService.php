@@ -351,6 +351,8 @@ class OtpService
 
         $token = $user->createToken('dura_app_token')->plainTextToken;
 
+        RegistrationOrigin::completeUser($user, 'customer');
+
         return [
             'status' => true,
             'message' => 'Login successful.',
@@ -533,6 +535,7 @@ class OtpService
         $user->save();
 
         Auth::login($user, $remember);
+        RegistrationOrigin::completeUser($user, 'customer');
 
         if ($isNewUser && $sendRegistrationMessage) {
             $this->sendRegistrationMessages($user, $mobileNumber);
@@ -997,32 +1000,8 @@ class OtpService
             'customer'
         );
 
-        $adminMobile = trim((string) config(
-            'services.admin.mobile',
-            env('ADMIN_MOBILE')
-        ));
-
-        if ($adminMobile === '') {
-            return;
-        }
-
-        $adminMessage = implode("\n", [
-            'Dear Duracabs,',
-            '',
-            'A new customer account has been registered successfully.',
-            '',
-            'Name: ' . ($user->name ?? ''),
-            'Mobile Number: ' . $mobile,
-            'User ID: ' . ($user->email ?? ''),
-            '',
-            'Login: ' . $loginUrl,
-        ]);
-
-        $this->sendWhatsAppMessageSafely(
-            $adminMobile,
-            $adminMessage,
-            'admin'
-        );
+        // The admin notice is handled once by RegistrationOrigin after successful
+        // verification. Keep this legacy helper for the customer's welcome only.
     }
 
     private function sendWhatsAppMessageSafely(

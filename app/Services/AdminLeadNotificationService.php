@@ -40,6 +40,7 @@ class AdminLeadNotificationService
             $result = WhatsAppService::dispatchEvent(
                 'customer.registered',
                 [
+                    'registration_source' => RegistrationOrigin::label($user->registration_source),
                     'customer_id' => (string) $user->id,
                     'customer_name' =>
                         trim((string) $user->name)
@@ -99,6 +100,7 @@ class AdminLeadNotificationService
             $result = WhatsAppService::dispatchEvent(
                 'vendor.registered',
                 [
+                    'registration_source' => RegistrationOrigin::label($profile->registration_source),
                     'vendor_id' => $vendorId,
                     'vendor_name' => trim((string) (
                         $profile->contact_person
@@ -139,6 +141,31 @@ class AdminLeadNotificationService
                     'message' => $exception->getMessage(),
                 ]
             );
+        }
+    }
+
+    public function sendNewDriverRegistration(User $user): void
+    {
+        try {
+            $result = WhatsAppService::dispatchEvent('driver.registered', [
+                'driver_id' => (string) $user->id,
+                'driver_name' => trim((string) $user->name) ?: 'Driver',
+                'driver_mobile' => trim((string) $user->mobile) ?: 'Not available',
+                'driver_email' => trim((string) $user->email) ?: 'Not available',
+                'registration_source' => RegistrationOrigin::label($user->registration_source),
+                'registration_time' => optional($user->created_at)
+                    ?->timezone((string) config('app.timezone', 'Asia/Kolkata'))
+                    ?->format('d F Y, h:i A') ?? now()->format('d F Y, h:i A'),
+            ]);
+            if (! ($result['status'] ?? false)) {
+                Log::warning('Driver registration admin notification not confirmed.', [
+                    'driver_id' => $user->id,
+                ]);
+            }
+        } catch (Throwable $exception) {
+            Log::warning('Driver registration admin notification failed.', [
+                'driver_id' => $user->id, 'exception' => get_class($exception),
+            ]);
         }
     }
 

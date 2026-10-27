@@ -7,6 +7,7 @@ use App\Models\FleetManagement\TransporterProfile;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\PartnerDriverNotificationService;
+use App\Services\RegistrationOrigin;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -84,11 +85,13 @@ class PartnerDispatchController extends PartnerController
                 $driver = new User($input + ['password' => Hash::make(Str::random(64)), 'is_active' => true]);
                 $driver->forceFill(['partner_driver_profile_id' => $profile->id, 'partner_driver_removed_at' => null]);
                 if (Schema::hasColumn('users', 'created_by')) $driver->forceFill(['created_by' => $profile->user_id]);
-                $driver->saveQuietly(); // Local workflow: no external registration notification.
+                RegistrationOrigin::stamp($driver, RegistrationOrigin::APP);
+                $driver->saveQuietly(); // Role is assigned before the admin registration notification.
                 $driver->assignRole($role);
                 return $driver;
             });
         } finally { $lock->release(); }
+        RegistrationOrigin::completeUser($driver, 'driver', RegistrationOrigin::APP);
         return response()->json(['status' => true, 'message' => 'Driver added to your fleet.', 'data' => $this->driverData($driver)], 201);
     }
 
