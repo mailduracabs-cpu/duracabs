@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\MediaType;
+use App\Models\AppMedia;
+use App\Services\Media\MediaService;
 use App\Models\SelfDriveBooking;
 use App\Services\PartnerReturnCompletionService;
 use Illuminate\Http\Request;
@@ -68,14 +71,40 @@ class PartnerReturnController extends PartnerController
     public function photo(Request $request, int $booking)
     {
         $owned = $this->booking($request, $booking);
-        $request->validate(['slot' => 'required|in:front,back,left,right', 'file' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240']);
+        $request->validate([
+            'slot' => 'required|in:front,back,left,right',
+            'file' => 'required|image|mimes:jpeg,jpg,png,webp|max:10240',
+        ]);
         $this->service()->mutable($owned);
         $slot = $request->string('slot')->toString();
-        $path = $request->file('file')->store("partner-return/{$owned->id}", 'local');
+        $fieldName = 'return_draft.photos.' . $slot;
+        $mediaService = app(MediaService::class);
+
+        // One optimized WebP on private local disk; keep legacy draft path.
+        $media = $mediaService->uploadAndAttach(
+            file: $request->file('file'),
+            type: MediaType::Other,
+            usable: $owned,
+            fieldName: $fieldName,
+            module: 'partner-self-drive-return',
+            options: [
+                'disk' => 'local',
+                'is_public' => false,
+                'deduplicate' => false,
+                'usage_metadata' => [
+                    'booking_id' => $owned->id,
+                    'slot' => $slot,
+                    'inspection_type' => 'return',
+                ],
+            ],
+        );
+        $path = $media->storedPath();
         $old = null;
         try {
             DB::transaction(function () use ($owned, $slot, $path, &$old) {
-                $row = SelfDriveBooking::query()->where('transporter_profile_id', $owned->transporter_profile_id)->lockForUpdate()->findOrFail($owned->id);
+                $row = SelfDriveBooking::query()
+                    ->where('transporter_profile_id', $owned->transporter_profile_id)
+                    ->lockForUpdate()->findOrFail($owned->id);
                 $this->service()->mutable($row);
                 $draft = $row->return_draft ?? [];
                 $old = $draft['photos'][$slot] ?? null;
@@ -84,10 +113,21 @@ class PartnerReturnController extends PartnerController
                 $row->save();
             });
         } catch (\Throwable $e) {
-            Storage::disk('local')->delete($path);
+            // Avoid direct deletion of Media Library-managed files.
+            $mediaService->detach($media, $owned, $fieldName);
             throw $e;
         }
-        if ($old) Storage::disk('local')->delete($old);
+
+        // Preserve old photo bytes as inspection evidence; detach old usage.
+        if ($old && $old !== $path) {
+            $oldMedia = AppMedia::query()
+                ->where('disk', 'local')
+                ->where('original_path', $old)
+                ->first();
+            if ($oldMedia) {
+                $mediaService->detach($oldMedia, $owned, $fieldName);
+            }
+        }
         return response()->json(['message' => 'Return photo uploaded.']);
     }
 
