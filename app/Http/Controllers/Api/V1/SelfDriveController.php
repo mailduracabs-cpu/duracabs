@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Models\SelfDriveBooking;
 use App\Models\AppMedia;
+use App\Enums\MediaType;
+use App\Services\Media\MediaService;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\SelfDriveAvailabilityService;
@@ -1540,15 +1542,34 @@ class SelfDriveController extends BaseApiController
             return $this->error('End KM cannot be less than Start KM', 422);
         }
 
+        // Use the existing Media Library optimizer instead of storing raw images.
+        // It creates one optimized WebP and registers its booking reference.
         $images = [];
+        $bookingModel = SelfDriveBooking::query()->findOrFail($booking->id);
+        $mediaService = app(MediaService::class);
+        $fieldName = $pickup ? 'pickup_images' : 'drop_images';
+        $module = $pickup ? 'self-drive-pickup' : 'self-drive-return';
 
         foreach ($request->file('images', []) as $image) {
-            $images[] = $image->store(
-                $pickup
-                    ? 'self-drive/inspections/pickup'
-                    : 'self-drive/inspections/drop',
-                'public'
+            $media = $mediaService->uploadAndAttach(
+                file: $image,
+                type: MediaType::Other,
+                usable: $bookingModel,
+                fieldName: $fieldName,
+                module: $module,
+                options: [
+                    'disk' => 'public',
+                    'is_public' => true,
+                    'deduplicate' => false,
+                    'usage_metadata' => [
+                        'booking_id' => $bookingModel->id,
+                        'inspection_type' => $pickup ? 'pickup' : 'return',
+                    ],
+                ],
             );
+
+            // Keep the legacy JSON path format for the vendor app and admin gallery.
+            $images[] = $media->storedPath();
         }
 
         if ($pickup) {
