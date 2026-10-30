@@ -308,6 +308,19 @@ class RazorpayService
         }
     }
 
+    /** All attempts on an order; required before releasing an expired reservation. */
+    public static function fetchOrderPayments(string $orderId): array
+    {
+        try {
+            $credentials = self::credentials();
+            if (!$credentials['valid']) return self::failure($credentials['message']);
+            $response = self::client($credentials['key'], $credentials['secret'])
+                ->get(self::API_BASE_URL . '/orders/' . rawurlencode($orderId) . '/payments');
+            if (!$response->successful()) return self::apiFailure('Unable to verify order payments.', $response, 'Marketplace order verification');
+            return self::success($response->json(), 'Order attempts retrieved.');
+        } catch (Throwable $e) { return self::exceptionFailure('Marketplace order attempts', $e); }
+    }
+
     /**
      * Capture a payment when auto-capture is disabled in Razorpay settings.
      */
@@ -392,10 +405,10 @@ class RazorpayService
                 $refundNotes['reason'] = trim($reason);
             }
 
-            $response = self::client(
-                $credentials['key'],
-                $credentials['secret']
-            )->post(
+            $response = Http::withBasicAuth($credentials['key'], $credentials['secret'])
+                ->acceptJson()->asJson()->connectTimeout(10)->timeout(30)
+                // One refund attempt. An uncertain timeout requires reconciliation, not a second POST.
+                ->post(
                 self::API_BASE_URL
                 . '/payments/'
                 . rawurlencode($paymentId)

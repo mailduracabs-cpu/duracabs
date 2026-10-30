@@ -584,6 +584,18 @@ class SelfDriveBookingResource extends Resource
                 ])
                 ->columns(2),
 
+            Forms\Components\Section::make('Vehicle Inspection Photos')
+                ->description('Vendor-uploaded pickup (start) and return (end) photos for this booking. Read-only.')
+                ->schema([
+                    Forms\Components\ViewField::make('vehicle_inspection_gallery')
+                        ->label('')
+                        ->view('filament.forms.components.self-drive-inspection-photos')
+                        ->dehydrated(false)
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn (?SelfDriveBooking $record): bool => (bool) $record?->exists)
+                ->columnSpanFull(),
+
             Forms\Components\Section::make('Customer Live Tracking')
                 ->description('Live customer/device location while the Self Drive trip is running.')
                 ->schema([

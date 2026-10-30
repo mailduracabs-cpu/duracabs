@@ -149,6 +149,7 @@ class SelfDriveBooking extends Model
 
     protected $casts = [
         'security_refund_ledger' => 'array',
+        'partner_payout_terms' => 'array',
         'start_datetime' => 'datetime',
         'end_datetime' => 'datetime',
         'vendor_confirmed_at' => 'datetime',
@@ -394,6 +395,10 @@ public function hasVendorPayout(): bool
             $booking->refund_status ??= 'not_applicable';
 
             $booking->syncVehicleData();
+            if (($booking->booking_type ?? 'car') === 'car' && $booking->vehicle_id) {
+                $vehicle = Vehicle::query()->findOrFail($booking->vehicle_id);
+                $booking->partner_payout_terms = $vehicle->partnerPayoutTerms();
+            }
             $booking->syncDuration();
             $booking->syncPayment();
         });
@@ -424,6 +429,11 @@ public function hasVendorPayout(): bool
         });
 
         static::updating(function (self $booking): void {
+            if ($booking->isDirty('partner_payout_terms')) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'partner_payout_terms' => 'Booking payout terms cannot be changed after creation.',
+                ]);
+            }
             if (($booking->isDirty('status') && $booking->status === 'completed')
                 || ($booking->isDirty('booking_status') && $booking->booking_status === 'completed')) {
                 $verified = $booking->return_otp_verified_at || ($booking->return_admin_confirmed_at

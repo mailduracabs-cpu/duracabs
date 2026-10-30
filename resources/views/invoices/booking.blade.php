@@ -221,6 +221,36 @@
             font-weight: 700;
         }
 
+
+        /* Customer mobile view only; print/PDF layout remains unchanged. */
+        @media screen and (max-width: 640px) {
+            body { padding: 0; font-size: 13px; }
+            .invoice { max-width: 100%; border: 0; }
+            .content { padding: 18px 14px 28px; }
+            .logo { max-width: 125px; max-height: 48px; height: auto; }
+            .invoice-title { font-size: 21px; }
+            .invoice-meta { font-size: 11px; overflow-wrap: anywhere; }
+            .section { margin-top: 18px; }
+            .section-title { font-size: 15px; }
+            .info-card { padding: 9px 8px; }
+            .details-table, .fare-table { table-layout: fixed; }
+            .details-table th, .details-table td,
+            .fare-table th, .fare-table td {
+                padding: 9px 7px;
+                font-size: 12px;
+                overflow-wrap: anywhere;
+                word-break: normal;
+            }
+            .details-table th { width: 38%; }
+            .fare-table th:first-child, .fare-table td:first-child { width: 65%; }
+            .fare-table th:last-child, .fare-table td:last-child { width: 35%; }
+            .fare-table .total-row td { font-size: 13px; }
+            .footer { margin-top: 20px; }
+            .footer-table td { font-size: 10px; overflow-wrap: anywhere; }
+            .print-actions { margin: 0; padding: 12px 14px 18px; text-align: center; }
+            .print-button { width: 100%; min-height: 44px; }
+        }
+
         @media print {
             body {
                 padding: 0;

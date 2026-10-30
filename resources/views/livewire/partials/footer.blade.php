@@ -1,3 +1,4 @@
+<div class="dc-footer-root">
 {{-- App promotion banner above the website footer. Phone display is an illustrative preview. --}}
 <section class="dc-download-banner" aria-labelledby="dc-download-title">
     <div class="dc-download-inner">
@@ -165,7 +166,7 @@
     .dc-app-play small{font-size:10px;letter-spacing:.09em}
     .dc-app-play strong{margin-top:3px;font-size:21px;font-weight:700}
     .dc-app-play:focus-visible,.dc-app-popup button:focus-visible{outline:3px solid #38bdf8;outline-offset:4px}
-    .dc-app-popup{box-sizing:border-box;width:calc(100% - 32px);max-width:420px;max-height:calc(100dvh - 32px);margin:auto;padding:36px 28px 24px;border:1px solid #bae6fd;border-radius:24px;background:linear-gradient(155deg,#eff9ff,#fff 65%);color:#0f172a;text-align:center;box-shadow:0 24px 90px #02061755;overflow:auto}
+    .dc-app-popup{position:fixed;inset:0;box-sizing:border-box;width:calc(100% - 32px);max-width:420px;max-height:calc(100dvh - 32px);margin:auto;padding:36px 28px 24px;border:1px solid #bae6fd;border-radius:24px;background:linear-gradient(155deg,#eff9ff,#fff 65%);color:#0f172a;text-align:center;box-shadow:0 24px 90px #02061755;overflow:auto}
     .dc-app-popup::backdrop{background:rgba(2,6,23,.65)}
     .dc-app-popup .dc-app-close{position:absolute;right:12px;top:10px;width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:#475569;font-size:28px;cursor:pointer}
     .dc-app-popup .dc-app-mark{display:grid;place-items:center;width:66px;height:66px;margin:4px auto 18px;border-radius:20px;background:#0284c7;color:#fff;font-size:22px;font-weight:900;box-shadow:0 10px 24px #0284c733}
@@ -188,9 +189,10 @@
         <svg width="27" height="30" viewBox="0 0 24 28" fill="currentColor" aria-hidden="true"><path d="M2 1.5v25L22 14 2 1.5Z"/></svg>
         <span><small>DOWNLOAD APP ON</small><strong>Google Play</strong></span>
     </a>
-    <button type="button" class="dc-app-later" data-dc-app-dismiss>Abhi nahi</button>
+    <button type="button" class="dc-app-later" data-dc-app-dismiss>Not now</button>
 </dialog>
 
+@script
 <script>
 (() => {
     // Register once, including when the footer is rendered through Livewire navigation.
@@ -231,14 +233,25 @@
             button.addEventListener('click', dismiss, options);
         });
         dialog.addEventListener('cancel', event => { event.preventDefault(); dismiss(); }, options);
-        timer = setTimeout(() => {
-            if (!dialog.isConnected || document.visibilityState === 'hidden' || isDismissed()) return;
-            // Avoid interrupting another modal, a form entry, or an app's standalone window.
-            if (document.querySelector('dialog[open], [aria-modal="true"]')) return;
-            if (document.activeElement && document.activeElement.matches('input, textarea, select, [contenteditable="true"]')) return;
+        let attempts = 0;
+        function attemptOpen() {
+            if (!dialog.isConnected || isDismissed() || dialog.open) return;
             if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) return;
-            try { dialog.showModal(); } catch (_) {}
-        }, 5000);
+            const visibleModal = Array.from(document.querySelectorAll('dialog[open], [aria-modal="true"]')).some(element => {
+                if (element === dialog || element.closest('[hidden], [aria-hidden="true"]')) return false;
+                const style = window.getComputedStyle(element);
+                return element.getClientRects().length > 0 && style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
+            });
+            const enteringText = document.activeElement && document.activeElement.matches('input, textarea, select, [contenteditable="true"]');
+            if (document.visibilityState === 'hidden' || visibleModal || enteringText) {
+                if (++attempts < 120) timer = setTimeout(attemptOpen, 1000);
+                return;
+            }
+            try { dialog.showModal(); } catch (_) {
+                if (++attempts < 120) timer = setTimeout(attemptOpen, 1000);
+            }
+        }
+        timer = setTimeout(attemptOpen, 5000);
     }
     window.duraCabsAppPromotion = { init };
     document.addEventListener('livewire:navigating', cleanup);
@@ -247,3 +260,5 @@
     else init();
 })();
 </script>
+@endscript
+</div>

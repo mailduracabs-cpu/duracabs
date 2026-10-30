@@ -1,0 +1,2 @@
+<?php
+return ['webhook_verify_token'=>env('LIVE_BOOKINGS_WEBHOOK_VERIFY_TOKEN',''),'webhook_app_secret'=>env('LIVE_BOOKINGS_WEBHOOK_APP_SECRET',''),'lead_hours'=>168,'cooldown_minutes'=>60,'phone_number_id'=>env('LIVE_BOOKINGS_WA_PHONE_NUMBER_ID',''),'access_token'=>env('LIVE_BOOKINGS_WA_ACCESS_TOKEN',''),'confirmation_template'=>env('LIVE_BOOKINGS_WA_CONFIRM_TEMPLATE',''),'api_version'=>env('LIVE_BOOKINGS_WA_API_VERSION','v23.0'),'source_group_ids'=>array_values(array_filter(array_map('trim',explode(',',(string)env('LIVE_BOOKINGS_SOURCE_GROUP_IDS','')))))];

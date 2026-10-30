@@ -6,125 +6,76 @@
     <title>Self Drive Rental Agreement - {{ $agreement['booking_no'] ?? 'Booking' }}</title>
 
     <style>
-        * {
-            box-sizing: border-box;
-        }
-
+        * { box-sizing: border-box; }
         body {
-            margin: 0;
-            padding: 24px;
-            background: #f3f6f9;
-            color: #111827;
-            font-family: DejaVu Sans, Arial, sans-serif;
-            font-size: 13px;
-            line-height: 1.45;
+            margin: 0; padding: 24px; background: #eef2f7; color: #1f2937;
+            font-family: DejaVu Sans, Arial, sans-serif; font-size: 12px;
+            line-height: 1.6;
         }
-
         .agreement {
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 28px;
-            background: #ffffff;
-            border: 1px solid #dfe6ee;
+            width: 100%; max-width: 850px; margin: 0 auto; padding: 36px 40px;
+            background: #fff; border: 1px solid #dbe3eb;
+            box-shadow: 0 8px 28px rgba(15, 23, 42, .06);
         }
-
-        .top-bar {
-            height: 8px;
-            margin: -28px -28px 24px;
-            background: #009ffd;
-        }
-
+        .top-bar { height: 6px; margin: -36px -40px 28px; background: #009ffd; }
         .agreement-title {
-            margin: 0 0 16px;
-            text-align: center;
-            font-size: 22px;
-            font-weight: 800;
-            text-transform: uppercase;
+            margin: 0 0 24px; text-align: center; font-size: 20px;
+            line-height: 1.35; font-weight: 800; color: #123456;
+            text-transform: uppercase; letter-spacing: .5px;
         }
-
         .agreement-subtitle {
-            margin: 18px 0 8px;
-            font-size: 14px;
-            font-weight: 800;
-            text-transform: uppercase;
+            margin: 24px 0 10px; padding: 7px 10px;
+            font-size: 12px; line-height: 1.4; font-weight: 800;
+            color: #16466b; background: #edf7ff;
+            border-left: 3px solid #009ffd; text-transform: uppercase;
+            page-break-after: avoid;
         }
-
         .agreement-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 12px;
+            width: 100%; border-collapse: collapse; margin: 0 0 16px;
+            table-layout: fixed; page-break-inside: avoid;
         }
-
         .agreement-table td {
-            padding: 6px 8px;
-            border: 1px solid #dfe6ee;
-            vertical-align: top;
+            padding: 8px 10px; border: 1px solid #dce4ec;
+            vertical-align: top; overflow-wrap: anywhere;
         }
-
         .agreement-label {
-            width: 24%;
-            font-weight: 700;
-            background: #f8fafc;
+            width: 24%; font-weight: 700; color: #334155;
+            background: #f5f8fb;
         }
-
-        .agreement-text {
-            margin: 0 0 10px;
-            text-align: justify;
-        }
-
-        .agreement-list {
-            margin: 0 0 10px;
-            padding-left: 18px;
-        }
-
-        .agreement-list li {
-            margin-bottom: 6px;
-        }
-
+        .agreement-text { margin: 0 0 12px; text-align: justify; }
+        .agreement-list { margin: 0 0 14px; padding-left: 22px; }
+        .agreement-list li { margin-bottom: 9px; padding-left: 2px; }
         .agreement-signatures {
-            width: 100%;
-            margin-top: 34px;
-            border-collapse: collapse;
+            width: 100%; margin-top: 36px; border-collapse: collapse;
+            page-break-inside: avoid;
         }
-
         .agreement-signatures td {
-            width: 50%;
-            padding-top: 42px;
-            vertical-align: bottom;
+            width: 50%; padding: 34px 8px 0; vertical-align: bottom;
         }
-
-        .print-actions {
-            max-width: 900px;
-            margin: 16px auto 0;
-            text-align: right;
-        }
-
+        .print-actions { max-width: 850px; margin: 16px auto; text-align: right; }
         .print-button {
-            display: inline-block;
-            padding: 10px 16px;
-            border: 0;
-            border-radius: 8px;
-            background: #009ffd;
-            color: #ffffff;
-            cursor: pointer;
-            font-weight: 700;
+            display: inline-block; padding: 11px 18px; border: 0;
+            border-radius: 7px; background: #009ffd; color: white;
+            cursor: pointer; font-weight: 700;
         }
-
+        @page { size: A4; margin: 15mm; }
         @media print {
-            body {
-                padding: 0;
-                background: #ffffff;
-            }
-
+            body { padding: 0; background: #fff; font-size: 11px; }
             .agreement {
-                max-width: none;
-                border: 0;
+                max-width: none; padding: 0; border: 0; box-shadow: none;
             }
-
-            .print-actions {
-                display: none;
-            }
+            .top-bar { margin: 0 0 20px; }
+            .print-actions { display: none; }
+            .agreement-subtitle { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .agreement-table tr { page-break-inside: avoid; }
+        }
+        @media screen and (max-width: 600px) {
+            body { padding: 8px; }
+            .agreement { padding: 20px 14px; }
+            .top-bar { margin: -20px -14px 20px; }
+            .agreement-title { font-size: 17px; }
+            .agreement-table td { padding: 6px 5px; font-size: 10px; }
+            .agreement-label { width: 24%; }
         }
     </style>
 </head>
@@ -277,11 +228,8 @@
 
         <h2 class="agreement-subtitle">7. INSURANCE</h2>
         <p class="agreement-text">
-            If the rented vehicle is damaged or destroyed while in the possession of the renter, the renter
-            agrees to make any necessary payments and assigns all rights to the owner to recover the amount.
-            But the renter cannot use the car insurance unless the car is damaged to the extent of at least
-            Rs 50,000/-. If the loss due to the damage caused to the car is less than Rs 50,000/-, the renter
-            will have to pay out of his own pocket.
+            If a rented vehicle is damaged or destroyed while in the renter's possession, the renter agrees to make
+ the necessary payments and grants the vehicle owner (or 'first party') full authority to recover these costs. In such an event, the renter cannot rely on car insurance; instead, the renter assumes full responsibility—to which they hereby consent—and must ensure that the vehicle is repaired at an authorized service center, restoring it to its original, proper condition. Consequently, the renter shall be liable for both the vehicle rental charges and the repair costs, and they accept these terms without any objection.
         </p>
 
         <h2 class="agreement-subtitle">8. INDEMNIFICATION</h2>

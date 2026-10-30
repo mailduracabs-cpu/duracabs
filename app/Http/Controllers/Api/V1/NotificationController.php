@@ -81,7 +81,15 @@ class NotificationController extends Controller
         $validator = Validator::make($request->all(), [
             'notification_id' => [
                 'required',
-                'integer',
+                function ($attribute, $value, $fail): void {
+                    if (! is_string($value) && ! is_int($value)) {
+                        $fail('Invalid notification ID.');
+                        return;
+                    }
+                    if (! preg_match('/^(?:[0-9]+|[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12})$/', (string) $value)) {
+                        $fail('Invalid notification ID.');
+                    }
+                },
             ],
             'user_id' => [
                 'nullable',
@@ -114,7 +122,7 @@ class NotificationController extends Controller
             }
 
             $this->notificationService->markAsRead(
-                notificationId: $request->integer('notification_id'),
+                notificationId: (string) $request->input('notification_id'),
                 userId: $userId,
                 mobile: $mobile
             );

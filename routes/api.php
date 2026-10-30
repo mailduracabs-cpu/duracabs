@@ -1373,12 +1373,48 @@ Route::post('/booking/{booking}/live-location/stop', [
 });
 
 /* DuraCabs Partner app: separate from customer authentication. */
+Route::get('live-bookings/confirm/{token}', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'requesterConfirm'])->where('token', '[A-Fa-f0-9]{48}')->middleware('throttle:10,1');
+Route::get('live-bookings/whatsapp/webhook', [\App\Http\Controllers\Api\V1\LiveBookingWebhookController::class, 'verify'])->middleware('throttle:30,1');
+Route::post('live-bookings/whatsapp/webhook', [\App\Http\Controllers\Api\V1\LiveBookingWebhookController::class, 'receive'])->middleware('throttle:120,1');
+
 Route::prefix('v1/partner')->group(function (): void {
     Route::post('/send-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'sendOtp'])
         ->middleware('throttle:5,1');
     Route::post('/verify-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'verifyOtp'])
         ->middleware('throttle:15,1');
+    Route::get('/marketplace/fleet-submissions/{submission}/photo', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'photo'])->whereNumber('submission')->middleware(['signed', 'throttle:120,1'])->name('partner.market.fleet-photo');
+    Route::get('/marketplace/payments/{payment}/checkout', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkout'])
+        ->whereNumber('payment')->middleware(['signed', 'throttle:20,1'])->name('partner.market.checkout');
+    Route::post('/marketplace/payments/{payment}/checkout-complete', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'completeCheckout'])
+        ->whereNumber('payment')->middleware(['signed', 'throttle:20,1'])->name('partner.market.checkout.complete');
     Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
+        Route::get('/live-bookings', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'index']);
+        Route::get('/live-bookings/{booking}/contact', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'contact'])->whereNumber('booking');
+        Route::post('/live-bookings/{booking}/interest', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'interest'])->whereNumber('booking')->middleware('throttle:20,1');
+        Route::post('/live-bookings/{booking}/duty-received', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'dutyReceived'])->whereNumber('booking')->middleware('throttle:5,1');
+        Route::get('/marketplace/alert-settings', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'show']);
+        Route::post('/marketplace/alert-settings', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'save']);
+        Route::post('/marketplace/location/stop', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'stopLocation']);
+        Route::post('/marketplace/location', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'location']);
+        Route::post('/marketplace/devices', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'device']);
+        Route::post('/marketplace/devices/remove', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'removeDevice']);
+        Route::get('/marketplace/alerts', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'alerts']);
+        Route::post('/marketplace/alerts/{alert}/read', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'read'])->whereNumber('alert');
+        Route::get('/marketplace/bank-account', [\App\Http\Controllers\Api\V1\PartnerMarketplaceBankController::class, 'show']);
+        Route::post('/marketplace/bank-account', [\App\Http\Controllers\Api\V1\PartnerMarketplaceBankController::class, 'save'])->middleware('throttle:10,1');
+        Route::get('/marketplace/{post}/fleet-options', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'options'])->whereNumber('post');
+        Route::post('/marketplace/{post}/fleet-details', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'send'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::get('/marketplace/{post}/reservation', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'reservation'])->whereNumber('post');
+        Route::post('/marketplace/{post}/assignment-request', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'assignmentRequest'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/claim', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'claim'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::get('/marketplace/places', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'places'])->middleware('throttle:60,1');
+        Route::post('/marketplace/{post}/edit', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'edit'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::get('/marketplace/bookings', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'bookings']);
+        Route::get('/marketplace/inbox', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'inbox']);
+        Route::get('/marketplace/{post}', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'details'])->whereNumber('post');
+        Route::post('/marketplace/{post}/read', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'readMessages'])->whereNumber('post');
+        Route::post('/marketplace/payments/{payment}/checkout-link', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkoutLink'])->whereNumber('payment')->middleware('throttle:5,1');
+
         Route::get('/bookings/{booking}/return', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'show'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/draft', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'draft'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/photo', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photo'])->whereNumber('booking');

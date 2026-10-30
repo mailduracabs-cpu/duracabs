@@ -8,6 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (Schema::hasTable('notification_delivery_logs')) return;
         Schema::create('notification_delivery_logs', function (Blueprint $table): void {
             $table->id();
             $table->nullableMorphs('notifiable');
@@ -31,6 +32,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('notification_delivery_logs');
+        // Keep existing delivery history; this guarded migration may have adopted a pre-existing table.
     }
 };

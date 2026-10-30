@@ -28,9 +28,11 @@ class SelfDriveVendorPayoutItem extends Model
         'customer_booking_amount',
         'payout_amount',
         'received_amount',
+        'payout_terms',
     ];
 
     protected $casts = [
+        'payout_terms' => 'array',
         'start_datetime' => 'datetime',
         'end_datetime' => 'datetime',
 
