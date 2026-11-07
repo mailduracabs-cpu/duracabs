@@ -9,3 +9,7 @@
 /storage/logs
 /bootstrap/cache/*.php/backups/
 /.phpunit.result.cache
+
+/local-master.sql
+/selected_data.sql
+/location_token.txt
