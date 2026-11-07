@@ -46,6 +46,7 @@ class PartnerMarketplacePaymentController extends PartnerController
                 return AssignmentRequests::create($listing, (int) $selected->transporter_profile_id, (string) $input['booking_amount'], (string) $input['commission']);
             }
             if ((bool) $listing->secure_booking) return Reservations::reserve($listing, $selected);
+            \App\Services\PartnerMarketplaceSchedule::assertAccepting($listing);
             abort_unless($listing->status === 'open' && !$listing->active_payment_id, 409, 'Booking unavailable.');
             $fleet = \App\Services\PartnerMarketplaceFleet::requireFor($listing, (int) $selected->transporter_profile_id);
             DB::table('partner_market_quotes')->where('post_id', $post)->where('status', 'pending')->update(['status' => 'rejected', 'updated_at' => now()]);

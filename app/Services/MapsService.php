@@ -326,24 +326,27 @@ class MapsService
         ];
     }
 
-    public static function geocode(string $address): array
+    public static function geocode(string $address, ?string $language = null, bool $indiaOnly = false): array
     {
         $key = self::apiKey();
         $address = trim($address);
+        $language = in_array($language, ['en', 'hi'], true) ? $language : null;
+        // Optional intake-only constraints. Existing callers retain their old behavior.
+        $cacheParts = [$address];
+        if ($language !== null || $indiaOnly) $cacheParts = [$address, $language ?? '', $indiaOnly ? 'country:in' : ''];
 
         if (!$key) {
             return self::missingKeyResponse();
         }
 
         return Cache::remember(
-            self::cacheKey('geocode', [$address]),
+            self::cacheKey('geocode', $cacheParts),
             self::GEOCODE_CACHE_SECONDS,
-            static function () use ($key, $address): array {
-                $result = self::request('/geocode/json', [
-                    'address' => $address,
-                    'region' => 'in',
-                    'key' => $key,
-                ], 'geocode');
+            static function () use ($key, $address, $language, $indiaOnly): array {
+                $query = ['address' => $address, 'region' => 'in', 'key' => $key];
+                if ($language !== null) $query['language'] = $language;
+                if ($indiaOnly) $query['components'] = 'country:IN';
+                $result = self::request('/geocode/json', $query, 'geocode');
 
                 if (!$result['status']) {
                     return $result;

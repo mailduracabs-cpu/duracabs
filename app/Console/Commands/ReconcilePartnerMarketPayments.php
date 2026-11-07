@@ -16,6 +16,7 @@ class ReconcilePartnerMarketPayments extends Command
 
     public function handle(): int
     {
+        \App\Services\PartnerMarketplaceSchedule::expireDue();
         $ids = DB::table('partner_market_posts as p')->join('partner_market_secure_payments as l', 'l.id', '=', 'p.active_payment_id')
             ->where('l.status', 'pending')->where('l.reserved_until', '<=', now())
             ->orderBy('l.reserved_until')->limit(max(1, min(1000, (int) $this->option('limit'))))->pluck('p.id');

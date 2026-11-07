@@ -25,6 +25,7 @@ class PartnerMarketplaceFleetController extends PartnerController
         $vendor = $this->vendor($request); Fleet::ready();
         $input = $request->validate(['kind' => ['required', 'in:drivers,vehicles'], 'q' => ['nullable', 'string', 'max:100'], 'page' => ['sometimes', 'integer', 'min:1']]);
         $listing = DB::table('partner_market_posts')->find($post);
+        if ($listing) \App\Services\PartnerMarketplaceSchedule::assertAccepting($listing);
         abort_unless($listing && $listing->kind === 'booking' && $listing->status === 'open', 409, 'Open booking required.');
         \App\Services\PartnerMarketplaceAlerts::gate($listing, (int) $vendor->id);
         abort_if((int) $listing->transporter_profile_id === (int) $vendor->id, 403, 'The receiving vendor shares their own driver and taxi.');
@@ -61,6 +62,7 @@ class PartnerMarketplaceFleetController extends PartnerController
                     abort_unless((int) $previous->post_id === $post && (int) $previous->driver_id === (int) $input['driver_id'] && (int) $previous->vehicle_id === (int) $input['vehicle_id'] && (int) $previous->post_revision === (int) $input['expected_revision'], 409, 'This send request belongs to different details. Refresh before sending.');
                     return (int) $previous->id;
                 }
+                \App\Services\PartnerMarketplaceSchedule::assertAccepting($listing);
                 abort_unless($listing->status === 'open' && !$listing->active_payment_id, 409, 'Fleet details are locked while paying or after assignment/cancellation.');
                 abort_unless((int) $listing->revision === (int) $input['expected_revision'], 409, 'Booking changed. Review its latest details before sharing your fleet.');
                 $driver = Fleet::drivers($vendor)->whereKey($input['driver_id'])->lockForUpdate()->first();

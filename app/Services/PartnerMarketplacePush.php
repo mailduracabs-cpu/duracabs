@@ -22,8 +22,8 @@ class PartnerMarketplacePush {
    $r=Http::withToken($access)->acceptJson()->connectTimeout(5)->timeout(20)->post('https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send',['message'=>[
     'token'=>$token,'notification'=>['title'=>(int)$alert->tier===0?'Free cab ke liye booking!':'Matching booking available','body'=>$post->pickup_city.' → '.$post->drop_city.' • '.$post->vehicle_class.' • '.$post->pickup_at],
     'data'=>['type'=>'partner_market_booking','post_id'=>(string)$post->id,'alert_id'=>(string)$alert->id,'revision'=>(string)$post->revision],
-    'android'=>['priority'=>'HIGH','ttl'=>'120s','notification'=>['channel_id'=>'market_bookings_v1','sound'=>'market_booking','tag'=>'market_'.$post->id]],
-    'apns'=>['headers'=>['apns-priority'=>'10'],'payload'=>['aps'=>['sound'=>'market_booking.wav']]],
+    'android'=>['priority'=>'HIGH','ttl'=>'120s','notification'=>['channel_id'=>'sathi_booking_v1','sound'=>'sathi_booking','tag'=>'market_'.$post->id]],
+    'apns'=>['headers'=>['apns-priority'=>'10'],'payload'=>['aps'=>['sound'=>'sathi_booking.wav']]],
    ]]);
    if ($r->successful()) return ['status'=>'accepted'];
    $code=$r->json('error.details.0.errorCode')?:$r->json('error.status');
@@ -36,8 +36,24 @@ class PartnerMarketplacePush {
   try { $r=Http::withToken($access)->acceptJson()->connectTimeout(5)->timeout(20)->post('https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send',['message'=>[
    'token'=>$token,'notification'=>['title'=>'New Live Booking','body'=>$booking->from_city.' → '.$booking->to_city.' • '.$booking->car_type.' • '.$booking->pickup_at],
    'data'=>['type'=>'live_booking','live_booking_id'=>(string)$booking->id,'post_id'=>'live:'.(string)$booking->id,'alert_id'=>(string)$alert->id],
-   'android'=>['priority'=>'HIGH','ttl'=>'120s','notification'=>['channel_id'=>'market_bookings_v1','sound'=>'market_booking','tag'=>'live_'.$booking->id]],'apns'=>['headers'=>['apns-priority'=>'10'],'payload'=>['aps'=>['sound'=>'market_booking.wav']]],
+   'android'=>['priority'=>'HIGH','ttl'=>'120s','notification'=>['channel_id'=>'sathi_booking_v1','sound'=>'sathi_booking','tag'=>'live_'.$booking->id]],'apns'=>['headers'=>['apns-priority'=>'10'],'payload'=>['aps'=>['sound'=>'sathi_booking.wav']]],
   ]]); if($r->successful())return ['status'=>'accepted'];$code=$r->json('error.details.0.errorCode')?:$r->json('error.status');return ['status'=>$code==='UNREGISTERED'?'invalid_token':'failed','error'=>substr((string)$code,0,100)];
   } catch(\Throwable $e){return ['status'=>'unknown','error'=>'push_result_uncertain'];}
+ }
+
+ public static function sendEvent(string $token,array $event): array {
+  $type=$event['event_type'];$sound=match($type){'chat'=>'sathi_chat','booking_assigned'=>'sathi_assigned','payment_done'=>'sathi_payment',default=>'sathi_booking'};
+  try {[$project,$access]=self::access();}catch(\Throwable){return ['status'=>'not_configured','error'=>'firebase_setup_failed'];}
+  try {
+   $r=\Illuminate\Support\Facades\Http::withToken($access)->acceptJson()->connectTimeout(5)->timeout(20)->post('https://fcm.googleapis.com/v1/projects/'.rawurlencode($project).'/messages:send',['message'=>[
+    'token'=>$token,'notification'=>['title'=>$event['title'],'body'=>$event['message']],
+    'data'=>['type'=>'partner_market_event','event_id'=>$event['event_id'],'event_type'=>$type,'post_id'=>$event['post_id'],'revision'=>$event['revision']],
+    'android'=>['priority'=>'HIGH','ttl'=>'120s','notification'=>['channel_id'=>$sound.'_v1','sound'=>$sound,'tag'=>'sathi_event_'.$event['event_id']]],
+    'apns'=>['headers'=>['apns-priority'=>'10'],'payload'=>['aps'=>['sound'=>$sound.'.wav']]],
+   ]]);
+   if($r->successful())return ['status'=>'accepted'];
+   $code=$r->json('error.details.0.errorCode')?:$r->json('error.status');
+   return ['status'=>$code==='UNREGISTERED'?'invalid_token':'failed','error'=>substr((string)$code,0,100)];
+  }catch(\Throwable){return ['status'=>'unknown','error'=>'push_result_uncertain'];}
  }
 }

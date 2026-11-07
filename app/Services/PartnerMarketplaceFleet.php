@@ -43,8 +43,11 @@ class PartnerMarketplaceFleet
         $normal = static fn (string $v): string => preg_replace('/[^a-z0-9]/', '', strtolower($v));
         $requested = $normal($requested); $classification = $normal($classification); $model = $normal($model);
         if ($requested === '') return false;
+        if (in_array($requested, ['innovahycross', 'hycross', 'toyotainnovahycross'], true)) return str_contains($model, 'hycross') || str_contains($classification, 'hycross');
+        if (in_array($requested, ['forceurbania', 'urbania'], true)) return str_contains($model, 'urbania') || str_contains($classification, 'urbania');
+        if (in_array($requested, ['kiacarens', 'carens', 'kiacarance', 'carance'], true)) return str_contains($model, 'carens') || str_contains($classification, 'carens') || str_contains($model, 'carance') || str_contains($classification, 'carance');
         if ($requested === 'innovacrysta') return str_contains($model, 'crysta');
-        if ($requested === 'innova') return str_contains($model, 'innova') || str_contains($model, 'crysta');
+        if ($requested === 'innova') return str_contains($model, 'innova') || str_contains($model, 'crysta') || str_contains($model, 'hycross');
         if ($requested === 'ertiga') return str_contains($model, 'ertiga');
         if (in_array($requested, ['forcetraveller', 'traveller'], true)) return str_contains($model, 'traveller') || str_contains($classification, 'traveller');
         return $classification !== '' && str_contains($classification, $requested);

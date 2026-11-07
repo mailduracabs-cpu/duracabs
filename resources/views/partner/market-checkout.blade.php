@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="referrer" content="no-referrer"><title>DuraCabs Partner Checkout</title>
-  <style>body{margin:0;background:#f0f1f5;color:#485163;font:17px system-ui}main{max-width:480px;margin:12vh auto;padding:28px;background:white;border-radius:22px}button{background:#ffb511;color:#30394a;border:0;border-radius:14px;padding:18px;width:100%;font:600 18px system-ui}p{line-height:1.6}</style>
+  <meta name="referrer" content="no-referrer"><title>Duracabs Taxi Sathi Checkout</title>
+  <style>body{margin:0;background:#f6f7fa;color:#123349;font:17px system-ui}main{max-width:480px;margin:12vh auto;padding:28px;background:white;border-radius:22px}button{background:#ffb511;color:#123349;border:0;border-radius:14px;padding:18px;width:100%;font:600 18px system-ui}p{line-height:1.6}</style>
 </head>
-<body><main><h1>DuraCabs Partner</h1><p>Pay the selected booking commission through Razorpay. Payment status is confirmed by the server after gateway verification.</p><p>@if ($bookingAmountPaise !== null) Agreed booking fare: ₹{{ number_format($bookingAmountPaise / 100, 2) }}<br>@endif<strong>Commission payable now: ₹{{ number_format($commissionPaise / 100, 2) }}</strong></p><button id="pay" type="button">Continue to secure payment</button><p id="countdown" role="timer"></p><p id="status" role="status">After payment, return to the app and refresh the booking.</p></main>
+<body><main><h1>Duracabs Taxi Sathi</h1><p>Pay the selected booking commission through Razorpay. Payment status is confirmed by the server after gateway verification.</p><p>@if ($bookingAmountPaise !== null) Agreed booking fare: ₹{{ number_format($bookingAmountPaise / 100, 2) }}<br>@endif<strong>Commission payable now: ₹{{ number_format($commissionPaise / 100, 2) }}</strong></p><button id="pay" type="button">Continue to secure payment</button><p id="countdown" role="timer"></p><p id="status" role="status">After payment, return to the app and refresh the booking.</p></main>
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
 const options = {{ Illuminate\Support\Js::from($options) }};

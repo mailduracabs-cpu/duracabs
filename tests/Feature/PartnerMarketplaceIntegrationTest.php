@@ -29,6 +29,7 @@ class PartnerMarketplaceIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        \Illuminate\Support\Facades\Queue::fake();
         config(['app.key' => 'base64:' . base64_encode(str_repeat('t', 32))]);
         app()->forgetInstance('encrypter');
         \Illuminate\Support\Facades\Crypt::clearResolvedInstance('encrypter');
@@ -54,6 +55,11 @@ class PartnerMarketplaceIntegrationTest extends TestCase
             '2026_10_29_000006_add_partner_market_fleet_submissions.php',
             '2026_10_29_000007_add_partner_market_bank_accounts.php',
             '2026_10_30_000001_add_partner_market_location_alerts.php',
+            '2026_10_31_000001_add_partner_market_total_days.php',
+            '2026_10_31_000003_add_free_cab_drop_cities.php',
+            '2026_11_01_000002_add_free_cab_duty_reports.php',
+            '2026_11_06_000200_create_market_saved_filter_alerts.php',
+            '2026_11_06_000300_add_market_communication_mode.php',
         ] as $file) {
             (require database_path('migrations/' . $file))->up();
         }
@@ -507,15 +513,27 @@ class PartnerMarketplaceIntegrationTest extends TestCase
         Http::assertSentCount(1);
     }
 
-    public function test_quote_post_does_not_require_or_keep_posting_fare_commission(): void
+    public function test_quote_post_keeps_booking_amount_and_defers_commission(): void
     {
         $post = $this->post();
         DB::table('partner_market_posts')->where('id', $post)->update(['pricing_mode' => 'quote']);
-        $input = $this->editInput($post);
-        unset($input['asking_amount'], $input['vendor_commission']);
+        $input = $this->editInput($post); $input['asking_amount'] = '2500.50'; $input['vendor_commission'] = '500'; $input['secure_booking'] = false;
         $this->listing(1)->edit(Request::create('/', 'POST', $input), $post);
         $row = DB::table('partner_market_posts')->find($post);
-        $this->assertNull($row->asking_amount); $this->assertEquals(0, $row->vendor_commission); $this->assertFalse((bool) $row->secure_booking);
+        $this->assertEquals(2500.50, $row->asking_amount); $this->assertEquals(0, $row->vendor_commission); $this->assertFalse((bool) $row->secure_booking);
+    }
+
+    public function test_quote_fare_is_required_and_airport_terms_cannot_conflict(): void
+    {
+        foreach (['missing_fare', 'parking_conflict'] as $case) {
+            $post = $this->post(); DB::table('partner_market_posts')->where('id', $post)->update(['pricing_mode' => 'quote']);
+            $input = $this->editInput($post);
+            if ($case === 'missing_fare') unset($input['asking_amount']);
+            else $input['inclusions'] = ['Inc Airport Parking', 'Airport Parking Extra'];
+            try { $this->listing(1)->edit(Request::create('/', 'POST', $input), $post); $this->fail('Invalid quote post saved'); }
+            catch (ValidationException $expected) {}
+            $this->assertEquals(1, DB::table('partner_market_posts')->where('id', $post)->value('revision'));
+        }
     }
 
     public function test_owner_request_from_chat_stores_terms_without_assigning_until_capture(): void
@@ -648,9 +666,12 @@ class PartnerMarketplaceIntegrationTest extends TestCase
         $this->assertFalse(\App\Services\PartnerMarketplaceAlerts::visible($post,3));
         DB::table('partner_market_posts')->where('id',$id)->update(['priority_until'=>now()->subSecond()]);
         $this->assertTrue(\App\Services\PartnerMarketplaceAlerts::visible(DB::table('partner_market_posts')->find($id),3));
-        // Only the selected saved taxi is made busy after assignment.
+        // Until-duty cars stay free until owner confirmation; legacy timed availability still closes on assignment.
         $submission=DB::table('partner_market_fleet_submissions')->where('post_id',$id)->where('vendor_id',2)->value('id');
         DB::table('partner_market_fleet_submissions')->where('id',$submission)->update(['vehicle_id'=>20]);
+        \App\Services\PartnerMarketplaceAlerts::booked($post,2,$submission);
+        $this->assertEquals(1,DB::table('partner_market_free_cabs')->where('vehicle_id',20)->value('is_free'));
+        DB::table('partner_market_free_cabs')->where('vehicle_id',20)->update(['until_duty'=>false]);
         \App\Services\PartnerMarketplaceAlerts::booked($post,2,$submission);
         $this->assertEquals(0,DB::table('partner_market_free_cabs')->where('vehicle_id',20)->value('is_free'));
     }
@@ -678,4 +699,43 @@ class PartnerMarketplaceIntegrationTest extends TestCase
         $this->assertEquals(2,$device->vendor_id); $this->assertStringNotContainsString($token,$device->encrypted_token);
         $this->assertSame($token,\Illuminate\Support\Facades\Crypt::decryptString($device->encrypted_token));
     }
+    public function test_round_trip_total_days_replaces_return_clock_time(): void
+    {
+        $post=$this->post(); $input=$this->editInput($post);
+        $input['trip_type']='round_trip'; $input['total_days']=3; unset($input['return_at']);
+        $this->listing(1)->edit(Request::create('/','POST',$input),$post);
+        $row=DB::table('partner_market_posts')->find($post);
+        $this->assertEquals(3,$row->total_days);
+        $end=\Carbon\Carbon::parse($row->return_at)->setTimezone('Asia/Kolkata');
+        $this->assertSame('23:59:59',$end->format('H:i:s'));
+        $this->assertEquals(3,\App\Services\PartnerMarketplaceSchedule::days($row->pickup_at,$row->return_at));
+    }
+
+    public function test_pickup_plus_thirty_minutes_expires_only_unassigned_open_bookings(): void
+    {
+        $open=$this->post();$pending=$this->post();$assigned=$this->post();
+        foreach([$open,$pending,$assigned] as $p)DB::table('partner_market_posts')->where('id',$p)->update(['pickup_at'=>now()->subMinutes(30)]);
+        DB::table('partner_market_posts')->where('id',$pending)->update(['status'=>'payment_pending','active_payment_id'=>999]);
+        DB::table('partner_market_posts')->where('id',$assigned)->update(['status'=>'assigned','assigned_payment_id'=>998]);
+        \App\Services\PartnerMarketplaceSchedule::expireDue();
+        $this->assertSame('expired',DB::table('partner_market_posts')->find($open)->status);
+        $this->assertSame('payment_pending',DB::table('partner_market_posts')->find($pending)->status);
+        $this->assertSame('assigned',DB::table('partner_market_posts')->find($assigned)->status);
+    }
+
+    public function test_current_pickup_minute_and_server_now_are_allowed_but_previous_minute_is_not(): void
+    {
+        $frozen=now()->copy()->setSecond(35); \Carbon\Carbon::setTestNow($frozen);
+        try {
+            $post=$this->post(); $input=$this->editInput($post); $input['pickup_at']=$frozen->copy()->startOfMinute()->toIso8601String();
+            $this->listing(1)->edit(Request::create('/','POST',$input),$post);
+            $this->assertSame($frozen->copy()->startOfMinute()->format('Y-m-d H:i:s'),DB::table('partner_market_posts')->find($post)->pickup_at);
+            $old=$this->editInput($post);$old['pickup_at']=$frozen->copy()->subMinute()->startOfMinute()->toIso8601String();
+            try {$this->listing(1)->edit(Request::create('/','POST',$old),$post);$this->fail('Past pickup minute accepted');}catch(ValidationException $expected){}
+            $now=$this->editInput($post);$now['pickup_now']=true;$now['pickup_at']='2000-01-01T00:00:00Z';
+            $this->listing(1)->edit(Request::create('/','POST',$now),$post);
+            $this->assertSame($frozen->format('Y-m-d H:i:s'),DB::table('partner_market_posts')->find($post)->pickup_at);
+        } finally { \Carbon\Carbon::setTestNow(); }
+    }
+
 }

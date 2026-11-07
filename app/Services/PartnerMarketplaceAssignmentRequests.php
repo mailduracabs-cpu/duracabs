@@ -22,6 +22,8 @@ class PartnerMarketplaceAssignmentRequests
             abort_unless($active && (int) $active->payer_vendor_id === $peer && (int) $active->booking_amount_paise === $amount && (int) $active->commission_paise === $fee && ($expectedFleet === null || (int) $active->fleet_submission_id === $expectedFleet), 409, 'An existing payment request is in progress. Terms cannot change until it is confirmed failed.');
             return (int) $active->id; // Idempotent; neither terms nor deadline change.
         }
+        PartnerMarketplacePostPolicy::requireCommission($commission);
+        PartnerMarketplaceSchedule::assertAccepting($post);
         abort_unless($post->status === 'open' && !$post->assigned_payment_id, 409, 'Booking cannot be assigned in this state.');
         $vendor = TransporterProfile::query()->find($peer);
         abort_unless($vendor && $vendor->isActive() && $vendor->isVerified() && $vendor->isVendor(), 422, 'Selected vendor is unavailable.');
@@ -45,7 +47,7 @@ class PartnerMarketplaceAssignmentRequests
             $quote = (object) ['id' => $id, 'transporter_profile_id' => $peer];
         }
         $quote->amount = $amount / 100;
-        $updated = (object) array_replace((array) $post, $terms);
+        $updated = (object) array_replace((array) $post, $terms, ['quote_posted_amount' => $post->asking_amount ?? null]);
         $id = PartnerMarketplaceReservations::reserve($updated, $quote);
         DB::table('partner_market_messages')->insert([
             'post_id' => $post->id, 'sender_vendor_id' => $post->transporter_profile_id, 'recipient_vendor_id' => $peer,

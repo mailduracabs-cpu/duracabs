@@ -33,3 +33,5 @@ Schedule::command('partner:sync-payouts')
     ->everyFiveMinutes()
     ->withoutOverlapping(30)
     ->appendOutputTo(storage_path('logs/partner-payout-sync.log'));
+
+\Illuminate\Support\Facades\Schedule::command('partner-market:dispatch-saved-alerts')->everyTenSeconds()->withoutOverlapping();

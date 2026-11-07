@@ -21,10 +21,11 @@ class PartnerMarketplaceReservations
             abort_unless($active && (int) $active->payer_vendor_id === (int) $quote->transporter_profile_id, 409, 'Another vendor is paying. Wait for the countdown and gateway confirmation.');
             return (int) $active->id; // Repeated clicks never extend the deadline.
         }
+        PartnerMarketplaceSchedule::assertAccepting($post);
         abort_unless($post->status === 'open' && !$post->assigned_payment_id, 409, 'Booking is no longer available.');
         $fleet = PartnerMarketplaceFleet::requireFor($post, (int) $quote->transporter_profile_id);
         $commission = (int) round((float) $post->vendor_commission * 100);
-        abort_unless($commission > 0, 422, 'Commission must be positive.');
+        PartnerMarketplacePostPolicy::requireCommission($post->vendor_commission);
         $fee = intdiv($commission * 10 + 50, 100);
         $id = DB::table('partner_market_secure_payments')->insertGetId([
             'fleet_submission_id' => $fleet->id,
@@ -56,13 +57,14 @@ class PartnerMarketplaceReservations
         $mine = $row && (int) $row->payer_vendor_id === $viewer;
         return ['booking_status' => $post->status, 'busy' => (bool) $row, 'is_payer' => (bool) $mine,
             'payment_id' => $mine ? $row->id : null, 'remaining_seconds' => $seconds,
-            'state' => !$row ? 'available' : ($seconds > 0 && $row->reservation_state === 'reserved' ? 'reserved' : 'checking'),
+            'state' => !$row ? ($post->status === 'expired' ? 'expired' : 'available') : ($seconds > 0 && $row->reservation_state === 'reserved' ? 'reserved' : 'checking'),
             'reserved_until' => $row?->reserved_until, 'server_time' => now()->toIso8601String()];
     }
 
     /** Expiry is not proof of failure. Uncertain/authorized attempts retain the slot. */
     public static function reconcile(int $postId): void
     {
+        PartnerMarketplaceSchedule::expireDue($postId);
         $claim = DB::transaction(function () use ($postId) {
             $post = DB::table('partner_market_posts')->where('id', $postId)->lockForUpdate()->first();
             if (!$post?->active_payment_id) return null;
@@ -110,8 +112,11 @@ class PartnerMarketplaceReservations
             // An admin hold also holds the reservation until explicitly released.
             if ($safe && !$row->admin_hold && !$row->admin_settlement_id) {
                 $values += ['status' => 'failed', 'reservation_state' => 'failed', 'release_confirmed_at' => now()];
-                $reset = ['active_payment_id' => null, 'status' => 'open', 'updated_at' => now()];
-                if (($post->pricing_mode ?? '') === 'quote') $reset += ['asking_amount' => null, 'vendor_commission' => 0, 'service_fee' => 0, 'vendor_payout' => 0, 'secure_booking' => false];
+                $reset = ['active_payment_id' => null, 'status' => PartnerMarketplaceSchedule::due($post) ? 'expired' : 'open', 'updated_at' => now()];
+                if (($post->pricing_mode ?? '') === 'quote') {
+                    $snapshot = json_decode((string) ($row->booking_snapshot ?? ''), true);
+                    $reset += ['asking_amount' => is_array($snapshot) ? ($snapshot['quote_posted_amount'] ?? null) : null, 'vendor_commission' => 0, 'service_fee' => 0, 'vendor_payout' => 0, 'secure_booking' => false];
+                }
                 DB::table('partner_market_posts')->where('id', $postId)->update($reset);
                 DB::table('partner_market_quotes')->where('id', $row->quote_id)->where('status', 'reserved')->update(['status' => 'pending', 'updated_at' => now()]);
             }
@@ -140,6 +145,7 @@ class PartnerMarketplaceReservations
             $values = ['razorpay_payment_id' => $paymentId, 'paid_at' => now(), 'updated_at' => now()];
             if ($winner) {
                 $values += ['status' => 'paid', 'reservation_state' => 'paid'];
+                \App\Services\PartnerMarketSavedAlerts::paid($id, (int) $row->payer_vendor_id, (int) $post->id);
                 PartnerMarketplaceAlerts::booked($post, (int) $row->payer_vendor_id, $row->fleet_submission_id ? (int) $row->fleet_submission_id : null);
                 DB::table('partner_market_posts')->where('id', $post->id)->update(['status' => 'assigned', 'active_payment_id' => null, 'assigned_payment_id' => $id, 'assigned_fleet_submission_id' => $row->fleet_submission_id, 'updated_at' => now()]);
                 DB::table('partner_market_quotes')->where('post_id', $post->id)->whereIn('status', ['pending', 'reserved'])->update(['status' => 'rejected', 'updated_at' => now()]);

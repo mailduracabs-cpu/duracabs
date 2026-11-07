@@ -16,21 +16,25 @@ class PartnerMarketplaceAlerts {
   return PartnerMarketplaceMatching::tier((array)$post,(array)$p,self::freeCabs((int)$p->vendor_id),now()->getTimestamp(),(float)config('partner_market.radius_km',30),(int)config('partner_market.location_fresh_seconds',300));
  }
  public static function safePlan(int $id): void {
+  PartnerMarketplaceSchedule::queueExpiry($id);
   try { self::plan($id); } catch(\Throwable) { \Illuminate\Support\Facades\Log::warning('Marketplace alert planning deferred',['post_id'=>$id]); }
+  \App\Services\PartnerMarketSavedAlerts::newPost($id);
  }
  public static function plan(int $id): void {
   $send=[];
   DB::transaction(function()use($id,&$send){
    $post=DB::table('partner_market_posts')->where('id',$id)->lockForUpdate()->first();
-   if (!$post||$post->kind!=='booking'||$post->status!=='open'||$post->alerts_planned_at||Carbon::parse($post->pickup_at)->isPast()||$post->pickup_latitude===null||$post->pickup_longitude===null)return;
+   if (!$post||$post->kind!=='booking'||$post->status!=='open'||$post->alerts_planned_at||PartnerMarketplaceSchedule::due($post)||$post->pickup_latitude===null||$post->pickup_longitude===null)return;
    $targets=[];
    DB::table('partner_market_presence as p')->join('fleet_transporter_profiles as v','v.id','=','p.vendor_id')->where('v.status',true)->where('v.verification_status','verified')->whereNull('v.deleted_at')->whereIn('v.partner_type',['vendor','both'])
     ->where(function($q){$q->where('p.app_alerts',true)->orWhere('p.whatsapp_alerts',true);})->select('p.*')->orderBy('p.vendor_id')->chunk(200,function($rows)use($post,&$targets){foreach($rows as $p){$match=self::eligible($post,$p);if($match)$targets[]=['p'=>$p,'match'=>$match];}});
    $priority=collect($targets)->contains(fn($t)=>$t['match']['tier']===0);
-   $until=$priority?now()->addSeconds(max(0,(int)config('partner_market.priority_seconds',60))):null;
+   $remaining=max(0,PartnerMarketplaceSchedule::deadline($post)->getTimestamp()-now()->getTimestamp());
+   $prioritySeconds=min(max(0,(int)config('partner_market.priority_seconds',60)),intdiv($remaining,2));
+   $until=$priority?now()->addSeconds($prioritySeconds):null;
    DB::table('partner_market_posts')->where('id',$id)->update(['priority_until'=>$until,'alerts_planned_at'=>now()]);
    foreach($targets as $t){$m=$t['match'];$at=$m['tier']===0||!$until?now():$until;
-    $expires=Carbon::parse($post->pickup_at)->min(now()->addMinutes(30));if($at->gte($expires))continue;
+    $expires=Carbon::parse(PartnerMarketplaceSchedule::deadline($post)->format(DATE_ATOM))->min(now()->addMinutes(30));if($at->gte($expires))continue;
     DB::table('partner_market_alerts')->insertOrIgnore(['post_id'=>$id,'post_revision'=>$post->revision,'vendor_id'=>$t['p']->vendor_id,'tier'=>$m['tier'],'reason'=>$m['reason'],'free_cab_id'=>$m['free_cab_id'],
      'available_at'=>$at,'expires_at'=>$expires,'whatsapp_status'=>$t['p']->whatsapp_alerts?'pending':'disabled','created_at'=>now(),'updated_at'=>now()]);
     $a=DB::table('partner_market_alerts')->where('post_id',$id)->where('post_revision',$post->revision)->where('vendor_id',$t['p']->vendor_id)->first();if($a)$send[]=['id'=>$a->id,'at'=>$at];
@@ -44,8 +48,10 @@ class PartnerMarketplaceAlerts {
  }
  public static function gate(object $post,int $vendor): void {abort_unless(self::visible($post,$vendor),409,'Matching free cabs have first access. Wait for the priority window to end.');}
  public static function booked(object $post,int $vendor,?int $submission): void {
+  \App\Services\PartnerMarketSavedAlerts::assigned($post,$vendor);
   $fleet=$submission?DB::table('partner_market_fleet_submissions')->find($submission):null;if(!$fleet||(int)$fleet->vendor_id!==$vendor||empty($fleet->vehicle_id))return;
   $cab=DB::table('partner_market_free_cabs')->where('vehicle_id',$fleet->vehicle_id)->where('vendor_id',$vendor)->first();if(!$cab)return;
+  if(!empty($cab->until_duty))return; // Owner closes this free listing only through an explicit duty-source submission.
   DB::table('partner_market_free_cabs')->where('id',$cab->id)->update(['is_free'=>false,'updated_at'=>now()]);
   if($cab->post_id)DB::table('partner_market_posts')->where('id',$cab->post_id)->where('status','open')->update(['status'=>'assigned','updated_at'=>now()]);
  }
@@ -53,7 +59,7 @@ class PartnerMarketplaceAlerts {
   $a=DB::table('partner_market_alerts')->find($id);if(!$a||Carbon::parse($a->available_at)->isFuture()||Carbon::parse($a->expires_at)->isPast())return;
   DB::table('partner_market_alerts')->where('id',$id)->update(['last_checked_at'=>now()]);
   $post=DB::table('partner_market_posts')->find($a->post_id);$p=DB::table('partner_market_presence')->where('vendor_id',$a->vendor_id)->first();$vendor=DB::table('fleet_transporter_profiles')->find($a->vendor_id);
-  if(!$post||$post->status!=='open'||(int)$post->revision!==(int)$a->post_revision||!$p||!$vendor||!$vendor->status||$vendor->verification_status!=='verified'||$vendor->deleted_at)return;
+  if(!$post||PartnerMarketplaceSchedule::due($post)||$post->status!=='open'||(int)$post->revision!==(int)$a->post_revision||!$p||!$vendor||!$vendor->status||$vendor->verification_status!=='verified'||$vendor->deleted_at)return;
   $match=self::eligible($post,$p);if(!$match||((int)$a->tier===0&&$match['tier']!==0))return;
   if($p->app_alerts)foreach(DB::table('partner_market_devices')->where('vendor_id',$a->vendor_id)->where('seen_at','>=',now()->subDays(60))->get() as $d){
    DB::table('partner_market_alert_devices')->insertOrIgnore(['alert_id'=>$id,'device_id'=>$d->id,'status'=>'pending']);
@@ -65,7 +71,7 @@ class PartnerMarketplaceAlerts {
   if(!config('partner_market.whatsapp_enabled')){DB::table('partner_market_alerts')->where('id',$id)->whereIn('whatsapp_status',['pending','not_configured'])->update(['whatsapp_status'=>'not_configured','last_error'=>'whatsapp_disabled']);return;}
   if(!DB::table('partner_market_alerts')->where('id',$id)->whereIn('whatsapp_status',['pending','not_configured'])->update(['whatsapp_status'=>'checking','updated_at'=>now()]))return;
   try{
-   $r=WhatsAppService::sendByKey((string)config('partner_market.whatsapp_template_key'),(string)(($vendor->whatsapp_number??null)?:$vendor->mobile),[(string)$post->id,$post->pickup_city,$post->drop_city,$post->pickup_at,$post->vehicle_class,$post->pricing_mode==='quote'?'Discuss best price in app':'Fare INR '.$post->asking_amount.'; commission INR '.$post->vendor_commission]);
+   $r=WhatsAppService::sendByKey((string)config('partner_market.whatsapp_template_key'),(string)(($vendor->whatsapp_number??null)?:$vendor->mobile),[(string)$post->id,$post->pickup_city,$post->drop_city,$post->pickup_at,$post->vehicle_class,$post->pricing_mode==='quote'?($post->asking_amount!==null?'Booking fare INR '.$post->asking_amount.'; discuss best price in app':'Discuss best price in app'):'Fare INR '.$post->asking_amount.'; commission INR '.$post->vendor_commission]);
    $ok=(bool)($r['status']??false);$error=$r['error']??null;
    DB::table('partner_market_alerts')->where('id',$id)->update(['whatsapp_status'=>$ok?'accepted':($error==='template_not_ready'?'not_configured':'unknown'),'whatsapp_message_id'=>$r['message_id']??null,'last_error'=>$ok?null:($error==='template_not_ready'?'whatsapp_template_not_ready':'whatsapp_result_uncertain'),'updated_at'=>now()]);
   }catch(\Throwable){DB::table('partner_market_alerts')->where('id',$id)->update(['whatsapp_status'=>'unknown','last_error'=>'whatsapp_result_uncertain','updated_at'=>now()]);}

@@ -25,6 +25,7 @@ class PartnerMarketplaceWorkspaceController extends PartnerController
         $vendor = $this->vendor($request);
         $input = $request->validate(['scope' => ['required', Rule::in(['posted', 'received'])],
             'q' => ['nullable', 'string', 'max:100'], 'page' => ['sometimes', 'integer', 'min:1']]);
+        \App\Services\PartnerMarketplaceSchedule::expireDue();
         $query = DB::table('partner_market_posts as p')->where('p.kind', 'booking');
         if ($input['scope'] === 'posted') $query->where('p.transporter_profile_id', $vendor->id);
         else $query->where(function ($scope) use ($vendor) {
@@ -42,7 +43,7 @@ class PartnerMarketplaceWorkspaceController extends PartnerController
         }
         $page = $query->select('p.*')->orderByDesc('p.id')->paginate(20);
         return response()->json(['status' => true, 'data' => [
-            'items' => $page->items(), 'page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(),
+            'items' => array_map(fn ($p) => \App\Services\PartnerMarketplaceSchedule::stamp($p), $page->items()), 'page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total(), 'server_time' => now()->toIso8601String(),
         ]]);
     }
 
@@ -87,7 +88,7 @@ class PartnerMarketplaceWorkspaceController extends PartnerController
             }
             $interested = ['items' => $page->items(), 'page' => $page->currentPage(), 'last_page' => $page->lastPage(), 'total' => $page->total()];
         }
-        return response()->json(['status' => true, 'data' => ['post' => $listing, 'is_owner' => $owner, 'own_fleet_details' => $ownFleet, 'interested_vendors' => $interested, 'quotes' => $quotes, 'payment' => $payment, 'reservation' => Reservations::snapshot($listing, (int) $vendor->id)]]);
+        return response()->json(['status' => true, 'data' => ['post' => \App\Services\PartnerMarketplaceSchedule::stamp($listing), 'is_owner' => $owner, 'contact' => \App\Services\PartnerMarketplacePostPolicy::contact($listing, (int) $vendor->id), 'own_fleet_details' => $ownFleet, 'interested_vendors' => $interested, 'quotes' => $quotes, 'payment' => $payment, 'reservation' => Reservations::snapshot($listing, (int) $vendor->id)]])->header('Cache-Control', 'private, no-store');
     }
 
     public function inbox(Request $request)

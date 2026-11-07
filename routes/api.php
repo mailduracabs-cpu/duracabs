@@ -1376,22 +1376,26 @@ Route::post('/booking/{booking}/live-location/stop', [
 Route::get('live-bookings/confirm/{token}', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'requesterConfirm'])->where('token', '[A-Fa-f0-9]{48}')->middleware('throttle:10,1');
 Route::get('live-bookings/whatsapp/webhook', [\App\Http\Controllers\Api\V1\LiveBookingWebhookController::class, 'verify'])->middleware('throttle:30,1');
 Route::post('live-bookings/whatsapp/webhook', [\App\Http\Controllers\Api\V1\LiveBookingWebhookController::class, 'receive'])->middleware('throttle:120,1');
+Route::post('v1/partner/marketplace/whatsapp-group-outbox/pull', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWhatsAppOutboxController::class, 'pull'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
+Route::post('v1/partner/marketplace/whatsapp-group-outbox/acknowledge', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWhatsAppOutboxController::class, 'acknowledge'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:60,1');
 
 Route::prefix('v1/partner')->group(function (): void {
     Route::post('/send-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'sendOtp'])
-        ->middleware('throttle:5,1');
+        ->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
     Route::post('/verify-otp', [\App\Http\Controllers\Api\V1\PartnerController::class, 'verifyOtp'])
-        ->middleware('throttle:15,1');
-    Route::get('/marketplace/fleet-submissions/{submission}/photo', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'photo'])->whereNumber('submission')->middleware(['signed', 'throttle:120,1'])->name('partner.market.fleet-photo');
+        ->middleware('App\Http\Middleware\PartnerEndpointThrottle:15,1');
+    Route::get('/marketplace/fleet-submissions/{submission}/photo', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'photo'])->whereNumber('submission')->middleware(['signed', 'App\Http\Middleware\PartnerEndpointThrottle:120,1'])->name('partner.market.fleet-photo');
     Route::get('/marketplace/payments/{payment}/checkout', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkout'])
-        ->whereNumber('payment')->middleware(['signed', 'throttle:20,1'])->name('partner.market.checkout');
+        ->whereNumber('payment')->middleware(['signed', 'App\Http\Middleware\PartnerEndpointThrottle:20,1'])->name('partner.market.checkout');
     Route::post('/marketplace/payments/{payment}/checkout-complete', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'completeCheckout'])
-        ->whereNumber('payment')->middleware(['signed', 'throttle:20,1'])->name('partner.market.checkout.complete');
-    Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
+        ->whereNumber('payment')->middleware(['signed', 'App\Http\Middleware\PartnerEndpointThrottle:20,1'])->name('partner.market.checkout.complete');
+    Route::middleware(['auth:sanctum', 'App\Http\Middleware\PartnerEndpointThrottle:60,1'])->group(function (): void {
+        Route::get('/marketplace/free-cabs', [\App\Http\Controllers\Api\V1\PartnerFreeCabDutyController::class, 'index']);
+        Route::post('/marketplace/free-cabs/duty-received', [\App\Http\Controllers\Api\V1\PartnerFreeCabDutyController::class, 'store'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         Route::get('/live-bookings', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'index']);
         Route::get('/live-bookings/{booking}/contact', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'contact'])->whereNumber('booking');
-        Route::post('/live-bookings/{booking}/interest', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'interest'])->whereNumber('booking')->middleware('throttle:20,1');
-        Route::post('/live-bookings/{booking}/duty-received', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'dutyReceived'])->whereNumber('booking')->middleware('throttle:5,1');
+        Route::post('/live-bookings/{booking}/interest', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'interest'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:20,1');
+        Route::post('/live-bookings/{booking}/duty-received', [\App\Http\Controllers\Api\V1\LiveBookingsController::class, 'dutyReceived'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
         Route::get('/marketplace/alert-settings', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'show']);
         Route::post('/marketplace/alert-settings', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'save']);
         Route::post('/marketplace/location/stop', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'stopLocation']);
@@ -1401,70 +1405,71 @@ Route::prefix('v1/partner')->group(function (): void {
         Route::get('/marketplace/alerts', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'alerts']);
         Route::post('/marketplace/alerts/{alert}/read', [\App\Http\Controllers\Api\V1\PartnerMarketplacePresenceController::class, 'read'])->whereNumber('alert');
         Route::get('/marketplace/bank-account', [\App\Http\Controllers\Api\V1\PartnerMarketplaceBankController::class, 'show']);
-        Route::post('/marketplace/bank-account', [\App\Http\Controllers\Api\V1\PartnerMarketplaceBankController::class, 'save'])->middleware('throttle:10,1');
+        Route::post('/marketplace/bank-account', [\App\Http\Controllers\Api\V1\PartnerMarketplaceBankController::class, 'save'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         Route::get('/marketplace/{post}/fleet-options', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'options'])->whereNumber('post');
-        Route::post('/marketplace/{post}/fleet-details', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'send'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/fleet-details', [\App\Http\Controllers\Api\V1\PartnerMarketplaceFleetController::class, 'send'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         Route::get('/marketplace/{post}/reservation', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'reservation'])->whereNumber('post');
-        Route::post('/marketplace/{post}/assignment-request', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'assignmentRequest'])->whereNumber('post')->middleware('throttle:10,1');
-        Route::post('/marketplace/{post}/claim', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'claim'])->whereNumber('post')->middleware('throttle:10,1');
-        Route::get('/marketplace/places', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'places'])->middleware('throttle:60,1');
-        Route::post('/marketplace/{post}/edit', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'edit'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/assignment-request', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'assignmentRequest'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
+        Route::post('/marketplace/{post}/claim', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'claim'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
+        Route::get('/marketplace/places', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'places'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:60,1');
+        Route::get('/marketplace/price-estimate', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'priceEstimate'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:60,1');
+        Route::post('/marketplace/{post}/edit', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'edit'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         Route::get('/marketplace/bookings', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'bookings']);
         Route::get('/marketplace/inbox', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'inbox']);
         Route::get('/marketplace/{post}', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'details'])->whereNumber('post');
         Route::post('/marketplace/{post}/read', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'readMessages'])->whereNumber('post');
-        Route::post('/marketplace/payments/{payment}/checkout-link', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkoutLink'])->whereNumber('payment')->middleware('throttle:5,1');
+        Route::post('/marketplace/payments/{payment}/checkout-link', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkoutLink'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
 
         Route::get('/bookings/{booking}/return', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'show'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/draft', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'draft'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/photo', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photo'])->whereNumber('booking');
         Route::get('/bookings/{booking}/return/photo/{slot}', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photoView'])->whereNumber('booking');
-        Route::post('/bookings/{booking}/return/otp', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'otp'])->whereNumber('booking')->middleware('throttle:3,1');
-        Route::post('/bookings/{booking}/return/verify', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'verify'])->whereNumber('booking')->middleware('throttle:3,1');
+        Route::post('/bookings/{booking}/return/otp', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'otp'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:3,1');
+        Route::post('/bookings/{booking}/return/verify', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'verify'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:3,1');
         Route::post('/bookings/{booking}/return/preview', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'preview'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/complete', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'complete'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/admin-request', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'adminRequest'])->whereNumber('booking');
-        Route::post('/marketplace/{post}/quotes/{quote}/select', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'selectQuote'])->whereNumber('post')->whereNumber('quote')->middleware('throttle:10,1');
-        Route::post('/marketplace/payments/{payment}/order', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'createOrder'])->whereNumber('payment')->middleware('throttle:5,1');
-        Route::post('/marketplace/payments/{payment}/verify', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'verify'])->whereNumber('payment')->middleware('throttle:10,1');
+        Route::post('/marketplace/{post}/quotes/{quote}/select', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'selectQuote'])->whereNumber('post')->whereNumber('quote')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
+        Route::post('/marketplace/payments/{payment}/order', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'createOrder'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
+        Route::post('/marketplace/payments/{payment}/verify', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'verify'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         // Phase 4: marketplace lifecycle and refund routes (authenticated vendors).
         Route::get('/marketplace/payments/{payment}', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'show'])->whereNumber('payment');
         Route::post('/marketplace/payments/{payment}/end', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'end'])->whereNumber('payment');
         Route::post('/marketplace/payments/{payment}/confirm-completion', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'confirmCompletion'])->whereNumber('payment');
-        Route::post('/marketplace/payments/{payment}/cancel', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'cancel'])->whereNumber('payment')->middleware('throttle:5,1');
-        Route::post('/marketplace/payments/{payment}/retry-refund', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'retryRefund'])->whereNumber('payment')->middleware('throttle:3,1');
+        Route::post('/marketplace/payments/{payment}/cancel', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'cancel'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
+        Route::post('/marketplace/payments/{payment}/retry-refund', [\App\Http\Controllers\Api\V1\PartnerMarketplaceLifecycleController::class, 'retryRefund'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:3,1');
         Route::get('/marketplace', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'index']);
-        Route::post('/marketplace', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'store'])->middleware('throttle:10,1');
-        Route::post('/marketplace/{post}/quotes', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'quote'])->whereNumber('post')->middleware('throttle:10,1');
+        Route::post('/marketplace', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'store'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
+        Route::post('/marketplace/{post}/quotes', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'quote'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:10,1');
         Route::post('/marketplace/{post}/close', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'close'])->whereNumber('post');
         Route::get('/marketplace/{post}/messages', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'messages'])->whereNumber('post');
-        Route::post('/marketplace/{post}/messages', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'sendMessage'])->whereNumber('post')->middleware('throttle:30,1');
+        Route::post('/marketplace/{post}/messages', [\App\Http\Controllers\Api\V1\PartnerMarketplaceController::class, 'sendMessage'])->whereNumber('post')->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
         Route::get('/me', [\App\Http\Controllers\Api\V1\PartnerController::class, 'me']);
         Route::get('/dashboard', [\App\Http\Controllers\Api\V1\PartnerController::class, 'dashboard']);
         Route::get('/bookings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'bookings']);
-        Route::post('/bookings/{booking}/accept', [\App\Http\Controllers\Api\V1\PartnerController::class, 'acceptBooking'])->whereNumber('booking')->middleware('throttle:15,1');
+        Route::post('/bookings/{booking}/accept', [\App\Http\Controllers\Api\V1\PartnerController::class, 'acceptBooking'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:15,1');
         Route::get('/vehicle-categories', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicleCategories']);
         Route::post('/vehicles/{vehicle}/details', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehicle'])->whereNumber('vehicle');
         Route::post('/drivers/{driver}/details', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'updateDriver'])->whereNumber('driver');
-        Route::post('/bookings/{booking}/driver-notification', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'retryNotification'])->whereNumber('booking')->middleware('throttle:3,1');
+        Route::post('/bookings/{booking}/driver-notification', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'retryNotification'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:3,1');
         Route::get('/drivers', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'drivers']);
-        Route::post('/drivers', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'createDriver'])->middleware('throttle:15,1');
+        Route::post('/drivers', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'createDriver'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:15,1');
         Route::post('/drivers/{driver}/remove', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'removeDriver'])->whereNumber('driver');
         Route::get('/bookings/{booking}/assignment', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'assignment'])->whereNumber('booking');
         Route::get('/bookings/{booking}/assignment-options', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'options'])->whereNumber('booking');
-        Route::post('/bookings/{booking}/assignment', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'assign'])->whereNumber('booking')->middleware('throttle:30,1');
-        Route::post('/vehicles', [\App\Http\Controllers\Api\V1\PartnerController::class, 'createVehicle'])->middleware('throttle:15,1');
+        Route::post('/bookings/{booking}/assignment', [\App\Http\Controllers\Api\V1\PartnerDispatchController::class, 'assign'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
+        Route::post('/vehicles', [\App\Http\Controllers\Api\V1\PartnerController::class, 'createVehicle'])->middleware('App\Http\Middleware\PartnerEndpointThrottle:15,1');
         Route::post('/vehicles/{vehicle}/remove', [\App\Http\Controllers\Api\V1\PartnerController::class, 'removeVehicle'])->whereNumber('vehicle');
         Route::get('/kyc', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'index']);
-        Route::post('/kyc/{type}', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'upload'])->where('type', 'aadhaar|pan')->middleware('throttle:15,1');
+        Route::post('/kyc/{type}', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'upload'])->where('type', 'aadhaar|pan')->middleware('App\Http\Middleware\PartnerEndpointThrottle:15,1');
         Route::get('/kyc/{type}/download', [\App\Http\Controllers\Api\V1\PartnerKycController::class, 'download'])->where('type', 'aadhaar|pan');
         Route::get('/vehicles', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicles']);
         Route::get('/earnings', [\App\Http\Controllers\Api\V1\PartnerController::class, 'earnings']);
         Route::get('/document-reminders', [\App\Http\Controllers\Api\V1\PartnerController::class, 'documentReminders']);
-        Route::post('/vehicles/{vehicle}/pricing', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehiclePricing'])->whereNumber('vehicle')->middleware('throttle:30,1');
+        Route::post('/vehicles/{vehicle}/pricing', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehiclePricing'])->whereNumber('vehicle')->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
         Route::get('/vehicles/{vehicle}/assets', [\App\Http\Controllers\Api\V1\PartnerController::class, 'vehicleAssets'])->whereNumber('vehicle');
-        Route::post('/vehicles/{vehicle}/assets', [\App\Http\Controllers\Api\V1\PartnerController::class, 'uploadVehicleAsset'])->whereNumber('vehicle')->middleware('throttle:30,1');
-        Route::post('/vehicles/{vehicle}/documents', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehicleDocuments'])->whereNumber('vehicle')->middleware('throttle:30,1');
+        Route::post('/vehicles/{vehicle}/assets', [\App\Http\Controllers\Api\V1\PartnerController::class, 'uploadVehicleAsset'])->whereNumber('vehicle')->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
+        Route::post('/vehicles/{vehicle}/documents', [\App\Http\Controllers\Api\V1\PartnerController::class, 'updateVehicleDocuments'])->whereNumber('vehicle')->middleware('App\Http\Middleware\PartnerEndpointThrottle:30,1');
         Route::get('/vehicles/{vehicle}/assets/{slot}/download', [\App\Http\Controllers\Api\V1\PartnerController::class, 'downloadVehicleAsset'])->whereNumber('vehicle');
         Route::post('/logout', [\App\Http\Controllers\Api\V1\PartnerController::class, 'logout']);
     });
@@ -1493,3 +1498,10 @@ require __DIR__ . '/customer_app_updates.php';
 
 // Register this webhook URL separately in Razorpay dashboard (same configured webhook secret).
 Route::post('/v1/partner/marketplace/payment-webhook', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'webhook']);
+require __DIR__.'/partner_aadhaar.php';
+
+// Marketplace posting policy; each endpoint owns its rate counter.
+require __DIR__.'/partner_post_policy.php';
+
+require __DIR__.'/partner_market_saved_filters.php';
+require __DIR__.'/partner_live_outcomes.php';

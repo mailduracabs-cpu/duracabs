@@ -1,5 +1,6 @@
 <?php
 return [
+    'trip_timezone' => env('PARTNER_MARKET_TRIP_TIMEZONE', 'Asia/Kolkata'),
     'radius_km' => (float) env('PARTNER_MARKET_RADIUS_KM', 30),
     'priority_seconds' => (int) env('PARTNER_MARKET_PRIORITY_SECONDS', 60),
     'location_fresh_seconds' => 300,

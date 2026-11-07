@@ -18,9 +18,36 @@ final class LiveBookingsController extends PartnerController {
    // Every active booking is visible. A free cab only controls priority alerts, never marketplace visibility.
    $q->whereIn('status',['open','pending_confirmation'])->where('expires_at','>',now())->whereNotExists(function($interest)use($v){$interest->selectRaw('1')->from('live_booking_interests as i')->whereColumn('i.live_booking_id','live_bookings.id')->where('i.vendor_id',$v->id)->whereIn('i.status',['interested','confirmed']);});
   }
-  foreach(['trip_type','from_city','to_city','car_type'] as $k)if(!empty($i[$k]))$q->where($k,'like',$k==='trip_type'?$i[$k]:'%'.$i[$k].'%');if(!empty($i['date_from']))$q->whereDate('pickup_at','>=',$i['date_from']);if(!empty($i['date_to']))$q->whereDate('pickup_at','<=',$i['date_to']);if(!empty($i['time_from']))$q->whereTime('pickup_at','>=',$i['time_from']);if(!empty($i['time_to']))$q->whereTime('pickup_at','<=',$i['time_to']);
-  $rows=$q->orderByDesc('created_at')->orderByDesc('id')->limit(300)->get();$page=\Illuminate\Pagination\LengthAwarePaginator::resolveCurrentPage();$items=$rows->forPage($page,30)->values();foreach($items as $row){$row->total_days=$row->trip_type==='round_trip'&&$row->return_at?\App\Services\PartnerMarketplaceSchedule::days($row->pickup_at,$row->return_at):null;$contactPhone=$row->requester_phone;unset($row->requester_phone,$row->source_sender,$row->source_group_id,$row->source_message_id,$row->confirm_token_hash);$row->my_interest=DB::table('live_booking_interests')->where('live_booking_id',$row->id)->where('vendor_id',$v->id)->value('status');if(in_array($row->my_interest,['interested','confirmed'],true)){$row->contact_phone=\App\Services\LiveBookingInterestNotification::phone($contactPhone);$row->contact_whatsapp_text=\App\Services\LiveBookingInterestNotification::text($row,$v);}$row->interested_count=DB::table('live_booking_interests')->where('live_booking_id',$row->id)->where('status','interested')->count();}
-  return response()->json(['status'=>true,'data'=>['items'=>$items,'page'=>$page,'last_page'=>max(1,(int)ceil($rows->count()/30)),'cooldown_until'=>$cool]])->header('Cache-Control','private, no-store');
+  foreach(['from_city','to_city','car_type'] as $k) if(!empty($i[$k])) $q->where($k,'like','%'.$i[$k].'%');
+  if(!empty($i['trip_type'])) $q->where('trip_type',$i['trip_type']);
+  // Range comparisons can use the pickup_at index; DATE(pickup_at) cannot.
+  if(!empty($i['date_from'])) $q->where('pickup_at','>=',\Carbon\Carbon::parse($i['date_from'])->startOfDay());
+  if(!empty($i['date_to'])) $q->where('pickup_at','<',\Carbon\Carbon::parse($i['date_to'])->startOfDay()->addDay());
+  if(!empty($i['time_from'])) $q->whereTime('pickup_at','>=',$i['time_from']);
+  if(!empty($i['time_to'])) $q->whereTime('pickup_at','<=',$i['time_to']);
+  $page=(int)($i['page']??1);
+  $total=(clone $q)->count();
+  $items=$q->orderByDesc('created_at')->orderByDesc('id')->forPage($page,30)->get();
+  $ids=$items->pluck('id');
+  // A fixed three batch reads replaces three reads per booking.
+  $interests=$ids->isEmpty()?collect():DB::table('live_booking_interests')->whereIn('live_booking_id',$ids)->where('vendor_id',$v->id)->pluck('status','live_booking_id');
+  $outcomes=$ids->isEmpty()?collect():DB::table('live_booking_vendor_outcomes')->whereIn('live_booking_id',$ids)->where('vendor_id',$v->id)->get()->keyBy('live_booking_id');
+  $counts=$ids->isEmpty()?collect():DB::table('live_booking_interests')->whereIn('live_booking_id',$ids)->where('status','interested')->select('live_booking_id')->selectRaw('COUNT(*) AS aggregate')->groupBy('live_booking_id')->pluck('aggregate','live_booking_id');
+  foreach($items as $row){
+   $row->total_days=$row->trip_type==='round_trip'&&$row->return_at?\App\Services\PartnerMarketplaceSchedule::days($row->pickup_at,$row->return_at):null;
+   $contactPhone=$row->requester_phone;
+   unset($row->requester_phone,$row->source_sender,$row->source_group_id,$row->source_message_id,$row->confirm_token_hash);
+   $row->my_interest=$interests->get($row->id);
+   if(in_array($row->my_interest,['interested','confirmed'],true)){
+    $row->contact_phone=\App\Services\LiveBookingInterestNotification::phone($contactPhone);
+    $row->contact_whatsapp_text=\App\Services\LiveBookingInterestNotification::text($row,$v);
+   }
+   $outcome=$outcomes->get($row->id);
+   $row->my_outcome=$outcome?->outcome;
+   $row->my_outcome_note=$outcome?->note;
+   $row->interested_count=(int)$counts->get($row->id,0);
+  }
+  return response()->json(['status'=>true,'data'=>['items'=>$items,'page'=>$page,'last_page'=>max(1,(int)ceil($total/30)),'cooldown_until'=>$cool]])->header('Cache-Control','private, no-store');
  }
  public function contact(Request $r,int $id){
   $v=$this->vendor($r);$b=DB::table('live_bookings')->where('id',$id)->first();abort_unless($b,404);
@@ -42,6 +69,23 @@ final class LiveBookingsController extends PartnerController {
   catch(\Throwable){return response()->json(['status'=>true,'message'=>'Interest saved. WhatsApp notification is pending; you can call or WhatsApp the requester.','whatsapp_status'=>'pending']);}
   $delivery=DB::table('live_booking_interest_notifications')->where('id',$notificationId)->value('status');
   return response()->json(['status'=>true,'message'=>$delivery==='sent'?'Interest saved. WhatsApp message sent to the booking contact.':'Interest saved. Call or WhatsApp the requester; automatic message status: '.$delivery.'.','whatsapp_status'=>$delivery]);
+ }
+ public function updateOutcome(Request $r,int $id){
+  $v=$this->vendor($r);
+  $i=$r->validate(['outcome'=>['required',Rule::in(['done_with_me','done_with_other','other'])],'note'=>['nullable','string','max:1000','required_if:outcome,other']]);
+  $note=trim((string)($i['note']??''));
+  if($i['outcome']==='other'&&$note==='')return response()->json(['message'=>'Please enter a note for Other.','errors'=>['note'=>['Please enter a note.']]],422);
+  DB::transaction(function()use($id,$v,$i,$note){
+   $b=DB::table('live_bookings')->where('id',$id)->lockForUpdate()->first();
+   abort_unless($b,404,'Booking not found.');
+   abort_unless(in_array($b->status,['open','pending_confirmation'],true)&&now()->lt($b->expires_at),409,'Booking is no longer open.');
+   abort_unless(DB::table('live_booking_interests')->where('live_booking_id',$id)->where('vendor_id',$v->id)->whereIn('status',['interested','confirmed'])->exists(),403,'Show interest first.');
+   DB::table('live_booking_vendor_outcomes')->updateOrInsert(
+    ['live_booking_id'=>$id,'vendor_id'=>$v->id],
+    ['outcome'=>$i['outcome'],'note'=>$i['outcome']==='other'?$note:null,'updated_at'=>now()]
+   );
+  },3);
+  return response()->json(['status'=>true,'message'=>'Booking result saved.','data'=>['outcome'=>$i['outcome'],'note'=>$i['outcome']==='other'?$note:null]]);
  }
  public function dutyReceived(Request $r,int $id){
   $v=$this->vendor($r);$i=$r->validate(['source'=>['required',Rule::in(['taxi_sathi','other'])],'vehicle_id'=>['required','integer','min:1'],'expected_post_id'=>['required','integer','min:1']]);

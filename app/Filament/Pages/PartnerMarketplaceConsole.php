@@ -207,6 +207,7 @@ class PartnerMarketplaceConsole extends Page
     protected function getViewData(): array
     {
         $actor = Admin::actor();
+        \App\Services\PartnerMarketplaceSchedule::expireDue();
         $query = DB::table('partner_market_posts as p')
             ->leftJoin('fleet_transporter_profiles as v', 'v.id', '=', 'p.transporter_profile_id')
             ->leftJoin('partner_market_secure_payments as l', function ($join) { $join->on('l.post_id', '=', 'p.id')->whereRaw('l.id = COALESCE(p.assigned_payment_id, p.active_payment_id, (SELECT MAX(lp.id) FROM partner_market_secure_payments lp WHERE lp.post_id = p.id))'); })
@@ -219,7 +220,7 @@ class PartnerMarketplaceConsole extends Page
                 ->orWhere('v.company_name', 'like', '%' . $term . '%')->orWhere('v.mobile', 'like', '%' . $term . '%');
         });
         if ($this->vendorFilterId) $query->where('p.transporter_profile_id', $this->vendorFilterId);
-        if (in_array($this->statusFilter, ['open', 'payment_pending', 'assigned', 'cancelled', 'completed'], true)) $query->where('p.status', $this->statusFilter);
+        if (in_array($this->statusFilter, ['open', 'payment_pending', 'assigned', 'cancelled', 'expired', 'completed'], true)) $query->where('p.status', $this->statusFilter);
         if (in_array($this->kindFilter, ['booking', 'free_vehicle'], true)) $query->where('p.kind', $this->kindFilter);
         $filterError = null;
         $validDate = static function (string $value): bool {
