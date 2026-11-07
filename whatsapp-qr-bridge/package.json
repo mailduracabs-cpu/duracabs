@@ -1,0 +1,17 @@
+{
+  "name": "duracabs-taxi-sathi-whatsapp-qr",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local admin QR connection and selected-group Live Booking intake",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node --env-file=.env server.cjs",
+    "test": "node --test bridge.test.cjs groups.test.cjs interest-send.test.cjs group-broadcast.test.cjs activity-audit.test.cjs"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "1.34.7",
+    "qrcode": "1.5.4"
+  }
+}
