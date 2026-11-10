@@ -351,7 +351,6 @@ public function hasVendorPayout(): bool
         return ! $this->isTerminal()
             && ! $this->isRunning()
             && $this->vendor_confirmation_status === 'confirmed'
-            && $this->document_status === 'approved'
             && in_array($this->status, [
                 self::STATUS_CONFIRMED,
                 self::STATUS_PICKUP_PENDING,
@@ -436,7 +435,7 @@ public function hasVendorPayout(): bool
             }
             if (($booking->isDirty('status') && $booking->status === 'completed')
                 || ($booking->isDirty('booking_status') && $booking->booking_status === 'completed')) {
-                $verified = $booking->return_otp_verified_at || ($booking->return_admin_confirmed_at
+                $verified = ($booking->return_completion_audit && in_array(($booking->return_completion_audit['method'] ?? null), ['vendor_inspection', 'admin_override'], true)) || ($booking->return_admin_confirmed_at
                     && $booking->return_admin_confirmed_by && filled($booking->return_admin_reason));
                 if (! $verified || ! $booking->trip_end_datetime || ! $booking->final_bill_generated_at
                     || $booking->payment_status !== 'paid' || (float) $booking->remaining_amount > 0.009) {

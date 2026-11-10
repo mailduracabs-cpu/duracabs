@@ -21,7 +21,7 @@ class PartnerReturnCompletionService
         if ($booking->vendorPayoutItem()->exists()) {
             $this->fail('Payout already exists. Return billing cannot be changed here.');
         }
-        if ($booking->final_bill_generated_at && ($booking->return_otp_verified_at || $booking->return_admin_confirmed_at)) {
+        if ($booking->final_bill_generated_at && ($booking->return_completion_audit || $booking->return_admin_confirmed_at)) {
             $this->fail('Return and bill are already recorded. Refresh the booking.');
         }
         if (! $admin && (! $booking->trip_start_datetime || $booking->start_km === null
@@ -154,7 +154,7 @@ class PartnerReturnCompletionService
             'paid' => (float) $booking->paid_amount,
             'balance_due' => (float) $booking->remaining_amount,
             'return_recorded' => (bool) ($booking->trip_end_datetime && $booking->final_bill_generated_at
-                && ($booking->return_otp_verified_at || ($booking->return_admin_confirmed_at
+                && ($booking->return_completion_audit || ($booking->return_admin_confirmed_at
                     && $booking->return_admin_confirmed_by && filled($booking->return_admin_reason)))),
             'completed' => $booking->status === 'completed' && $booking->booking_status === 'completed',
         ];
@@ -184,8 +184,8 @@ class PartnerReturnCompletionService
                 $booking->return_admin_confirmed_by = $actorId;
                 $booking->return_admin_reason = trim($data['reason']);
                 // Never mark an unverified customer OTP as verified.
-            } elseif (! $booking->return_otp_verified_at || count(array_filter($booking->return_draft['photos'] ?? [], fn ($path) => \Illuminate\Support\Facades\Storage::disk('local')->exists($path))) < 1) {
-                $this->fail('Customer return OTP and at least one return photo are required. Ask admin if these are unavailable.');
+            } elseif (count(array_filter($booking->return_draft['photos'] ?? [], fn ($path) => \Illuminate\Support\Facades\Storage::disk('local')->exists($path))) < 1) {
+                $this->fail('At least one vendor return inspection photo is required.');
             }
             $this->apply($booking, $data, $admin);
             $booking->final_bill_generated_at = now();
@@ -196,7 +196,7 @@ class PartnerReturnCompletionService
             $booking->completed_at = $paid ? ($booking->completed_at ?? now()) : null;
             $booking->return_completion_audit = [
                 'base_rental' => $booking->return_completion_audit['base_rental'],
-                'actor_id' => $actorId, 'method' => $admin ? 'admin_override' : 'customer_otp',
+                'actor_id' => $actorId, 'method' => $admin ? 'admin_override' : 'vendor_inspection',
                 'recorded_at' => now()->toIso8601String(), 'details' => $data,
                 'photos' => $booking->return_draft['photos'] ?? [],
                 'bill' => $this->bill($booking),

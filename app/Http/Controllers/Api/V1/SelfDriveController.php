@@ -1517,6 +1517,9 @@ class SelfDriveController extends BaseApiController
             'images.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:25600',
         ]);
 
+        // Legacy customer-facing inspection route must never bypass assigned-vendor checks.
+        return $this->error('Use the assigned vendor inspection workflow.', 403);
+
         $booking = $this->bookingRow($request->booking_id);
 
         if (! $booking) {

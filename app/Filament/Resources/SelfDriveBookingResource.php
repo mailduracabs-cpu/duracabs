@@ -8,6 +8,7 @@ use App\Models\SelfDriveBooking;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Services\RazorpayService;
+use App\Services\SelfDriveSecurityRefundService;
 use App\Services\WhatsAppService;
 use Carbon\Carbon;
 use Filament\Facades\Filament;
@@ -19,8 +20,10 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
@@ -852,6 +855,20 @@ class SelfDriveBookingResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(function (Builder $query): void {
+                if (! static::canViewTripFeedback()) {
+                    return;
+                }
+
+                $bookingId = $query->getModel()->qualifyColumn('id');
+                $reviews = static::selfDriveTripReviews()->whereColumn('trip_id', $bookingId);
+
+                $query->addSelect([
+                    'trip_rating_average' => (clone $reviews)->selectRaw('AVG(rating)'),
+                    'trip_rating_count' => (clone $reviews)->selectRaw('COUNT(*)'),
+                    'trip_complaint_count' => (clone $reviews)->where('rating', 1)->selectRaw('COUNT(*)'),
+                ]);
+            })
             ->defaultSort('id', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('booking_no')
@@ -919,6 +936,37 @@ class SelfDriveBookingResource extends Resource
                             ->success()
                             ->send();
                     }),
+                Tables\Columns\TextColumn::make('trip_feedback')
+                    ->label('Complaint / Rating')
+                    ->visible(fn (): bool => static::canViewTripFeedback())
+                    ->getStateUsing(function (SelfDriveBooking $record): string {
+                        if (! $record->trip_rating_count) {
+                            return 'No feedback';
+                        }
+
+                        return number_format((float) $record->trip_rating_average, 1)
+                            .' / 5 · '.(int) $record->trip_rating_count;
+                    })
+                    ->description(fn (SelfDriveBooking $record): ?string =>
+                        $record->trip_complaint_count
+                            ? (int) $record->trip_complaint_count.' one-star report(s)'
+                            : null)
+                    ->action(Tables\Actions\Action::make('view_trip_feedback')
+                        ->modalHeading('Complaint / Rating')
+                        ->modalWidth('xl')
+                        ->modalSubmitAction(false)
+                        ->modalCancelActionLabel('Close')
+                        ->modalContent(function (SelfDriveBooking $record): View {
+                            abort_unless(static::canViewTripFeedback(), 403);
+
+                            return view('filament.self-drive-bookings.trip-feedback', [
+                                'reviews' => static::selfDriveTripReviews()
+                                    ->where('trip_id', $record->getKey())
+                                    ->orderByDesc('id')
+                                    ->get(['reviewer_id', 'subject_id', 'rating', 'comment']),
+                                'customerId' => (int) $record->customer_id,
+                            ]);
+                        })),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('payment_status')
@@ -1163,33 +1211,42 @@ class SelfDriveBookingResource extends Resource
                         ], true))
                     ->requiresConfirmation()
                     ->action(function (SelfDriveBooking $record): void {
+                        $admin = ! static::isTransporterPanel();
+                        abort_if($admin && ! auth()->user()?->canUseAdminLogin(), 403);
+
                         $customer = $record->customer;
                         $approved = $customer?->isKycApproved() ?? false;
                         $complete = $customer?->hasCompleteKyc() ?? false;
+                        $rejected = $admin && ($record->document_status === 'rejected'
+                            || $customer?->kyc_status === User::KYC_VENDOR_REJECTED);
+                        $confirmed = ! $rejected && ($approved || $admin);
+                        $documents = $admin ? $record->document_status : ($approved
+                            ? 'approved'
+                            : ($complete ? 'under_verification' : 'not_uploaded'));
 
                         $record->update([
                             'vendor_confirmation_status' => 'confirmed',
                             'vendor_confirmed_at' => now(),
-                            'document_status' => $approved
-                                ? 'approved'
-                                : ($complete ? 'under_verification' : 'not_uploaded'),
-                            'booking_status' => $approved
-                                ? 'confirmed'
-                                : ($complete
-                                    ? 'documents_under_verification'
-                                    : 'documents_required'),
-                            'status' => $approved
-                                ? SelfDriveBooking::STATUS_CONFIRMED
-                                : SelfDriveBooking::STATUS_PENDING,
-                            'booking_confirmed_at' => $approved ? now() : null,
+                            'document_status' => $documents,
+                            'booking_status' => match (true) {
+                                $confirmed => 'confirmed',
+                                $rejected => 'documents_rejected',
+                                $complete => 'documents_under_verification',
+                                default => 'documents_required',
+                            },
+                            'status' => $confirmed ? SelfDriveBooking::STATUS_CONFIRMED : SelfDriveBooking::STATUS_PENDING,
+                            'booking_confirmed_at' => $confirmed ? now() : null,
                         ]);
 
                         Notification::make()
                             ->title('Booking approved')
                             ->body(
-                                $approved
-                                    ? 'Customer KYC already approved. Pickup OTP can now be generated.'
-                                    : 'Customer can now upload Aadhaar and Driving Licence.'
+                                match (true) {
+                                    $rejected => 'The recorded document rejection must be resolved before pickup.',
+                                    $admin => 'Use Start Trip when you hand over the vehicle.',
+                                    $approved => 'Customer KYC already approved. Pickup OTP can now be generated.',
+                                    default => 'Customer can now upload Aadhaar and Driving Licence.',
+                                }
                             )
                             ->success()
                             ->send();
@@ -1235,7 +1292,8 @@ class SelfDriveBookingResource extends Resource
                     ->icon('heroicon-o-shield-check')
                     ->color('success')
                     ->visible(fn (SelfDriveBooking $record) =>
-                        $record->vendor_confirmation_status === 'confirmed'
+                        static::isTransporterPanel()
+                        && $record->vendor_confirmation_status === 'confirmed'
                         && $record->document_status === 'under_verification'
                         && ! in_array($record->status, [
                             SelfDriveBooking::STATUS_CANCELLED,
@@ -1243,6 +1301,8 @@ class SelfDriveBookingResource extends Resource
                         ], true))
                     ->requiresConfirmation()
                     ->action(function (SelfDriveBooking $record): void {
+                        abort_unless(static::isTransporterPanel(), 403);
+
                         if (! $record->customer?->hasCompleteKyc()) {
                             throw ValidationException::withMessages([
                                 'documents' => 'Customer Aadhaar and Driving Licence are incomplete.',
@@ -1307,7 +1367,8 @@ class SelfDriveBookingResource extends Resource
                     ->label('Pickup OTP')
                     ->icon('heroicon-o-key')
                     ->visible(fn (SelfDriveBooking $record) =>
-                        $record->vendor_confirmation_status === 'confirmed'
+                        static::isTransporterPanel()
+                        && $record->vendor_confirmation_status === 'confirmed'
                         && $record->document_status === 'approved'
                         && blank($record->pickup_otp_verified_at)
                         && ! in_array($record->status, [
@@ -1317,6 +1378,8 @@ class SelfDriveBookingResource extends Resource
                         ], true))
                     ->requiresConfirmation()
                     ->action(function (SelfDriveBooking $record): void {
+                        abort_unless(static::isTransporterPanel(), 403);
+
                         $otp = (string) random_int(1000, 9999);
 
                         $record->update([
@@ -1346,7 +1409,8 @@ class SelfDriveBookingResource extends Resource
                     ->icon('heroicon-o-check-badge')
                     ->color('success')
                     ->visible(fn (SelfDriveBooking $record) =>
-                        filled($record->pickup_otp)
+                        static::isTransporterPanel()
+                        && filled($record->pickup_otp)
                         && blank($record->pickup_otp_verified_at)
                         && ! in_array($record->status, [
                             SelfDriveBooking::STATUS_RUNNING,
@@ -1365,6 +1429,8 @@ class SelfDriveBookingResource extends Resource
                             ->minValue(0),
                     ])
                     ->action(function (SelfDriveBooking $record, array $data): void {
+                        abort_unless(static::isTransporterPanel(), 403);
+
                         if (
                             blank($record->pickup_otp)
                             || ! hash_equals((string) $record->pickup_otp, (string) $data['otp'])
@@ -1399,67 +1465,46 @@ class SelfDriveBookingResource extends Resource
                     }),
 
                 Tables\Actions\Action::make('start_trip')
-                    ->label('Start Trip Override')
+                    ->label('Start Trip')
                     ->icon('heroicon-o-play')
-                    ->color('warning')
-                    ->visible(fn (SelfDriveBooking $record) =>
-                        ! static::isTransporterPanel()
-                        && filled($record->pickup_otp_verified_at)
-                        && $record->status !== SelfDriveBooking::STATUS_RUNNING
-                        && ! in_array($record->status, [
-                            SelfDriveBooking::STATUS_COMPLETED,
-                            SelfDriveBooking::STATUS_CANCELLED,
-                        ], true))
+                    ->color('success')
+                    ->visible(fn (SelfDriveBooking $record) => static::canStartAdminTrip($record))
+                    ->modalDescription('Confirm that the vehicle is being handed over and enter the odometer reading.')
+                    ->modalSubmitActionLabel('Start Trip')
                     ->form([
                         Forms\Components\TextInput::make('start_km')
+                            ->label('Start KM')
+                            ->default(fn (SelfDriveBooking $record) => $record->start_km)
                             ->numeric()
                             ->required()
                             ->minValue(0),
-                        Forms\Components\Textarea::make('reason')
-                            ->label('Admin Override Reason')
-                            ->required(),
                     ])
-                    ->requiresConfirmation()
                     ->action(function (SelfDriveBooking $record, array $data): void {
-                        $record->update([
-                            'trip_start_datetime' => now(),
-                            'start_km' => $data['start_km'],
-                            'damage_note' => $data['reason'],
-                            'booking_status' => 'running',
-                            'status' => SelfDriveBooking::STATUS_RUNNING,
-                        ]);
+                        abort_unless(! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
 
-                        Notification::make()
-                            ->title('Trip started with admin override')
-                            ->warning()
-                            ->send();
-                    }),
+                        $record->getConnection()->transaction(function () use ($record, $data): void {
+                            $booking = SelfDriveBooking::query()->lockForUpdate()->findOrFail($record->getKey());
+                            if (! static::canStartAdminTrip($booking)) {
+                                throw ValidationException::withMessages([
+                                    'start_km' => 'This booking can no longer be started. Refresh the list.',
+                                ]);
+                            }
 
-                Tables\Actions\Action::make('generate_return_otp')
-                    ->label('End OTP')->icon('heroicon-o-key')
-                    ->visible(fn (SelfDriveBooking $record) =>
-                        ! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin()
-                        && $record->status === SelfDriveBooking::STATUS_RUNNING)
-                    ->requiresConfirmation()
-                    ->action(function (SelfDriveBooking $record): void {
-                        $otp = (string) random_int(1000, 9999);
-                        $record->update([
-                            'return_otp' => $otp,
-                            'return_otp_generated_at' => now(),
-                            'return_otp_expires_at' => now()->addMinutes(30),
-                            'return_otp_attempts' => 0,
-                            'end_requested_at' => now(),
-                            'booking_status' => 'end_otp_generated',
-                            'status' => SelfDriveBooking::STATUS_RUNNING,
-                        ]);
+                            $saved = $booking->update([
+                                'trip_start_datetime' => now(),
+                                'start_km' => $data['start_km'],
+                                'booking_confirmed_at' => $booking->booking_confirmed_at ?? now(),
+                                'booking_status' => 'running',
+                                'status' => SelfDriveBooking::STATUS_RUNNING,
+                            ]);
+                            if (! $saved) {
+                                throw ValidationException::withMessages([
+                                    'start_km' => 'The trip could not be saved. Refresh the list and try again.',
+                                ]);
+                            }
+                        });
 
-                        $record->sendSelfDriveTemplate(
-                            'selfdrive_return_otp',
-                            ['otp' => $otp]
-                        );
-
-                        Notification::make()->title("End OTP: {$otp}")
-                            ->success()->persistent()->send();
+                        Notification::make()->title('Trip started')->success()->send();
                     }),
 
                 static::adminReturnAction(),
@@ -1510,33 +1555,55 @@ class SelfDriveBookingResource extends Resource
 
     public static function securityRefundForm(): array
     {
+        $showOverride = fn (SelfDriveBooking $record): bool =>
+            (auth()->user()?->isAdmin() ?? false) && SelfDriveSecurityRefundService::requiresAdminOverride($record);
+
         return [
-            Forms\Components\Placeholder::make('security_summary')->label('Security refund summary / history')
+            Forms\Components\Placeholder::make('refund_available')->label('Available to refund')
                 ->content(function (SelfDriveBooking $record): string {
-                    $summary = \App\Services\SelfDriveSecurityRefundService::summary($record);
-                    $text = 'Security: ₹'.$summary['deposit'].' | Refunded: ₹'.$summary['refunded']
-                        .' | Pending: '.($summary['pending'] === null ? 'Legacy refund requires review' : '₹'.$summary['pending']);
-                    foreach ($summary['history'] as $entry) {
-                        $text .= ' | ₹'.$entry['amount'].' / '.ucfirst($entry['method']).' / '.$entry['refunded_at']
-                            .' / '.($entry['reference'] ?: 'Cash').' / '.$entry['note'];
-                    }
-                    return $text;
+                    $pending = SelfDriveSecurityRefundService::summary($record)['pending'];
+
+                    return $pending === null ? 'Review the earlier refund before recording another.' : '₹'.$pending;
                 }),
-            Forms\Components\Placeholder::make('refund_help')->label('Before recording')
-                ->content('Record only money already returned to the customer. This action does not send money. Return and final bill must be complete, and customer balance must be fully paid. Return charges are already in the rental bill; do not deduct them again from security.'),
-            Forms\Components\TextInput::make('amount')->label('Amount actually refunded')->prefix('₹')
-                ->numeric()->required()->minValue(0.01)
-                ->default(fn (SelfDriveBooking $record) => \App\Services\SelfDriveSecurityRefundService::summary($record)['pending']),
-            Forms\Components\Select::make('method')->label('Refund mode')->options(['cash' => 'Cash', 'online' => 'Online (UPI / Bank / Gateway)'])
-                ->required()->live(),
-            Forms\Components\TextInput::make('reference')->label('Transaction ID / reference')->maxLength(200)
-                ->required(fn (Get $get) => $get('method') === 'online'),
-            Forms\Components\DateTimePicker::make('refunded_at')->label('Actual refund date / time')
-                ->required()->maxDate(now())->default(now()),
-            Forms\Components\Textarea::make('note')->label('Refund note / receipt details')->required()->minLength(3)->maxLength(2000),
-            Forms\Components\Hidden::make('request_key')->default(fn () => (string) Str::uuid()),
-            Forms\Components\Toggle::make('confirmed')->label('I confirm this amount has actually been returned to the customer')
+            Forms\Components\Grid::make(['default' => 1, 'sm' => 2])->schema([
+                Forms\Components\TextInput::make('amount')->label('Amount already refunded')->prefix('₹')
+                    ->numeric()->required()->minValue(0.01)
+                    ->default(fn (SelfDriveBooking $record) => SelfDriveSecurityRefundService::summary($record)['pending']),
+                Forms\Components\Select::make('method')->label('Refund mode')->options(['cash' => 'Cash', 'online' => 'Online (UPI / Bank / Gateway)'])
+                    ->required()->live(),
+                Forms\Components\DateTimePicker::make('refunded_at')->label('Refund date and time')
+                    ->required()->maxDate(now())->default(fn () => now()),
+                Forms\Components\TextInput::make('reference')
+                    ->label(fn (Get $get): string => $get('method') === 'online' ? 'Transaction reference' : 'Cash reference (optional)')
+                    ->maxLength(200)->visible(fn (Get $get): bool => filled($get('method')))
+                    ->required(fn (Get $get): bool => $get('method') === 'online'),
+            ]),
+            Forms\Components\Checkbox::make('confirmed')
+                ->label(fn (SelfDriveBooking $record): string => $showOverride($record)
+                    ? 'I collected the deposit and already paid this refund. Skip return, bill and payment checks.'
+                    : 'I already paid this refund to the customer')
                 ->accepted()->required(),
+            Forms\Components\TextInput::make('override_reason')->label('Reason for skipping checks')
+                ->maxLength(500)->visible($showOverride)->dehydrated($showOverride)->required($showOverride),
+            Forms\Components\Section::make('Refund history and optional comment')->collapsible()->collapsed()
+                ->schema([
+                    Forms\Components\Placeholder::make('security_summary')->label('Refund history')
+                        ->content(function (SelfDriveBooking $record): string {
+                            $summary = SelfDriveSecurityRefundService::summary($record);
+                            $text = 'Deposit ₹'.$summary['deposit'].' · Refunded ₹'.$summary['refunded'];
+                            foreach ($summary['history'] as $entry) {
+                                $text .= ' | ₹'.$entry['amount'].' / '.ucfirst($entry['method']).' / '.$entry['refunded_at']
+                                    .' / '.($entry['reference'] ?: 'Cash').' / '.$entry['note'];
+                                if (filled($entry['override_reason'] ?? null)) {
+                                    $text .= ' / Admin override: '.$entry['override_reason'];
+                                }
+                            }
+
+                            return $text;
+                        }),
+                    Forms\Components\Textarea::make('note')->label('Refund comment')->rows(2)->maxLength(2000),
+                ]),
+            Forms\Components\Hidden::make('request_key')->default(fn () => (string) Str::uuid()),
         ];
     }
 
@@ -1546,12 +1613,39 @@ class SelfDriveBookingResource extends Resource
             ->visible(fn (SelfDriveBooking $record) => ! static::isTransporterPanel()
                 && auth()->user()?->canUseAdminLogin() && $record->booking_type === 'car'
                 && (float) $record->security_deposit > 0)
+            ->modalWidth('xl')
+            ->modalCloseButton()
+            ->closeModalByEscaping()
+            ->closeModalByClickingAway()
+            ->stickyModalFooter()
+            ->modalSubmitActionLabel('Record refund')
+            ->modalCancelActionLabel('Cancel')
             ->form(static::securityRefundForm())
-            ->action(function (SelfDriveBooking $record, array $data): void {
+            ->action(function (SelfDriveBooking $record, array $data, Tables\Actions\Action $action): void {
                 abort_unless(! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
-                app(\App\Services\SelfDriveSecurityRefundService::class)->record($record->id, $data, (int) auth()->id());
+                try {
+                    app(SelfDriveSecurityRefundService::class)->record($record->id, $data, (int) auth()->id());
+                } catch (ValidationException $exception) {
+                    Notification::make()->title('Refund could not be recorded')
+                        ->body($exception->getMessage())->danger()->send();
+                    $action->halt();
+                }
                 Notification::make()->title('Actual security refund recorded')->success()->send();
             });
+    }
+
+    private static function canStartAdminTrip(SelfDriveBooking $record): bool
+    {
+        return ! static::isTransporterPanel()
+            && (auth()->user()?->canUseAdminLogin() ?? false)
+            && in_array($record->booking_type, ['car', null], true)
+            && $record->vendor_confirmation_status === 'confirmed'
+            && in_array($record->status, [SelfDriveBooking::STATUS_PENDING, SelfDriveBooking::STATUS_CONFIRMED], true)
+            && blank($record->trip_start_datetime)
+            && blank($record->trip_end_datetime)
+            && ! in_array($record->booking_status, ['cancelled', 'rejected', 'vendor_rejected', 'failed', 'completed', 'documents_rejected'], true)
+            && $record->document_status !== 'rejected'
+            && $record->customer?->kyc_status !== User::KYC_VENDOR_REJECTED;
     }
 
     public static function returnInput(Get $get): array
@@ -1566,35 +1660,60 @@ class SelfDriveBookingResource extends Resource
 
     public static function returnOverrideForm(): array
     {
-        return [
-            Forms\Components\Placeholder::make('request_reason')->label('Host request / previous approval')
-                ->content(fn (SelfDriveBooking $record) => $record->return_draft['admin_request']['reason']
-                    ?? $record->return_admin_reason ?? 'No host request. Confirm actual return before overriding.'),
-            Forms\Components\Placeholder::make('return_photos')->label('Host return photos')
-                ->content(function (SelfDriveBooking $record) {
-                    $links = [];
-                    foreach (array_keys($record->return_draft['photos'] ?? []) as $slot) {
-                        if (! in_array($slot, ['front','back','left','right'], true)) continue;
-                        $url = url('api/v1/partner/admin-return/'.$record->id.'/photo/'.$slot);
-                        $links[] = '<a href="'.e($url).'" target="_blank" rel="noopener noreferrer">View '.e($slot).' photo</a>';
-                    }
-                    return new \Illuminate\Support\HtmlString($links ? implode(' | ', $links) : 'No return photos uploaded.');
-                }),
+        $refreshBill = function (SelfDriveBooking $record, Get $get, Set $set): void {
+            $set('confirmation', null);
+            $input = static::returnInput($get);
+            $pickup = strtotime((string) $input['started_at']);
+            $return = strtotime((string) $input['returned_at']);
+
+            if ($pickup !== false && $return !== false && $return <= $pickup) {
+                $set('return_preview', 'Actual return must be after actual pickup. Check the dates and AM/PM.');
+                return;
+            }
+            if (is_numeric($input['start_km']) && is_numeric($input['end_km']) && $input['end_km'] < $input['start_km']) {
+                $set('return_preview', 'End KM must be at least Start KM. Enter the total odometer reading.');
+                return;
+            }
+
+            try {
+                $bill = app(\App\Services\PartnerReturnCompletionService::class)->preview($record, $input, true);
+                $set('return_preview', 'Base rental: ₹'.number_format($bill['base_rental'], 2)
+                    .' | Extra time: ₹'.number_format($bill['extra_hour_amount'], 2)
+                    .' | Extra KM: ₹'.number_format($bill['extra_km_amount'], 2)
+                    .' | Damage / fuel / cleaning / late / other: ₹'.number_format(
+                        $bill['damage_amount'] + $bill['fuel_charge'] + $bill['cleaning_charge']
+                        + $bill['late_return_charge'] + $bill['other_charge'], 2)
+                    .' | Rental including return charges: ₹'.number_format($bill['rental'], 2)
+                    .' | Security: ₹'.number_format($bill['security_deposit'], 2)
+                    .' | Payable: ₹'.number_format($bill['payable'], 2)
+                    .' | Paid: ₹'.number_format($bill['paid'], 2)
+                    .' | Balance: ₹'.number_format($bill['balance_due'], 2));
+                $set('confirmation', $bill['confirmation']);
+            } catch (ValidationException $e) {
+                $set('return_preview', collect($e->errors())->flatten()->first() ?? 'Fill actual return details.');
+            }
+        };
+
+        $inputs = [
             Forms\Components\DateTimePicker::make('started_at')->label('Actual pickup date / time')
                 ->default(fn (SelfDriveBooking $record) => $record->trip_start_datetime
-                    ?? $record->return_draft['details']['started_at'] ?? $record->start_datetime)
+                    ?? $record->return_draft['details']['started_at'] ?? null)
+                ->readOnly(fn (SelfDriveBooking $record) => filled($record->trip_start_datetime))
                 ->helperText(fn (SelfDriveBooking $record) => $record->trip_start_datetime
                     ? 'Recorded actual pickup time will be used.'
-                    : 'Booking pickup time is prefilled. Confirm or correct it to the actual pickup time before submitting.')
+                    : 'Enter the actual handover date and time if it was not saved.')
                 ->required(fn (SelfDriveBooking $record) => ! $record->trip_start_datetime)
                 ->maxDate(now())->live(onBlur: true),
-            Forms\Components\TextInput::make('start_km')->label('Start KM (only if missing)')->numeric()->minValue(0)
-                ->default(fn (SelfDriveBooking $record) => $record->start_km)->live(onBlur: true),
+            Forms\Components\TextInput::make('start_km')->label('Start KM')->numeric()->minValue(0)
+                ->default(fn (SelfDriveBooking $record) => $record->start_km ?? $record->return_draft['details']['start_km'] ?? null)
+                ->readOnly(fn (SelfDriveBooking $record) => filled($record->start_km))->live(onBlur: true),
             Forms\Components\DateTimePicker::make('returned_at')->label('Actual return date / time')->required()->maxDate(now())
-                ->default(fn (SelfDriveBooking $record) => $record->return_draft['details']['returned_at'] ?? $record->trip_end_datetime)
+                ->default(fn (SelfDriveBooking $record) => $record->trip_end_datetime ?? $record->return_draft['details']['returned_at'] ?? null)
+                ->after('started_at')
                 ->live(onBlur: true),
-            Forms\Components\TextInput::make('end_km')->numeric()->required()->minValue(0)
-                ->default(fn (SelfDriveBooking $record) => $record->return_draft['details']['end_km'] ?? $record->end_km)->live(onBlur: true),
+            Forms\Components\TextInput::make('end_km')->label('End KM')->numeric()->required()
+                ->minValue(fn (Get $get): float => max(0, (float) $get('start_km')))
+                ->default(fn (SelfDriveBooking $record) => $record->end_km ?? $record->return_draft['details']['end_km'] ?? null)->live(onBlur: true),
             Forms\Components\Select::make('fuel')->label('Return fuel')->required()
                 ->options(['empty'=>'Empty','quarter'=>'1/4','half'=>'1/2','three_quarters'=>'3/4','full'=>'Full'])
                 ->default(fn (SelfDriveBooking $record) => $record->return_draft['details']['fuel'] ?? $record->drop_fuel_level)->live(),
@@ -1606,70 +1725,69 @@ class SelfDriveBookingResource extends Resource
                     ->contains(fn ($key) => is_numeric($get($key)) && (float) $get($key) > 0))
                 ->helperText('Explain any damage, fuel, cleaning or other charge greater than zero.')
                 ->default(fn (SelfDriveBooking $record) => $record->return_draft['details']['note'] ?? $record->damage_note),
-            Forms\Components\Textarea::make('reason')->label('Why OTP / photos are being skipped')->required()->minLength(10)
+            Forms\Components\Textarea::make('reason')->label('Return confirmation note')
+                ->default('Vehicle return confirmed in the admin panel.')
+                ->required()->minLength(10)
                 ->maxLength(2000)->live(onBlur: true),
+        ];
+
+        foreach ($inputs as $input) {
+            $input->afterStateUpdated($refreshBill);
+        }
+
+        return [
+            Forms\Components\Placeholder::make('request_reason')->label('Host request / previous approval')
+                ->visible(fn (SelfDriveBooking $record) => filled($record->return_draft['admin_request']['reason'] ?? $record->return_admin_reason))
+                ->content(fn (SelfDriveBooking $record) => $record->return_draft['admin_request']['reason']
+                    ?? $record->return_admin_reason),
+            Forms\Components\Placeholder::make('return_photos')->label('Host return photos')
+                ->content(function (SelfDriveBooking $record) {
+                    $links = [];
+                    foreach (array_keys($record->return_draft['photos'] ?? []) as $slot) {
+                        if (! in_array($slot, ['front','back','left','right'], true)) continue;
+                        $url = url('api/v1/partner/admin-return/'.$record->id.'/photo/'.$slot);
+                        $links[] = '<a href="'.e($url).'" target="_blank" rel="noopener noreferrer">View '.e($slot).' photo</a>';
+                    }
+                    return new \Illuminate\Support\HtmlString($links ? implode(' | ', $links) : 'No return photos uploaded.');
+                }),
+            ...$inputs,
             Forms\Components\Placeholder::make('bill_preview')->label('Final bill preview')
-                ->content(function (SelfDriveBooking $record, Get $get): string {
-                    try {
-                        $bill = app(\App\Services\PartnerReturnCompletionService::class)->preview($record, static::returnInput($get), true);
-                        return 'Base rental: ₹'.number_format($bill['base_rental'], 2)
-                            .' | Extra time: ₹'.number_format($bill['extra_hour_amount'], 2)
-                            .' | Extra KM: ₹'.number_format($bill['extra_km_amount'], 2)
-                            .' | Damage / fuel / cleaning / late / other: ₹'.number_format(
-                                $bill['damage_amount'] + $bill['fuel_charge'] + $bill['cleaning_charge']
-                                + $bill['late_return_charge'] + $bill['other_charge'], 2)
-                            .' | Rental including return charges: ₹'.number_format($bill['rental'], 2)
-                            .' | Security: ₹'.number_format($bill['security_deposit'], 2)
-                            .' | Payable: ₹'.number_format($bill['payable'], 2)
-                            .' | Paid: ₹'.number_format($bill['paid'], 2)
-                            .' | Balance: ₹'.number_format($bill['balance_due'], 2);
-                    } catch (ValidationException $e) {
-                        return collect($e->errors())->flatten()->first() ?? 'Fill actual return details.';
-                    }
-                }),
-            Forms\Components\Hidden::make('confirmation'),
-            Forms\Components\Toggle::make('reviewed')->label('I confirmed the actual return and reviewed this bill')
-                ->accepted()->required()->live()
-                ->afterStateUpdated(function ($state, SelfDriveBooking $record, Get $get, Set $set): void {
-                    $set('confirmation', null);
-                    if (! $state) return;
-                    try {
-                        $set('confirmation', app(\App\Services\PartnerReturnCompletionService::class)
-                            ->preview($record, static::returnInput($get), true)['confirmation']);
-                    } catch (ValidationException $e) {
-                        $set('reviewed', false);
-                        Notification::make()->title('Complete the return details first')
-                            ->body(collect($e->errors())->flatten()->first() ?? 'Check the final bill preview.')
-                            ->warning()->send();
-                    }
-                }),
+                ->content(fn (Get $get): string => $get('return_preview') ?? 'Fill actual return details.'),
+            Forms\Components\Hidden::make('return_preview')->dehydrated(false),
+            Forms\Components\Hidden::make('confirmation')->afterStateHydrated($refreshBill),
         ];
     }
 
     public static function adminReturnAction(): Tables\Actions\Action
     {
-        return Tables\Actions\Action::make('admin_return_bill')->label('Admin Return & Bill')->color('warning')
+        return Tables\Actions\Action::make('admin_return_bill')->label('End Trip & Bill')->color('warning')
             ->icon('heroicon-o-document-check')
             ->visible(fn (SelfDriveBooking $record) => ! static::isTransporterPanel()
                 && auth()->user()?->canUseAdminLogin()
                 && ! in_array($record->status, ['cancelled','rejected','failed'], true)
                 && (! $record->final_bill_generated_at || (! $record->return_otp_verified_at && ! $record->return_admin_confirmed_at)))
+            ->modalSubmitActionLabel('Confirm Return & Save Bill')
             ->form(static::returnOverrideForm())
-            ->action(function (SelfDriveBooking $record, array $data): void {
+            ->action(function (SelfDriveBooking $record, array $data, Tables\Actions\Action $action): void {
                 abort_unless(! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
                 try {
+                    if (blank($data['confirmation'] ?? null)) {
+                        throw ValidationException::withMessages([
+                            'confirmation' => 'Fill in the return details and check the final bill preview before saving.',
+                        ]);
+                    }
+
+                    $data['reviewed'] = true;
                     $done = app(\App\Services\PartnerReturnCompletionService::class)->finish($record->id, $data, (int) auth()->id(), true);
                 } catch (ValidationException $e) {
                     Notification::make()->title('Return could not be saved')
                         ->body(collect($e->errors())->flatten()->implode(' '))->danger()->persistent()->send();
-                    throw ValidationException::withMessages([
-                        'mountedTableActionsData.0.reviewed' => collect($e->errors())->flatten()->first(),
-                    ]);
+                    $action->halt();
                 } catch (\Throwable $e) {
                     report($e);
                     $message = 'Server error while saving return. Nothing was committed. Check the Laravel log for this attempt.';
                     Notification::make()->title('Return could not be saved')->body($message)->danger()->persistent()->send();
-                    throw ValidationException::withMessages(['mountedTableActionsData.0.reviewed' => $message]);
+                    $action->halt();
                 }
                 Notification::make()->title($done->status === 'completed' ? 'Return approved, bill generated and trip completed'
                     : 'Return approved and bill generated; customer payment is pending')->success()->send();
@@ -1747,6 +1865,16 @@ class SelfDriveBookingResource extends Resource
             'completed' => 'Completed',
             'cancelled' => 'Cancelled',
         ];
+    }
+
+    private static function canViewTripFeedback(): bool
+    {
+        return ! static::isTransporterPanel() && auth()->user()?->canUseAdminLogin();
+    }
+
+    private static function selfDriveTripReviews(): QueryBuilder
+    {
+        return DB::table('trip_reviews')->where('trip_type', 'self_drive');
     }
 
     public static function workflowOptions(): array

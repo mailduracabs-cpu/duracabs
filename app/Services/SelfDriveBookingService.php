@@ -410,16 +410,12 @@ class SelfDriveBookingService
                 $booking->forceFill([
                     'vendor_confirmation_status' => 'confirmed',
                     'vendor_confirmed_at' => now(),
-                    'status' => $approved
-                        ? SelfDriveBooking::STATUS_CONFIRMED
-                        : SelfDriveBooking::STATUS_PENDING,
-                    'booking_status' => $approved
-                        ? 'confirmed'
-                        : ($complete ? 'documents_under_verification' : 'documents_pending'),
+                    'status' => SelfDriveBooking::STATUS_CONFIRMED,
+                    'booking_status' => 'confirmed',
                     'document_status' => $approved
                         ? 'approved'
                         : ($complete ? 'under_verification' : 'not_uploaded'),
-                    'booking_confirmed_at' => $approved ? now() : null,
+                    'booking_confirmed_at' => now(),
                 ])->save();
 
                 return $booking->fresh(['vehicle', 'customer']);

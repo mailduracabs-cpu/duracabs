@@ -1420,6 +1420,8 @@ Route::prefix('v1/partner')->group(function (): void {
         Route::post('/marketplace/{post}/read', [\App\Http\Controllers\Api\V1\PartnerMarketplaceWorkspaceController::class, 'readMessages'])->whereNumber('post');
         Route::post('/marketplace/payments/{payment}/checkout-link', [\App\Http\Controllers\Api\V1\PartnerMarketplacePaymentController::class, 'checkoutLink'])->whereNumber('payment')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
 
+        Route::get('/bookings/{booking}/pickup', [\App\Http\Controllers\Api\V1\PartnerPickupController::class, 'show'])->whereNumber('booking');
+        Route::post('/bookings/{booking}/pickup/complete', [\App\Http\Controllers\Api\V1\PartnerPickupController::class, 'complete'])->whereNumber('booking')->middleware('App\Http\Middleware\PartnerEndpointThrottle:5,1');
         Route::get('/bookings/{booking}/return', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'show'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/draft', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'draft'])->whereNumber('booking');
         Route::post('/bookings/{booking}/return/photo', [\App\Http\Controllers\Api\V1\PartnerReturnController::class, 'photo'])->whereNumber('booking');

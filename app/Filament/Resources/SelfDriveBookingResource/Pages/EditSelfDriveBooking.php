@@ -54,36 +54,56 @@ class EditSelfDriveBooking extends EditRecord
                 ->visible(fn () => ! SelfDriveBookingResource::isTransporterPanel()
                     && auth()->user()?->canUseAdminLogin() && $this->record->booking_type === 'car'
                     && (float) $this->record->security_deposit > 0)
+                ->modalWidth('xl')
+                ->modalCloseButton()
+                ->closeModalByEscaping()
+                ->closeModalByClickingAway()
+                ->stickyModalFooter()
+                ->modalSubmitActionLabel('Record refund')
+                ->modalCancelActionLabel('Cancel')
                 ->form(SelfDriveBookingResource::securityRefundForm())
-                ->action(function (array $data): void {
+                ->action(function (array $data, Actions\Action $action): void {
                     abort_unless(! SelfDriveBookingResource::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
-                    app(\App\Services\SelfDriveSecurityRefundService::class)->record($this->record->id, $data, (int) auth()->id());
+                    try {
+                        app(\App\Services\SelfDriveSecurityRefundService::class)->record($this->record->id, $data, (int) auth()->id());
+                    } catch (\Illuminate\Validation\ValidationException $exception) {
+                        Notification::make()->title('Refund could not be recorded')
+                            ->body($exception->getMessage())->danger()->send();
+                        $action->halt();
+                    }
+
+                    $this->record->refresh();
                     Notification::make()->title('Actual security refund recorded')->success()->send();
-                    $this->redirect(SelfDriveBookingResource::getUrl('edit', ['record' => $this->record]));
                 }),
-            Actions\Action::make('admin_return_bill')->label('Admin Return & Bill')->color('warning')
+            Actions\Action::make('admin_return_bill')->label('End Trip & Bill')->color('warning')
                 ->icon('heroicon-o-document-check')
                 ->visible(fn () => ! SelfDriveBookingResource::isTransporterPanel()
                     && auth()->user()?->canUseAdminLogin()
                     && ! in_array($this->record->status, ['cancelled', 'rejected', 'failed'], true)
                     && (! $this->record->final_bill_generated_at
                         || (! $this->record->return_otp_verified_at && ! $this->record->return_admin_confirmed_at)))
+                ->modalSubmitActionLabel('Confirm Return & Save Bill')
                 ->form(SelfDriveBookingResource::returnOverrideForm())
-                ->action(function (array $data): void {
+                ->action(function (array $data, Actions\Action $action): void {
                     abort_unless(! SelfDriveBookingResource::isTransporterPanel() && auth()->user()?->canUseAdminLogin(), 403);
                     try {
+                        if (blank($data['confirmation'] ?? null)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'confirmation' => 'Fill in the return details and check the final bill preview before saving.',
+                            ]);
+                        }
+
+                        $data['reviewed'] = true;
                         app(\App\Services\PartnerReturnCompletionService::class)->finish($this->record->id, $data, (int) auth()->id(), true);
                     } catch (\Illuminate\Validation\ValidationException $e) {
                         Notification::make()->title('Return could not be saved')
                             ->body(collect($e->errors())->flatten()->implode(' '))->danger()->persistent()->send();
-                        throw \Illuminate\Validation\ValidationException::withMessages([
-                            'mountedActionsData.0.reviewed' => collect($e->errors())->flatten()->first(),
-                        ]);
+                        $action->halt();
                     } catch (\Throwable $e) {
                         report($e);
                         $message = 'Server error while saving return. Nothing was committed. Check the Laravel log for this attempt.';
                         Notification::make()->title('Return could not be saved')->body($message)->danger()->persistent()->send();
-                        throw \Illuminate\Validation\ValidationException::withMessages(['mountedActionsData.0.reviewed' => $message]);
+                        $action->halt();
                     }
                     $this->redirect(SelfDriveBookingResource::getUrl('edit', ['record' => $this->record]));
                 }),

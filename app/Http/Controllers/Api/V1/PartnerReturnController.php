@@ -45,7 +45,6 @@ class PartnerReturnController extends PartnerController
                 'cleaning_charge' => (float) $row->cleaning_charge, 'other_charge' => (float) $row->other_charge,
                 'note' => $row->damage_note,
             ], 'photos' => $photos,
-            'otp_verified' => (bool) $row->return_otp_verified_at,
             'admin_requested' => isset($draft['admin_request']),
             'admin_request' => $draft['admin_request'] ?? null,
             'admin_confirmed' => (bool) $row->return_admin_confirmed_at,

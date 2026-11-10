@@ -20,7 +20,7 @@ class SelfDriveSecurityRefundService
         $history = [];
         foreach ($ledger as $entry) {
             $refunded += PartnerPayoutPaymentService::cents($entry['amount']);
-            $history[] = array_intersect_key($entry, array_flip(['amount', 'method', 'reference', 'refunded_at', 'note']));
+            $history[] = array_intersect_key($entry, array_flip(['amount', 'method', 'reference', 'refunded_at', 'note', 'override_reason']));
         }
         $deposit = PartnerPayoutPaymentService::cents($ledger[0]['security_deposit_snapshot'] ?? $booking->security_deposit ?? '0');
         $legacy = ! $ledger && (filled($booking->refunded_at ?? null)
@@ -36,28 +36,46 @@ class SelfDriveSecurityRefundService
         ];
     }
 
+    public static function requiresAdminOverride(SelfDriveBooking $booking): bool
+    {
+        $verified = ($booking->return_completion_audit && ($booking->return_completion_audit['method'] ?? null) === 'vendor_inspection') || ($booking->return_admin_confirmed_at
+            && $booking->return_admin_confirmed_by && filled($booking->return_admin_reason));
+
+        return $booking->status !== 'completed'
+            || ! $booking->trip_end_datetime || ! $booking->final_bill_generated_at || ! $verified
+            || $booking->payment_status !== 'paid' || (float) $booking->remaining_amount > 0.009
+            || PartnerPayoutPaymentService::cents($booking->paid_amount)
+                < PartnerPayoutPaymentService::cents($booking->effectiveRentalAmount())
+                    + PartnerPayoutPaymentService::cents($booking->security_deposit);
+    }
+
     public function record(int $bookingId, array $input, int $actorId): void
     {
+        $skipChecks = (bool) ($input['skip_checks'] ?? filled($input['override_reason'] ?? null));
         $data = Validator::make($input, [
             'amount' => ['required', 'numeric', 'gt:0', 'max:1000000', 'decimal:0,2'],
             'method' => ['required', 'in:cash,online'],
             'reference' => ['required_if:method,online', 'nullable', 'string', 'max:200'],
             'refunded_at' => ['required', 'date', 'before_or_equal:now'],
-            'note' => ['required', 'string', 'min:3', 'max:2000'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'skip_checks' => ['sometimes', 'boolean'],
+            'override_reason' => [$skipChecks ? 'required' : 'nullable', 'string', 'max:500'],
             'request_key' => ['required', 'uuid'],
             'confirmed' => ['required', 'accepted'],
         ])->validate();
         $cents = PartnerPayoutPaymentService::cents($data['amount']);
-        DB::transaction(function () use ($bookingId, $data, $actorId, $cents): void {
+        DB::transaction(function () use ($bookingId, $data, $actorId, $cents, $skipChecks): void {
             $actor = User::findOrFail($actorId);
             abort_unless($actor->canUseAdminLogin(), 403);
+            abort_if($skipChecks && ! $actor->isAdmin(), 403);
             $booking = SelfDriveBooking::query()->lockForUpdate()->findOrFail($bookingId);
             $ledger = $booking->security_refund_ledger ?? [];
             $entry = [
                 'amount' => PartnerPayoutPaymentService::money($cents), 'method' => $data['method'],
                 'reference' => trim($data['reference'] ?? ''),
                 'refunded_at' => Carbon::parse($data['refunded_at'])->toIso8601String(),
-                'note' => trim($data['note']), 'request_key' => $data['request_key'],
+                'note' => trim($data['note'] ?? ''), 'request_key' => $data['request_key'],
+                'override_reason' => $skipChecks ? trim($data['override_reason']) : null,
             ];
             foreach ($ledger as $previous) {
                 if (($previous['request_key'] ?? null) !== $data['request_key']) continue;
@@ -80,22 +98,21 @@ class SelfDriveSecurityRefundService
             if ($summary['status'] === 'legacy_review_required') {
                 $this->fail('An earlier refund is recorded. Admin must reconcile it before adding another refund.');
             }
-            $verified = $booking->return_otp_verified_at || ($booking->return_admin_confirmed_at
-                && $booking->return_admin_confirmed_by && filled($booking->return_admin_reason));
-            if ($booking->booking_type !== 'car' || $booking->status !== 'completed'
-                || in_array($booking->booking_status, ['cancelled', 'rejected', 'failed'], true)
-                || ! $booking->trip_end_datetime || ! $booking->final_bill_generated_at || ! $verified
-                || $booking->payment_status !== 'paid' || (float) $booking->remaining_amount > 0.009
-                || PartnerPayoutPaymentService::cents($booking->paid_amount)
-                    < PartnerPayoutPaymentService::cents($booking->effectiveRentalAmount())
-                        + PartnerPayoutPaymentService::cents($booking->security_deposit)) {
+            $closedWithoutCompletion = ['cancelled', 'rejected', 'failed'];
+            if ($booking->booking_type !== 'car'
+                || in_array($booking->status, $closedWithoutCompletion, true)
+                || in_array($booking->booking_status, $closedWithoutCompletion, true)) {
+                $this->fail('This booking is not eligible for this security refund action.');
+            }
+            if (! $skipChecks && self::requiresAdminOverride($booking)) {
                 $this->fail('Confirm actual return, generate the final bill and collect the full customer balance first.');
             }
-            if (Carbon::parse($data['refunded_at'])->lt($booking->trip_end_datetime)) {
+            if ($booking->trip_end_datetime && Carbon::parse($data['refunded_at'])->lt($booking->trip_end_datetime)) {
                 $this->fail('Security refund date cannot be before actual vehicle return.');
             }
             if ($cents > PartnerPayoutPaymentService::cents($summary['pending'])) {
-                $this->fail('Refund amount exceeds the remaining security deposit.');
+                $this->fail('Available to refund: ₹'.$summary['pending']
+                    .'. Check the amount and refund history.');
             }
             $ledger[] = $entry + ['recorded_by' => $actorId, 'recorded_at' => now()->toIso8601String(),
                 'security_deposit_snapshot' => $summary['deposit']];
