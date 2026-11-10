@@ -11,14 +11,19 @@ namespace Carbon {
 }
 namespace Illuminate\Support\Facades {
     class DB {
-        public static array $rows = ['booking_payment_checkouts' => [], 'self_drive_bookings' => [], 'orders' => [], 'addresses' => [], 'items' => [], 'vehicles' => []];
+        public static array $rows = ['booking_payment_checkouts' => [], 'self_drive_bookings' => [], 'orders' => [], 'addresses' => [], 'items' => [], 'vehicles' => [], 'users' => [], 'customer_search_activities' => []];
         public static array $callbacks = [];
+        private static int $level = 0;
+        public static function transactionLevel() { return self::$level; }
         public static function table($name) { return new \TestQuery($name); }
         public static function transaction($callback, $attempts = 1) {
             $before = unserialize(serialize(self::$rows)); $callbacks = self::$callbacks; self::$callbacks = [];
+            self::$level++;
             try { $result = $callback(); } catch (\Throwable $e) { self::$rows = $before; self::$callbacks = $callbacks; throw $e; }
+            finally { self::$level--; }
             $pending = self::$callbacks; self::$callbacks = $callbacks;
-            foreach ($pending as $fn) { $fn(); }
+            if (self::$level > 0) { array_push(self::$callbacks, ...$pending); }
+            else { foreach ($pending as $fn) { $fn(); } }
             return $result;
         }
         public static function afterCommit($fn) { self::$callbacks[] = $fn; }
@@ -41,6 +46,10 @@ namespace App\Models {
         public static function query() { return new \TestModelQuery(static::class); }
         public function getTable() { return static::TABLE; }
         public function save() { $this->id = \Illuminate\Support\Facades\DB::table($this->getTable())->insertGetId($this->attributes); }
+        public function update($attributes) {
+            $this->attributes = array_replace($this->attributes, $attributes);
+            \Illuminate\Support\Facades\DB::table($this->getTable())->where('id', $this->id)->update($attributes);
+        }
         public function loadMissing(...$args) { return $this; }
         public function items() { return new \TestModelQuery(Item::class); }
     }
@@ -49,6 +58,21 @@ namespace App\Models {
     class Vehicle extends FakeModel { const TABLE = 'vehicles'; }
     class Address extends FakeModel { const TABLE = 'addresses'; }
     class Item extends FakeModel { const TABLE = 'items'; }
+    class User extends FakeModel { const TABLE = 'users'; }
+    class CustomerSearchActivity extends FakeModel {
+        const TABLE = 'customer_search_activities';
+        const MODULE_SELF_DRIVE = 'self_drive', SERVICE_SELF_DRIVE = 'self_drive', SOURCE_FLUTTER_APP = 'flutter_app';
+        const STAGE_CHECKOUT_STARTED = 'checkout_started', CHECKOUT_STARTED = 'started';
+        const PAYMENT_NOT_STARTED = 'not_started', PAYMENT_FAILED = 'failed';
+        public static function withTrashed() { return static::query(); }
+        public static function create($attributes) { return static::query()->create($attributes + ['payment_status' => self::PAYMENT_NOT_STARTED]); }
+        public function trashed() { return false; }
+        public function markPaymentStarted() { $this->update(['payment_status' => 'started']); }
+        public function markPaymentFailed() { $this->update(['payment_status' => 'failed']); }
+        public function markConverted($type, $id, $number, $total) {
+            $this->update(['is_converted' => true, 'payment_status' => 'success', 'booking_id' => $id, 'booking_number' => $number]);
+        }
+    }
 }
 namespace App\Services {
     class RazorpayService {
@@ -82,7 +106,18 @@ namespace {
         public function update($values) { foreach (DB::$rows[$this->table] as &$row) { if ($this->matches($row)) { $row = array_merge($row, $values); } } }
     }
     class TestModelQuery {
+        private array $filters = [];
         public function __construct(private string $model) {}
+        public function forSession($session) { $this->filters['session_id'] = $session; return $this; }
+        public function forUser($user) { $this->filters['user_id'] = $user; return $this; }
+        public function module($module) { $this->filters['module'] = $module; return $this; }
+        public function first() {
+            $model = new $this->model;
+            $query = DB::table($model->getTable());
+            foreach ($this->filters as $field => $value) { $query->where($field, $value); }
+            $row = $query->first();
+            return $row ? $model->setRawAttributes((array) $row) : null;
+        }
         public function availableForCustomer() { return $this; }
         public function lockForUpdate() { return $this; }
         public function find($id) { $model = new $this->model; $row = DB::table($model->getTable())->find($id); return $row ? $model->setRawAttributes((array) $row) : null; }
@@ -90,9 +125,11 @@ namespace {
         public function create($attributes) { $model = new $this->model; $model->setRawAttributes($attributes); $model->save(); return $model; }
     }
     function now() { return new \Carbon\Carbon('2026-10-22 12:00:00'); }
+    require __DIR__.'/../../app/Services/SelfDriveCheckoutLeadService.php';
     $services = [
         \App\Services\SelfDriveAvailabilityService::class => new \App\Services\SelfDriveAvailabilityService,
         \App\Services\SelfDriveBookingService::class => new \App\Services\SelfDriveBookingService,
+        \App\Services\SelfDriveCheckoutLeadService::class => new \App\Services\SelfDriveCheckoutLeadService,
     ];
     function app($class) { global $services; return $services[$class]; }
     require __DIR__.'/../../app/Services/BookingPaymentRules.php';
@@ -103,6 +140,8 @@ namespace {
     function rejects($fn, $label) { try { $fn(); } catch (\RuntimeException $e) { check(true, $label); return; } throw new \RuntimeException('FAIL (accepted): '.$label); }
     $service = new BookingPaymentCheckoutService;
     DB::$rows['vehicles'][1] = ['id' => 1];
+    DB::$rows['users'][7] = ['id' => 7, 'name' => 'Test', 'mobile' => '9876543210', 'email' => 'test@example.com'];
+    function lead($checkout) { return DB::table('customer_search_activities')->where('session_id', 'self-drive-checkout:'.$checkout->id)->first(); }
     function draft($service, $type = 'advance', $source = 'self_drive') {
         $attributes = ['customer_id' => 7, 'user_id' => 7, 'vehicle_id' => 1, 'start_datetime' => '2026-10-31 10:00:00', 'end_datetime' => '2026-11-01 10:00:00', 'booking_status' => 'pending_payment'];
         $payload = ['attributes' => $attributes, 'address' => ['full_name' => 'Test', 'phone' => '1234567890'], 'items' => [['product_id' => 1]]];
@@ -111,12 +150,16 @@ namespace {
     function payment($id, $order, $amount = 500) { return ['id' => $id, 'order_id' => $order, 'status' => 'captured', 'captured' => true, 'currency' => 'INR', 'amount' => (int) round($amount*100), 'amount_refunded' => 0]; }
     $draft = draft($service);
     check(count(DB::$rows['self_drive_bookings']) === 0, 'staging creates no booking');
+    check(lead($draft)?->user_id === 7 && lead($draft)->stage === 'checkout_started', 'unpaid checkout records an inquiry');
     check(app(\App\Services\SelfDriveBookingService::class)->notifications === 0, 'no early notification');
     rejects(fn () => $service->owned(-$draft->id, 8), 'ownership');
     $gateway = $service->gatewayOrder($draft);
     check($service->gatewayOrder($draft)['id'] === $gateway['id'], 'gateway order reused on page rerender');
+    check(lead($draft)?->payment_status === 'started' && count(DB::$rows['customer_search_activities']) === 1, 'gateway start updates the same inquiry');
     check($gateway['paid_amount'] === 0 && $gateway['advance_amount'] === 0, 'unpaid checkout has zero received');
     $draft = $service->owned(-$draft->id, 7);
+    $service->recordPaymentFailure($draft);
+    check(lead($draft)?->payment_status === 'failed' && ! isset(lead($draft)->booking_id), 'failed payment stays an inquiry');
     $pay = payment('pay_1', $gateway['id']);
     foreach (['failed', 'authorized', 'created', 'pending'] as $status) {
         RazorpayService::$payments['pay_1'] = array_merge($pay, ['status' => $status, 'captured' => false]);
@@ -135,6 +178,9 @@ namespace {
     check($paid['paid_amount'] === 500.0 && $paid['remaining_amount'] === 10480.0, 'token amount exact');
     check($paid['advance_amount'] === 500.0 && $paid['payment_status'] === 'partial', 'token partial');
     check($paid['booking_status'] === 'pending_vendor_confirmation', 'paid booking enters vendor queue');
+    check(lead($draft)?->booking_id === $paid['booking_id'] && lead($draft)->is_converted, 'paid checkout converts the same inquiry');
+    $service->recordPaymentFailure($draft);
+    check(lead($draft)?->payment_status === 'success', 'late failed webhook cannot downgrade a converted inquiry');
     $again = $service->completeCaptured($draft, 'pay_1');
     check($again['duplicate'] && count(DB::$rows['self_drive_bookings']) === 1, 'callback plus webhook creates one booking');
     check(app(\App\Services\SelfDriveBookingService::class)->notifications === 1, 'notification once');
@@ -154,6 +200,7 @@ namespace {
     rejects(fn () => $service->completeCaptured($review, 'pay_review'), 'unavailable vehicle');
     $review = $service->owned(-$review->id, 7);
     check($review->state === 'paid_review_required' && $review->gateway_payment_id === 'pay_review', 'captured payment retained for recovery');
+    check(lead($review)?->payment_status === 'review_required', 'captured payment needing recovery is distinct from failed payment');
     check(count(DB::$rows['self_drive_bookings']) === 2, 'unavailable booking transaction rolled back');
     app(\App\Services\SelfDriveAvailabilityService::class)->available = true;
     $recovered = $service->completeCaptured($review, 'pay_review');

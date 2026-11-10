@@ -407,6 +407,18 @@ class CustomerLeadResource extends Resource
                     ->sortable()
                     ->alignEnd(),
 
+                TextColumn::make('payment_status')
+                    ->label('Payment')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => str($state)->headline()->toString())
+                    ->color(fn (string $state): string => match ($state) {
+                        CustomerSearchActivity::PAYMENT_SUCCESS => 'success',
+                        CustomerSearchActivity::PAYMENT_FAILED => 'danger',
+                        CustomerSearchActivity::PAYMENT_STARTED, CustomerSearchActivity::PAYMENT_PENDING, 'review_required' => 'warning',
+                        default => 'gray',
+                    })
+                    ->toggleable(),
+
                 TextColumn::make('intent_score')
                     ->label('Intent')
                     ->badge()

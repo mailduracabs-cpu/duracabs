@@ -190,6 +190,11 @@ class WhatsAppFollowupService
     {
         $query = CustomerSearchActivity::query();
 
+        if ($this->hasColumn('stage')) {
+            // Captured payments that need booking recovery must not get a rebooking prompt.
+            $query->where('stage', '!=', 'payment_review');
+        }
+
         if ($this->hasColumn('is_converted')) {
             $query->where('is_converted', false);
         }

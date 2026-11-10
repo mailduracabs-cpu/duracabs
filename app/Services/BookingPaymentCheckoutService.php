@@ -35,7 +35,12 @@ class BookingPaymentCheckoutService
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        return DB::table('booking_payment_checkouts')->find($id);
+        $checkout = DB::table('booking_payment_checkouts')->find($id);
+        if ($source === 'self_drive') {
+            $this->afterCheckoutCommit(fn () => $this->syncSelfDriveLead((int) $id));
+        }
+
+        return $checkout;
     }
 
     public function owned(int $reference, int $customerId): object
@@ -61,7 +66,7 @@ class BookingPaymentCheckoutService
 
     public function gatewayOrder(object $checkout): array
     {
-        return DB::transaction(function () use ($checkout): array {
+        $response = DB::transaction(function () use ($checkout): array {
             $row = DB::table('booking_payment_checkouts')->where('id', $checkout->id)->lockForUpdate()->first();
             if (! $row || $row->booking_id || $row->state === 'paid_review_required') {
                 throw new RuntimeException('Checkout already paid. Please check your bookings.');
@@ -98,6 +103,38 @@ class BookingPaymentCheckoutService
                 'booking_created' => false, 'payment_status' => 'pending',
             ];
         });
+
+        if ($checkout->source === 'self_drive') {
+            $this->afterCheckoutCommit(fn () => $this->syncSelfDriveLead((int) $checkout->id));
+        }
+
+        return $response;
+    }
+
+    /** The caller has verified the gateway webhook signature. */
+    public function recordPaymentFailure(object $checkout): void
+    {
+        if ($checkout->source === 'self_drive') {
+            $this->syncSelfDriveLead((int) $checkout->id, paymentFailed: true);
+        }
+    }
+
+    private function afterCheckoutCommit(callable $callback): void
+    {
+        if (DB::transactionLevel() > 0) {
+            DB::afterCommit($callback);
+        } else {
+            $callback();
+        }
+    }
+
+    private function syncSelfDriveLead(int $checkoutId, bool $paymentFailed = false): void
+    {
+        try {
+            app(SelfDriveCheckoutLeadService::class)->sync($checkoutId, $paymentFailed);
+        } catch (Throwable $e) {
+            Log::warning('Self Drive checkout lead sync failed.', ['checkout_id' => $checkoutId, 'error' => $e->getMessage()]);
+        }
     }
 
     public function verify(object $checkout, string $orderId, string $paymentId, string $signature): array
@@ -143,6 +180,9 @@ class BookingPaymentCheckoutService
             DB::table('booking_payment_checkouts')->where('id', $checkout->id)->whereNull('booking_id')->where('gateway_order_id', $checkout->gateway_order_id)->update([
                 'state' => 'paid_review_required', 'gateway_payment_id' => $paymentId, 'updated_at' => now(),
             ]);
+            if ($checkout->source === 'self_drive') {
+                $this->syncSelfDriveLead((int) $checkout->id);
+            }
             Log::critical('Captured checkout needs booking recovery.', [
                 'checkout_id' => $checkout->id, 'payment_id' => $paymentId, 'error' => $e->getMessage(),
             ]);
@@ -243,6 +283,7 @@ class BookingPaymentCheckoutService
         DB::afterCommit(function () use ($model, $row): void {
             try {
                 if ($model instanceof SelfDriveBooking) {
+                    $this->syncSelfDriveLead((int) $row->id);
                     app(SelfDriveBookingService::class)->notifyVerifiedCreation($model);
                 } else {
                     $model->loadMissing('address');

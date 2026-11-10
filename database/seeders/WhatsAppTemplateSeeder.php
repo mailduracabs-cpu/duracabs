@@ -1466,6 +1466,7 @@ BODY,
                 'template_key' =>
                     'selfdrive_booking_received',
                 'send_customer' => true,
+                'send_vendor' => true,
                 'send_admin' => true,
                 'send_operations' => true,
             ],

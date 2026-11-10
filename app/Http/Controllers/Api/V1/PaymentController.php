@@ -719,6 +719,7 @@ class PaymentController extends BaseApiController
         if ($checkout && in_array($event, ['payment.captured', 'order.paid', 'payment.failed'], true)) {
             if ($event === 'payment.failed') {
                 // Failed attempts are not bookings, and cannot overwrite a completed payment.
+                $checkoutService->recordPaymentFailure($checkout);
                 return response()->json(['status' => true, 'message' => 'Failed payment attempt acknowledged; no booking created']);
             }
             if (! $razorpayPaymentId) {

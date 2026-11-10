@@ -27,7 +27,6 @@ class SelfDriveBookingService
 
     public function __construct(
         private readonly NotificationManagerService $notificationManagerService,
-        private readonly CustomerJourneyService $customerJourneyService,
         private readonly SelfDriveAvailabilityService $availabilityService,
         private readonly SelfDrivePricingService $pricingService,
     ) {
@@ -250,10 +249,6 @@ class SelfDriveBookingService
                     ]),
                 ];
             }, 3);
-
-            if (($result['status'] ?? false) && ($result['data']['booking_created'] ?? false)) {
-                $this->afterBookingCreated($result['data'] ?? [], $customer, $data);
-            }
 
             return $result;
         } catch (Throwable $exception) {
@@ -894,56 +889,68 @@ class SelfDriveBookingService
 
     public function notifyVerifiedCreation(SelfDriveBooking $booking): void
     {
-        $booking->loadMissing('customer');
-        if ($booking->customer && (float) $booking->paid_amount > 0) {
-            $this->afterBookingCreated($this->formatBooking($booking), $booking->customer, []);
-        }
-    }
-
-    private function afterBookingCreated(array $bookingData, User $customer, array $requestData): void
-    {
-        try {
-            $this->recordJourney('bookingCreated', $bookingData, $requestData);
-        } catch (Throwable $exception) {
-            Log::warning('Self drive journey tracking failed.', [
-                'booking_id' => $bookingData['booking_id'] ?? null,
-                'message' => $exception->getMessage(),
-            ]);
-        }
-
-        $booking = isset($bookingData['booking_id'])
-            ? $this->findBooking((int) $bookingData['booking_id'])
-            : null;
-
-        if ($booking) {
-            $this->notifyBookingEvent('self_drive_booking_created', $booking, [], $customer);
-        }
-    }
-
-    private function recordJourney(string $method, array $bookingData, array $requestData): void
-    {
-        if (! method_exists($this->customerJourneyService, $method)) {
+        if ((float) $booking->paid_amount <= 0) {
             return;
         }
 
-        $payload = [
-            'booking_id' => $bookingData['booking_id'] ?? null,
-            'booking_no' => $bookingData['booking_no'] ?? null,
-            'service_type' => 'self_drive',
-            'status' => $bookingData['booking_status'] ?? 'pending_vendor_confirmation',
-            'total_amount' => $bookingData['payable_amount'] ?? 0,
-            'paid_amount' => $bookingData['paid_amount'] ?? 0,
-            'metadata' => [
-                'source' => $requestData['source'] ?? 'flutter_app',
-                'vehicle_id' => $bookingData['vehicle_id'] ?? null,
-            ],
-        ];
+        $this->sendBookingReceivedWhatsApp($booking);
+        $this->notifyBookingEvent('self_drive_booking_created', $booking);
+    }
 
+    private function sendBookingReceivedWhatsApp(SelfDriveBooking $booking): void
+    {
         try {
-            $this->customerJourneyService->{$method}($payload);
-        } catch (\ArgumentCountError|\TypeError) {
-            // Existing CustomerJourneyService installations can have different
-            // method signatures. Booking creation must never fail because of CRM.
+            $booking->loadMissing(['customer', 'vehicle', 'transporter']);
+            $vehicle = $booking->vehicle;
+            // The saved booking assignment takes precedence over later fleet changes.
+            $partner = $booking->transporter_profile_id
+                ? $booking->transporter
+                : $vehicle?->transporter;
+            $partnerUser = $partner?->user;
+            if (! $booking->transporter_profile_id && ! $vehicle?->transporter_profile_id) {
+                $partnerUser ??= $vehicle?->user;
+            }
+
+            $start = $booking->start_datetime;
+            $end = $booking->end_datetime;
+            $pickup = $booking->pickup_location ?: $booking->delivery_address;
+            $rent = number_format($booking->effectiveRentalAmount(), 2, '.', '');
+            $vendorMobile = trim((string) $partner?->mobile) ?: trim((string) $partnerUser?->mobile);
+            $result = WhatsAppService::dispatchEvent('selfdrive.booking.received', [
+                'booking_id' => (string) ($booking->booking_no ?: $booking->id),
+                'customer_name' => $booking->customer?->name ?: 'Customer',
+                'customer_mobile' => $booking->customer?->mobile,
+                'vendor_name' => $partner?->company_name ?: ($partnerUser?->name ?: 'Vehicle Partner'),
+                'vendor_mobile' => $vendorMobile,
+                'vehicle_name' => $vehicle?->display_name ?: 'Self Drive Vehicle',
+                'pickup_location' => $pickup,
+                'pickup' => $pickup,
+                'pickup_datetime' => $start?->format('d F Y, h:i A'),
+                'return_datetime' => $end?->format('d F Y, h:i A'),
+                'start_date' => $start?->format('d M Y'),
+                'start_time' => $start?->format('h:i A'),
+                'end_date' => $end?->format('d M Y'),
+                'end_time' => $end?->format('h:i A'),
+                'total_amount' => $rent,
+                'rental_amount' => $rent,
+                'security_deposit' => number_format((float) $booking->security_deposit, 2, '.', ''),
+                'payment_status' => ucfirst((string) $booking->payment_status),
+            ]);
+
+            Log::log(($result['status'] ?? false) ? 'info' : 'warning', 'Self Drive booking received WhatsApp dispatch.', [
+                'booking_id' => $booking->id,
+                'booking_no' => $booking->booking_no,
+                'vendor_contact_present' => $vendorMobile !== '',
+                'error' => $result['error'] ?? null,
+                'recipients' => array_map(static fn (array $recipient): array => array_intersect_key(
+                    $recipient, array_flip(['type', 'template_name', 'status', 'message_id', 'error'])
+                ), $result['results'] ?? []),
+            ]);
+        } catch (Throwable $exception) {
+            Log::warning('Self Drive booking received WhatsApp dispatch failed.', [
+                'booking_id' => $booking->id,
+                'error' => $exception->getMessage(),
+            ]);
         }
     }
 
@@ -964,7 +971,7 @@ class SelfDriveBookingService
             }
 
             $mobile = $this->normalizeMobile($customer?->mobile);
-            if ($mobile !== '') {
+            if ($mobile !== '' && $event !== 'self_drive_booking_created') {
                 $channels[] = 'whatsapp';
                 $recipients['whatsapp'] = $mobile;
             }
