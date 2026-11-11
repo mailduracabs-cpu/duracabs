@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Category;
+use App\Models\Banners;
 use App\Models\Product;
 use App\Support\DuraImage;
 use Illuminate\Support\Facades\Cache;
@@ -79,7 +80,18 @@ public function homeImages(): array
 }
     public function banners(): array
     {
-        $rows = $this->tableRows(['banners', 'app_banners', 'sliders'], 8);
+        $rows = Schema::hasTable('banners')
+            ? Banners::query()
+                ->with('media')
+                ->published()
+                ->limit(8)
+                ->get()
+                ->map(fn (Banners $banner): array => [
+                    ...$banner->toArray(),
+                    'image_url' => $banner->image_url,
+                ])
+                ->all()
+            : $this->tableRows(['app_banners', 'sliders'], 8);
 
         if (!empty($rows)) {
             return array_map(function ($row) {
@@ -89,9 +101,15 @@ public function homeImages(): array
                     'badge' => $row['badge'] ?? $row['ride_type'] ?? 'Dura Cabs',
                     'title' => $row['title'] ?? $row['name'] ?? 'Dura Cabs Offer',
                     'subtitle' => $row['subtitle'] ?? $row['description'] ?? 'Premium taxi and self drive service',
-                    'image' => DuraImage::url($row['image'] ?? $row['banner_image'] ?? null),
+                    'image' => $row['image_url']
+                        ?? DuraImage::url($row['image'] ?? $row['banner_image'] ?? null),
                     'url' => $row['url'] ?? null,
                     'type' => $row['ride_type'] ?? $row['type'] ?? 'banner',
+                    'button_label' => $row['button_label'] ?? 'Book now',
+                    'redirect_type' => $row['redirect_type'] ?? 'none',
+                    'redirect_value' => $row['redirect_value'] ?? $row['url'] ?? null,
+                    'redirect_id' => $row['redirect_id'] ?? null,
+                    'coupon_code' => $row['coupon_code'] ?? null,
                 ];
             }, $rows);
         }

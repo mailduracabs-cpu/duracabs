@@ -53,9 +53,14 @@ class BannersResource extends Resource
                                     ->required()
                                     ->maxLength(255),
 
-                                TextInput::make('url')
-                                    ->label('Button / Redirect URL')
-                                    ->maxLength(500),
+                                TextInput::make('subtitle')
+                                    ->label('Banner Text')
+                                    ->maxLength(255),
+
+                                TextInput::make('button_label')
+                                    ->label('Button Text')
+                                    ->default('Book now')
+                                    ->maxLength(40),
 
                                 Select::make('ride_type')
                                     ->label('Banner Type')
@@ -71,6 +76,41 @@ class BannersResource extends Resource
                                         'tour' => 'Tour Package',
                                         'offer' => 'Offer',
                                     ]),
+
+                                Select::make('redirect_type')
+                                    ->label('Open On Click')
+                                    ->native(false)
+                                    ->default('none')
+                                    ->live()
+                                    ->options([
+                                        'none' => 'No action',
+                                        'one_way' => 'One Way booking',
+                                        'round_trip' => 'Round Trip booking',
+                                        'local_taxi' => 'Local Taxi booking',
+                                        'self_drive' => 'Self Drive',
+                                        'bike_rental' => 'Bike Rental',
+                                        'tours' => 'Tours',
+                                        'services' => 'All Services',
+                                        'bookings' => 'My Bookings',
+                                        'profile' => 'Profile',
+                                        'external_url' => 'Website URL',
+                                    ]),
+
+                                TextInput::make('redirect_value')
+                                    ->label('Website URL')
+                                    ->url()
+                                    ->maxLength(500)
+                                    ->visible(fn ($get): bool =>
+                                        $get('redirect_type') === 'external_url'),
+
+                                TextInput::make('coupon_code')
+                                    ->label('Coupon Code (optional)')
+                                    ->maxLength(50),
+
+                                TextInput::make('priority')
+                                    ->label('Display Priority')
+                                    ->numeric()
+                                    ->default(0),
                             ]),
 
                         /*

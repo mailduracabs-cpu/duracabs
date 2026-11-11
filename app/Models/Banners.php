@@ -22,6 +22,8 @@ class Banners extends Model
         'ride_type',
         'alt',
         'title',
+        'subtitle',
+        'button_label',
         'is_active',
         'redirect_type',
         'redirect_value',

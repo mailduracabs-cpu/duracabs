@@ -6,6 +6,7 @@ use App\Models\Banners;
 use App\Services\Media\MediaService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class BannerObserver
 {
@@ -19,7 +20,7 @@ class BannerObserver
      */
     public function created(Banners $banner): void
     {
-        //
+        Cache::forget('dura_home_v4');
     }
 
     /**
@@ -27,7 +28,7 @@ class BannerObserver
      */
     public function updated(Banners $banner): void
     {
-        //
+        Cache::forget('dura_home_v4');
     }
 
     /**
@@ -35,6 +36,7 @@ class BannerObserver
      */
     public function deleted(Banners $banner): void
     {
+        Cache::forget('dura_home_v4');
         if (
             filled($banner->image) &&
             Storage::disk('public')->exists($banner->image)
