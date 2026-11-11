@@ -8,6 +8,7 @@ use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -70,6 +71,39 @@ class AppAppearanceSettings extends Page
                     DateTimePicker::make('offer_starts_at')->label('Offer starts')->seconds(false),
                     DateTimePicker::make('offer_ends_at')->label('Offer ends')->seconds(false),
                 ])->columns(2),
+            Section::make('Home offer slider')
+                ->description('These banners appear in the top slider of the customer app. Drag to change their order.')
+                ->schema([
+                    Repeater::make('home_banners')
+                        ->label('Slider banners')
+                        ->reorderable()
+                        ->collapsible()
+                        ->itemLabel(fn (array $state): ?string => $state['title'] ?? 'New banner')
+                        ->addActionLabel('Add offer banner')
+                        ->schema([
+                            Toggle::make('enabled')->label('Active')->default(true),
+                            TextInput::make('tag')->label('Small label')->default('Offer')->maxLength(30),
+                            TextInput::make('title')->label('Heading')->required()->maxLength(100),
+                            TextInput::make('subtitle')->label('Banner text')->maxLength(180),
+                            $this->imageField('image', 'Banner image')->required(),
+                            TextInput::make('button_label')->label('Button text')->default('Book now')->maxLength(40),
+                            Select::make('redirect_type')->label('Open on click')->required()->default('none')->live()->options([
+                                'none' => 'No action',
+                                'one_way' => 'One Way booking',
+                                'round_trip' => 'Round Trip booking',
+                                'local_taxi' => 'Local Taxi booking',
+                                'self_drive' => 'Self Drive',
+                                'bike_rental' => 'Bike Rental',
+                                'tours' => 'Tours',
+                                'services' => 'All Services',
+                                'bookings' => 'My Bookings',
+                                'profile' => 'Profile',
+                                'external_url' => 'Website URL',
+                            ]),
+                            TextInput::make('redirect_value')->label('Website URL')->url()->maxLength(500)
+                                ->visible(fn (\Filament\Forms\Get $get): bool => $get('redirect_type') === 'external_url'),
+                        ])->columns(2)->columnSpanFull(),
+                ]),
         ]);
     }
 

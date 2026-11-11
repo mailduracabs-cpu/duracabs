@@ -27,6 +27,7 @@ class AppAppearanceService
             'theme_image' => null, 'theme_starts_at' => null, 'theme_ends_at' => null,
             'offer_enabled' => false, 'offer_title' => 'DuraCabs offers',
             'offer_image' => null, 'offer_starts_at' => null, 'offer_ends_at' => null,
+            'home_banners' => [],
         ];
     }
 
@@ -64,6 +65,15 @@ class AppAppearanceService
             'offer_image' => ['nullable', 'required_if:offer_enabled,true', 'string', 'max:255'],
             'offer_starts_at' => ['nullable', 'date'],
             'offer_ends_at' => array_merge(['nullable', 'date'], empty($data['offer_starts_at']) ? [] : ['after:offer_starts_at']),
+            'home_banners' => ['nullable', 'array', 'max:12'],
+            'home_banners.*.enabled' => ['required', 'boolean'],
+            'home_banners.*.tag' => ['nullable', 'string', 'max:30'],
+            'home_banners.*.title' => ['required', 'string', 'max:100'],
+            'home_banners.*.subtitle' => ['nullable', 'string', 'max:180'],
+            'home_banners.*.image' => ['required', 'string', 'max:255'],
+            'home_banners.*.button_label' => ['nullable', 'string', 'max:40'],
+            'home_banners.*.redirect_type' => ['required', 'in:none,one_way,round_trip,local_taxi,self_drive,bike_rental,tours,services,bookings,profile,external_url'],
+            'home_banners.*.redirect_value' => ['nullable', 'url:http,https', 'max:500'],
         ])->validate();
         foreach (['theme_image', 'offer_image'] as $key) {
             if (! empty($valid[$key])) {
@@ -71,6 +81,16 @@ class AppAppearanceService
                 abort_unless(str_starts_with($path, 'app/appearance/') && ! str_contains($path, '..') &&
                     in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'webp']) &&
                     Storage::disk('public')->exists($path), 422, 'Invalid appearance image.');
+            }
+        }
+        foreach ($valid['home_banners'] ?? [] as $banner) {
+            $path = $banner['image'] ?? null;
+            abort_unless(is_string($path) && str_starts_with($path, 'app/appearance/') &&
+                ! str_contains($path, '..') &&
+                in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['png', 'jpg', 'jpeg', 'webp']) &&
+                Storage::disk('public')->exists($path), 422, 'Invalid home banner image.');
+            if (($banner['redirect_type'] ?? 'none') === 'external_url') {
+                abort_unless(filled($banner['redirect_value'] ?? null), 422, 'Website URL is required for an external URL banner.');
             }
         }
         $valid = array_replace($this->defaults(), $valid);
@@ -127,5 +147,27 @@ class AppAppearanceService
             report($exception);
             return ['schema_version' => 1, 'theme' => ['enabled' => false], 'offer' => ['enabled' => false]];
         }
+    }
+
+    public function homeBanners(): array
+    {
+        $banners = $this->settings()['home_banners'] ?? [];
+
+        return collect(is_array($banners) ? $banners : [])
+            ->filter(fn ($banner): bool => is_array($banner) && (bool) ($banner['enabled'] ?? false))
+            ->values()
+            ->map(fn (array $banner, int $index): array => [
+                'id' => 'appearance-'.($index + 1),
+                'tag' => $banner['tag'] ?? 'Offer',
+                'title' => $banner['title'] ?? 'DuraCabs Offer',
+                'subtitle' => $banner['subtitle'] ?? '',
+                'image' => $this->image($banner['image'] ?? null),
+                'image_url' => $this->image($banner['image'] ?? null),
+                'button_label' => $banner['button_label'] ?? 'Book now',
+                'redirect_type' => $banner['redirect_type'] ?? 'none',
+                'redirect_value' => $banner['redirect_value'] ?? null,
+            ])
+            ->filter(fn (array $banner): bool => filled($banner['image']))
+            ->all();
     }
 }

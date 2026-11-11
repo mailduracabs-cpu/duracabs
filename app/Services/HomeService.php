@@ -80,6 +80,12 @@ public function homeImages(): array
 }
     public function banners(): array
     {
+        $appearanceBanners = app(AppAppearanceService::class)->homeBanners();
+
+        if (! empty($appearanceBanners)) {
+            return $appearanceBanners;
+        }
+
         $rows = Schema::hasTable('banners')
             ? Banners::query()
                 ->with('media')
