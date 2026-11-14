@@ -598,7 +598,7 @@ class RidesPage extends Component
                         'category_id' => $categoryId, 'unit_price' => $quote['grand_total'] / $quantity,
                         'total' => $quote['grand_total'], 'subtotal' => $quote['grand_total'],
                         'fare_type' => $fareType, 'quantity' => $quantity,
-                        'parking_policy' => 'pay_direct_as_actual']),
+                        'parking_policy' => $fareType === 'all_inclusive' ? 'included' : 'pay_direct_as_actual']),
                     'product' => ['id' => null, 'name' => $quote['name'],
                         'category_id' => $categoryId, 'category_name' => $quote['name'], 'ride_type' => 'round_trip'],
                     'created_at' => now()->toIso8601String(),

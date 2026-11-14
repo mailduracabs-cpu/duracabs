@@ -155,7 +155,11 @@ class BookingService
                     $tollAmount = $parkingAmount = $stateTaxAmount = $gstAmount = $driverTotal = 0.0;
 
                 }
-                if ($isRoundTrip) $driverTotal = (float) $roundQuote['driver_total'];
+                if ($isRoundTrip) {
+                    $driverTotal = (float) $roundQuote['driver_total'];
+                    $gstAmount = (float) $roundQuote['fare_breakup']['gst_amount'];
+                    $data['gst_percent'] = 5.0;
+                }
                 $oneWayQuote = null;
                 if ($isPackage) {
                     $oneWayQuote = app(FareService::class)->estimate([
@@ -266,7 +270,7 @@ class BookingService
                     'special_request_total' => $special['total'],
                     'coupon_discount' => $couponValue,
                     'grand_total' => $grandTotal,
-                    'parking_policy' => 'extra_as_actual',
+                    'parking_policy' => $isRoundTrip && ($data['fare_type'] ?? 'all_inclusive') === 'all_inclusive' ? 'included' : 'extra_as_actual',
                     'trip_days' => (int) ($data['trip_days'] ?? 1),
                     'total_km' => $this->numericValue(
                         $data['distance_km'] ?? $data['total_km']

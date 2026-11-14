@@ -54,18 +54,24 @@ class RoundTripFareService
         $inclusive = round($billable * 3, 2);
         $normal = round(($base + $driver) * $quantity, 2);
         $all = round(($base + $inclusive) * $quantity, 2);
-        $total = $fareType === 'all_inclusive' ? $all : $normal;
+        $normalGst = round($normal * 0.05, 2);
+        $allGst = round($all * 0.05, 2);
+        $normalWithGst = round($normal + $normalGst, 2);
+        $allWithGst = round($all + $allGst, 2);
+        $subtotal = $fareType === 'all_inclusive' ? $all : $normal;
+        $gst = $fareType === 'all_inclusive' ? $allGst : $normalGst;
+        $total = round($subtotal + $gst, 2);
         $breakup = [
             'base_fare' => round($base * $quantity, 2), 'vehicle_fare' => round($base * $quantity, 2),
             'driver_total' => $fareType === 'normal' ? round($driver * $quantity, 2) : 0,
             'driver_allowance' => round($driver * $quantity, 2),
             'all_inclusive_charge' => $fareType === 'all_inclusive' ? round($inclusive * $quantity, 2) : 0,
             'all_inclusive_rate' => 3, 'fare_type' => $fareType,
-            'normal_total' => $normal, 'all_inclusive_total' => $all, 'grand_total' => $total,
+            'normal_total' => $normalWithGst, 'all_inclusive_total' => $allWithGst, 'subtotal' => $subtotal, 'grand_total' => $total,
             'total_km' => $totalKm, 'minimum_km' => $minimum, 'billable_km' => $billable,
             'minimum_km_per_day' => $perDay, 'trip_days' => $days, 'quantity' => $quantity,
             'km_charge' => (float) $category->km_charge, 'driver_charge_per_day' => (float) ($category->driver_charge ?? 0),
-            'gst_included' => true, 'gst_amount' => 0, 'parking_policy' => 'extra_as_actual',
+            'gst_included' => false, 'gst_percent' => 5, 'gst_amount' => $gst, 'parking_policy' => $fareType === 'all_inclusive' ? 'included' : 'extra_as_actual',
             'toll_included' => $fareType === 'all_inclusive', 'state_tax_included' => $fareType === 'all_inclusive',
         ];
         return array_merge($breakup, [

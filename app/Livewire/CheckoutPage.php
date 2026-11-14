@@ -354,7 +354,7 @@ class CheckoutPage extends Component
             $this->bookingDraft['trip'] = $trip;
             $this->bookingDraft['fare'] = array_merge($fare, $quote['fare_breakup'], [
                 'total' => $type === 'local' ? $quote['total_fare'] : $quote['grand_total'],
-                'parking_policy' => 'pay_direct_as_actual',
+                'parking_policy' => $type !== 'local' && ($fare['fare_type'] ?? 'all_inclusive') === 'all_inclusive' ? 'included' : 'pay_direct_as_actual',
             ]);
             session()->put('booking_draft', $this->bookingDraft);
             return (float) $this->grandTotal;
